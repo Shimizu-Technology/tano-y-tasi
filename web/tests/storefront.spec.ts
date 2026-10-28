@@ -230,3 +230,36 @@ test("all static and unavailable routes fit 320px and current viewport", async (
     await overflow(page);
   }
 });
+test("self-hosted type renders diacritics and reduced motion disables animated UI", async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await go(page, "/", "live");
+  await page.evaluate(() => document.fonts.ready);
+  expect(
+    await page
+      .locator(".live-dot")
+      .first()
+      .evaluate((el) => getComputedStyle(el).animationName)
+  ).toBe("none");
+  await page.getByRole("button", { name: "CART (0)" }).click();
+  expect(await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).transitionDuration)).toBe("0s");
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    const proof = document.createElement("div");
+    proof.id = "glyph-proof";
+    proof.textContent = "å ñ ʻ '";
+    Object.assign(proof.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "100",
+      background: "var(--color-paper)",
+      color: "var(--color-ink)",
+      padding: "32px",
+      fontSize: "64px",
+      fontFamily: "var(--font-sans)",
+    });
+    document.body.append(proof);
+  });
+  await expect(page.locator("#glyph-proof")).toHaveText("å ñ ʻ '");
+  await page.screenshot({ path: `.screenshots/${info.project.name}-glyphs.png` });
+  await page.evaluate(() => document.getElementById("glyph-proof")?.remove());
+});

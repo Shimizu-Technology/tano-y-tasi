@@ -169,6 +169,7 @@ img {
   gap: 12px;
 }
 .text-button {
+  min-width: 44px;
   min-height: 44px;
   padding: 8px 0;
   font-size: 11px;
@@ -604,7 +605,9 @@ dialog::backdrop {
   min-width: 0;
 }
 .cart-line-info > a {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   font-size: 15px;
 }
 .cart-line-info > .price {
@@ -719,6 +722,9 @@ dialog::backdrop {
   margin-bottom: 16px;
 }
 .product-breadcrumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -1334,4 +1340,8 @@ dd {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+.gallery-image:focus-visible {
+  outline-offset: -2px;
 }
