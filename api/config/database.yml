@@ -1,0 +1,19 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 20) %>
+  host: <%= ENV.fetch("PGHOST", "/tmp") %>
+  port: <%= ENV.fetch("PGPORT", 5432) %>
+  checkout_timeout: 10
+
+development:
+  <<: *default
+  database: tano_y_tasi_development
+
+test:
+  <<: *default
+  database: tano_y_tasi_test
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>
