@@ -1,0 +1,47 @@
+# Tåno + Tåsi storefront
+
+React 19, React Router 7 data router, TanStack Query, Zustand, Vite, TypeScript strict mode, and Tailwind v4. The existing artwork derivatives are preserved.
+
+Use Node 22.22.2 or newer (verified locally with 22.22.3). From this directory:
+
+```sh
+npm ci
+cp .env.example .env
+npm run dev
+```
+
+The dev server uses `localhost:5181` with `strictPort`; preview uses `4181`. The API defaults to `http://localhost:3031`. Use `http://localhost:5181` in the browser and as Rails’ `WEB_APP_URL` so payment returns share the cart’s storage origin. Set `VITE_API_MOCKS=false` to use Rails. With a real local simulated provider, also set `VITE_SIMULATED_PAYMENTS=true`; its payment page is available only in Vite development mode. Production builds with mocks disabled cannot expose that page.
+
+## Mock development
+
+`VITE_API_MOCKS=true` starts MSW before React renders. `src/mocks/handlers.ts` is shared by the browser worker, Vitest's Node server, and the Playwright app. No Rails instance is needed for web CI.
+
+Open one of these URLs to choose the drop state:
+
+```text
+/?mockDrop=upcoming
+/?mockDrop=live
+/?mockDrop=sold_out
+/?mockDrop=closed
+```
+
+The state is remembered in `sessionStorage`. Changing it resets the mock inventory and orders. The in-memory mock database is saved to this tab's session storage so checkout redirects and reloads retain reservations and orders. Start a fresh tab session or clear the `tyt-mock-*` session keys to reset the fixture. It is a development simulation, not shared inventory across tabs or users.
+
+The seed has 40 core puzzles and the brief's 100 map puzzles. Checkout reserves stock for 30 minutes, enforces per-email limits across paid and pending orders, reuses identical idempotency requests, and releases reservations on cancellation or expiry. The local TEST MODE page completes or cancels payments. No external payment or email service is called.
+
+The persisted cart contains only product slugs and quantities. The drawer fetches fresh product details before checkout, remembers the email separately, and retains one UUID for retries of the same checkout payload. Paid-order reconciliation is recorded locally so reopening a confirmation cannot clear a newer cart.
+
+## Quality gates
+
+```sh
+npm run lint
+npm test
+npm run build
+npm run audit:prod
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright manages its own mock-enabled Vite server on 5181. It tests touch/mobile (390×844) and desktop (1440×900), and writes the visual review set to `.screenshots/` (gitignored). The workflow in `../.github/workflows/web.yml` runs the same gates on pull requests and pushes to main.
+
+See `QA.md` for acceptance evidence, contract decisions, screenshot paths, and integration limits.

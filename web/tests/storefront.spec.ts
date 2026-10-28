@@ -1,0 +1,232 @@
+import { test, expect } from "@playwright/test";
+import type { Page, TestInfo } from "@playwright/test";
+import { mkdir } from "node:fs/promises";
+async function shot(page: Page, info: TestInfo, name: string) {
+  await page.evaluate(() => document.fonts.ready);
+  if (await page.locator("main img").count()) await page.locator("main img").first().waitFor({ state: "visible" });
+  await page.evaluate(async () => {
+    await Promise.all(
+      [...document.images]
+        .filter((i) => i.loading !== "lazy" || i.getBoundingClientRect().top < innerHeight)
+        .map((i) => i.decode().catch(() => {}))
+    );
+  });
+  await mkdir(".screenshots", { recursive: true });
+  await page.screenshot({
+    path: `.screenshots/${info.project.name}-${name}.png`,
+    fullPage: !["cart", "menu"].includes(name),
+    animations: "disabled",
+  });
+}
+async function go(page: Page, path: string, state = "upcoming") {
+  await page.goto(`${path}${path.includes("?") ? "&" : "?"}mockDrop=${state}`);
+  await expect(page.getByText("Loading the collection…")).toHaveCount(0);
+  await expect(page.locator("main h1").first()).toBeVisible();
+}
+async function overflow(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+}
+async function addCore(page: Page) {
+  await go(page, "/products/hafa-adai-from-tumon-bay");
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  await expect(page.getByRole("dialog", { name: "Your cart" })).toBeVisible();
+}
+async function checkout(page: Page, email = "qa@example.com") {
+  await page.getByLabel("Email address", { exact: true }).fill(email);
+  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await expect(page.getByText("TEST MODE · SIMULATED PAYMENT")).toBeVisible();
+}
+test("home upcoming: hero, collection and island identity", async ({ page }, info) => {
+  await go(page, "/");
+  await expect(page.getByRole("heading", { name: "GUÅHAN", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "NOTIFY ME" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "CORE COLLECTION" })).toBeVisible();
+  await shot(page, info, "home-upcoming");
+  await overflow(page);
+});
+test("home live: direct path to the drop", async ({ page }, info) => {
+  await go(page, "/", "live");
+  await expect(page.getByRole("link", { name: "SHOP THE DROP", exact: true })).toBeVisible();
+  await shot(page, info, "home-live");
+  await overflow(page);
+});
+test("shop: core collection stays easy to find", async ({ page }, info) => {
+  await go(page, "/shop");
+  await expect(page.getByText("Håfa Adai from Tumon Bay", { exact: true })).toBeVisible();
+  await shot(page, info, "shop");
+  await overflow(page);
+});
+test("upcoming drop: Guam first, Pacific and Hawaii dates, disabled purchase", async ({ page }, info) => {
+  await go(page, "/drop");
+  await expect(page.getByText("Sat, Dec 5, 10:00 AM ChST", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Fri, Dec 4, 4:00 PM PT/)).toBeVisible();
+  await expect(page.getByText(/Fri, Dec 4, 2:00 PM HT/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "RELEASES DEC 5" })).toBeDisabled();
+  await shot(page, info, "drop-upcoming");
+  await overflow(page);
+});
+test("live drop: limit two and cart recovery controls", async ({ page }, info) => {
+  await go(page, "/drop", "live");
+  await shot(page, info, "drop-live");
+  await page.getByRole("button", { name: "Increase quantity", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Increase quantity", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Your cart" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("status")).toHaveText("2");
+  await expect(dialog.getByRole("button", { name: /Increase quantity/ })).toBeDisabled();
+  await expect(dialog.getByText("$90", { exact: true })).toBeVisible();
+  await shot(page, info, "cart");
+  await overflow(page);
+});
+test("sold-out drop: artwork and disabled action remain", async ({ page }, info) => {
+  await go(page, "/drop", "sold_out");
+  await expect(page.getByRole("button", { name: "SOLD OUT", exact: true })).toBeDisabled();
+  await expect(page.getByText("Drop 001 sold out on Dec 5.", { exact: true })).toBeVisible();
+  await shot(page, info, "drop-sold-out");
+  await overflow(page);
+});
+test("closed drop: no purchase and archived record", async ({ page }) => {
+  await go(page, "/drop", "closed");
+  await expect(page.getByRole("button", { name: "DROP CLOSED" })).toBeDisabled();
+  await expect(page.getByText("This drop has closed.")).toBeVisible();
+  await go(page, "/archive", "closed");
+  await expect(page.getByText("Guåhan Sunset Map", { exact: true })).toBeVisible();
+  await overflow(page);
+});
+test("product through checkout: paid confirmation survives reload", async ({ page }, info) => {
+  await go(page, "/products/hafa-adai-from-tumon-bay");
+  await shot(page, info, "product-tumon");
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  await checkout(page);
+  await page.getByRole("button", { name: "Pay (test)", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Thank you." })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  await expect(page.getByRole("button", { name: "CART (0)" })).toBeVisible();
+  await shot(page, info, "confirmation");
+  await overflow(page);
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  await expect(page.getByRole("button", { name: "CART (0)" })).toBeVisible();
+});
+test("map product: gallery opens in a keyboard accessible zoom viewer", async ({ page }, info) => {
+  await go(page, "/products/guahan-sunset-map");
+  await shot(page, info, "product-map");
+  await page.getByRole("button", { name: "View image 1 of Guåhan Sunset Map" }).click();
+  const dialog = page.getByRole("dialog", { name: "Artwork image viewer" });
+  await expect(dialog).toBeVisible();
+  const imageWidth = await dialog.locator("img").evaluate((image) => image.getBoundingClientRect().width);
+  await dialog.getByRole("slider", { name: "Artwork zoom" }).fill("2");
+  await expect
+    .poll(() => dialog.locator("img").evaluate((image) => image.getBoundingClientRect().width))
+    .toBeGreaterThan(imageWidth * 1.8);
+  await expect(dialog.getByRole("slider")).toHaveValue("2");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "View image 1 of Guåhan Sunset Map" })).toBeFocused();
+  await overflow(page);
+});
+test("cancel releases a reservation and restores cart without duplicates", async ({ page }) => {
+  await addCore(page);
+  await checkout(page);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No rush." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "CART (1)" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "No rush." })).toBeVisible();
+  await page.getByRole("button", { name: "CART (1)" }).click();
+  await expect(page.getByRole("dialog").getByRole("status")).toHaveText("1");
+  await checkout(page, "second@example.com");
+  await page.getByRole("button", { name: "Pay (test)" }).click();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+});
+test("cart: keyboard open, native focus trap, escape restores focus", async ({ page }) => {
+  await go(page, "/");
+  const trigger = page.getByRole("button", { name: "CART (0)" });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Your cart" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Shift+Tab");
+  expect(await page.evaluate(() => document.activeElement?.closest("dialog") !== null)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+test("menu: stacked links, escape and responsive preservation", async ({ page }, info) => {
+  await go(page, "/");
+  const viewport = page.viewportSize()!;
+  if (info.project.name === "desktop") await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "MENU", exact: true }).click();
+  const menu = page.getByRole("dialog", { name: "Menu", exact: true });
+  await expect(menu).toBeVisible();
+  if (info.project.name === "desktop") await page.setViewportSize(viewport);
+  await shot(page, info, "menu");
+  await overflow(page);
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+});
+test("story: founder, land and sea", async ({ page }, info) => {
+  await go(page, "/story");
+  await expect(page.getByText("Tåno. Tåsi.", { exact: true })).toBeVisible();
+  await shot(page, info, "story");
+  await overflow(page);
+});
+test("archive: empty first-drop state", async ({ page }, info) => {
+  await go(page, "/archive");
+  await expect(page.getByRole("heading", { name: "The first drop releases Dec 5." })).toBeVisible();
+  await shot(page, info, "archive-empty");
+  await overflow(page);
+});
+test("signup: valid email saves and invalid input stays local", async ({ page }) => {
+  await go(page, "/");
+  await page.getByLabel("Email for drop alerts").fill("invalid");
+  await page.getByRole("button", { name: "SIGN UP", exact: true }).click();
+  await expect(page.getByLabel("Email for drop alerts")).toBeVisible();
+  await page.getByLabel("Email for drop alerts").fill("drop-alert@example.com");
+  await page.getByRole("button", { name: "SIGN UP", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");
+});
+test("limit errors use the email allowance with an inline remove action", async ({ page }) => {
+  await go(page, "/drop", "live");
+  await page.getByRole("button", { name: "Increase quantity", exact: true }).click();
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  await checkout(page, "limit@example.com");
+  await page.getByRole("button", { name: "Pay (test)" }).click();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  await go(page, "/drop", "live");
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  await page.getByLabel("Email address", { exact: true }).fill("LIMIT@example.com");
+  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("You can order 0 more with this email.");
+  await page.getByRole("alert").getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByText("A piece of home is waiting.")).toBeVisible();
+});
+test("all static and unavailable routes fit 320px and current viewport", async ({ page }) => {
+  for (const path of [
+    "/",
+    "/shop",
+    "/drop",
+    "/drops/drop-001-guahan-sunset-map",
+    "/products/hafa-adai-from-tumon-bay",
+    "/products/guahan-sunset-map",
+    "/story",
+    "/archive",
+    "/missing",
+    "/products/missing",
+    "/orders/missing",
+    "/checkout/cancel/missing",
+    "/checkout/simulated/missing",
+    "/info/shipping",
+    "/info/faq",
+    "/info/contact",
+  ]) {
+    await go(page, path);
+    await overflow(page);
+  }
+  await page.setViewportSize({ width: 320, height: 844 });
+  for (const path of ["/", "/shop", "/drop", "/story", "/archive", "/products/hafa-adai-from-tumon-bay"]) {
+    await go(page, path);
+    await overflow(page);
+  }
+});
