@@ -1,0 +1,20 @@
+# Original artwork from Christian (large, private). Web derivatives live in web/public/images.
+/design-source/
+
+# OS / editors
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Env files (commit only *.example)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Agent scratch
+.agent-browser-tmp/
+.release-evidence/
