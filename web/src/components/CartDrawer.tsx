@@ -221,7 +221,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
               <button className="button" disabled={busy || loading || invalid}>
                 {busy ? "Reserving your order…" : "CHECKOUT"}
               </button>
-              <p className="muted small">Your puzzles are held for 30 minutes at checkout.</p>
+              <p className="muted small">Your puzzles are held for about 30 minutes at checkout.</p>
             </form>
           </>
         )}

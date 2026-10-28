@@ -106,3 +106,53 @@ Collaborative preview snapshots timed out twice. Chrome loaded the mock-enabled 
 The runtime hook supplied session `01a184b1-9dfb-7292-a0e3-91b6460bfe48`; owned resources were tracked there under `web-worker`. Preview PID `62539` was validated, stopped with TERM and released. Collaborative preview tab `tab_4p_f7aafa60-06cd-4aa5-a119-6dc8f3b268f3` and Chrome QA tab `1583520614` were closed and released. Chrome's one-tab Storefront QA group was closed without deleting its synced saved-group bookmark. Playwright-managed browsers and webServers exited with their runs. Final lifecycle status reports no active owned resources. No session-wide cleanup or broad kills were used, and borrowed resources were left unchanged.
 
 Branch `feature/storefront` and its worktree are retained for the lead to integrate. No PR, merge or deployment was performed.
+
+
+## Lead review polish — 2026-10-29
+
+Based on `8d8fae6`, with changes confined to `web/`. Sources: the lead's six-item review, `docs/DESIGN_DIRECTION.md`, `docs/PRODUCT_BRIEF.md`, and the existing API types and mock contracts. The audience, drop rules, purchase flows and integrations above still apply. This follow-up supersedes the earlier decision to leave a single core product in a 2/3-column grid.
+
+Acceptance was agent-executed affected-flow QA using MSW only: Home in upcoming/live/no-active-drop states; Home and Shop with 1, 2 and 3 core products; product navigation from each layout; mobile map/Tumon gallery width and swiping; retained desktop gallery stacking; Archivo loading and wide settings; cart copy; and the full existing regression suite. Required viewports were 390×844 and 1440×900. Chromium touch emulation does not establish real-device touch feel. No external payment/email, production deployment, or Rails/Postgres behavior was tested in this pass.
+
+Changes:
+
+1. Home and Shop share `ProductCollection`: one product gets a square feature image, title, price, summary, fetched piece/size details and a View Puzzle action. Desktop uses a 7:5 split; mobile stacks the image above the information. Two products use full-width cards at 390px (long names and prices have room), then equal columns from 600px. Three or more retain the existing 2/3-column grid. `?mockCore=1|2|3` is Vite-development-only, remembers the count in the tab, and adds explicitly named mock products with distinct slugs and working detail/checkout data.
+2. Below 768px the hero art is an uncovered full-bleed 4:5 image; the caption follows on paper with 32px spacing and no overlay box. Desktop retains the positioned paper caption. The map is contained at the right of a 16:9 hero so the painted title, villages and island silhouette stay intact; the caption sits left. The Tumon desktop caption moves right and the crop moves down, exposing the large G/U sign and puzzle cut at the left. Mobile Tumon remains uncovered.
+3. The story label, 36ch paragraph and link now align to the same content edge as the collection and signup sections.
+4. Archivo face declarations load from the HTML head, using the existing preloaded variable Latin woff2 and block display. Initial React rendering awaits body/title/wide face loading, with a graceful font-error fallback. Wide display and wordmark settings remain 125% across breakpoints. Screenshot capture explicitly loads the used styles, awaits `document.fonts.ready`, and checks an actual loaded variable face. The final captures show consistent Archivo body copy and wide headlines.
+5. Mobile gallery images use their intrinsic aspect ratio at the full 358px content width, capped at 80svh with cover behavior. The portrait map has no side letterboxing. Desktop stacking, image viewer and zoom are preserved.
+6. Cart note: “Your puzzles are held for about 30 minutes at checkout.” The mock reservation clock remains its existing 30-minute simulation; the real API's approximately 31-minute hold is owned by the API branch.
+
+Final gates (Node 22.22.3, macOS):
+
+- `npm run lint`: passed, 0 findings.
+- `npm test`: 36/36 passed in 6 files, including 4 new collection component tests.
+- `npm run build`: passed, strict TypeScript plus production Vite build. The generated HTML preload resolves to the hashed Archivo woff2 asset. Mocks-off JS is 394.61 kB / 122.39 kB gzip.
+- `npm run test:e2e`: 48/48 passed (24 mobile, 24 desktop), 0 skipped, 0 retries. Six added cases per project exercise the changed layouts and adjacent flows; all 18 existing journeys per project still pass.
+- `npm run audit:prod`: passed, 0 vulnerabilities.
+- `IMPECCABLE_NO_TELEMETRY=1 npx impeccable@4.6.0 detect --json web/src`: exit 0, `[]`; no findings. No package or hooks installed. Output: `web/impeccable-findings.json`.
+- `git diff --check`: passed.
+
+Retest history: the shell initially selected Node 22.0.0 and unit workers failed before executing tests; all final gates used the documented supported Node. An initial browser run passed 46 tests, failed the mobile menu's overflow evaluation when its page reloaded, and skipped the desktop-only dimension of a mobile gallery case. The final run made no build/scan writes while Vite was serving, exercised desktop gallery stacking as well, and passed all 48. The first screenshot review also caught the Tumon caption obscuring the sign; moving it right was verified in the final captures. T3 preview snapshot calls timed out twice; the task-owned tab was closed. The repository Playwright harness supplied the accepted runtime journeys and screenshots.
+
+All 13 requested captures below were recaptured and critically inspected for image crops, type, spacing, alignment, price/name readability and actions. One-product feature rows now fill the collection deliberately. Two-product mobile cards have readable full-width names; three-product mobile cards retain the requested grid with natural wrapping. The desktop story aligns to the content edge. Map labels are intact, mobile captions do not cover artwork, and the mobile map gallery is full content width. No required case failed, blocked or remained not run in this browser scope.
+
+Screenshot paths (full-page PNGs captured at the named viewport, local/gitignored):
+
+- `web/.screenshots/mobile-home-upcoming.png`
+- `web/.screenshots/desktop-home-upcoming.png`
+- `web/.screenshots/mobile-home-live.png`
+- `web/.screenshots/desktop-home-live.png`
+- `web/.screenshots/mobile-home-no-drop.png`
+- `web/.screenshots/desktop-home-no-drop.png`
+- `web/.screenshots/mobile-shop-core-1.png`
+- `web/.screenshots/desktop-shop-core-1.png`
+- `web/.screenshots/mobile-shop-core-2.png`
+- `web/.screenshots/desktop-shop-core-2.png`
+- `web/.screenshots/mobile-shop-core-3.png`
+- `web/.screenshots/desktop-shop-core-3.png`
+- `web/.screenshots/mobile-drop-upcoming.png`
+
+Additional Home count previews: `web/.screenshots/{mobile,desktop}-home-core-{1,2,3}.png`. The full regression screenshot set was also refreshed. Playwright's report remains in `web/playwright-report/`.
+
+Resources: the two claimed Playwright runs (root PIDs 8560 and 42467) and their managed Vite/browser children exited. Port 5181 has no listener; the task-created T3 preview tab was closed. No task-owned server, browser, simulator or container was left running. Shared baseline services were left unchanged. The lead changed these lifecycle records to handoffs during execution; the helper's release command subsequently reported no owned record, and the inactive historical handoff entries remain in the session ledger.

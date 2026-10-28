@@ -2,7 +2,12 @@ import { setupWorker } from "msw/browser";
 import { handlers, configureMocks } from "./handlers";
 import type { DropState } from "../types";
 export async function startMocks() {
-  const query = new URLSearchParams(location.search).get("mockDrop");
+  const params = new URLSearchParams(location.search);
+  const requestedCount = params.get("mockCore");
+  if (import.meta.env.DEV && requestedCount && ["1", "2", "3"].includes(requestedCount))
+    sessionStorage.setItem("tyt-mock-core", requestedCount);
+  const coreCount = import.meta.env.DEV ? Number(sessionStorage.getItem("tyt-mock-core") || 1) : 1;
+  const query = params.get("mockDrop");
   const valid = ["upcoming", "live", "sold_out", "closed"];
   if (query && valid.includes(query)) {
     if (sessionStorage.getItem("tyt-mock-state") !== query) sessionStorage.removeItem("tyt-mock-db");
@@ -15,7 +20,7 @@ export async function startMocks() {
   } catch {
     sessionStorage.removeItem("tyt-mock-db");
   }
-  configureMocks({ state, database, save: (db) => sessionStorage.setItem("tyt-mock-db", JSON.stringify(db)) });
+  configureMocks({ state, coreCount, database, save: (db) => sessionStorage.setItem("tyt-mock-db", JSON.stringify(db)) });
   const worker = setupWorker(...handlers);
   await worker.start({ onUnhandledRequest: "bypass", quiet: true });
 }

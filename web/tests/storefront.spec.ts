@@ -2,7 +2,12 @@ import { test, expect } from "@playwright/test";
 import type { Page, TestInfo } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 async function shot(page: Page, info: TestInfo, name: string) {
-  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(async () => {
+    await Promise.all(['400 16px', '600 24px', '800 expanded 40px', '900 expanded 24px'].map((style) =>
+      document.fonts.load(`${style} "Archivo Variable"`, "GUÅHAN Håfa Adai")
+    ));
+    await document.fonts.ready;
+  });
   if (await page.locator("main img").count()) await page.locator("main img").first().waitFor({ state: "visible" });
   await page.evaluate(async () => {
     await Promise.all(
@@ -11,6 +16,9 @@ async function shot(page: Page, info: TestInfo, name: string) {
         .map((i) => i.decode().catch(() => {}))
     );
   });
+  expect(await page.evaluate(() => [...document.fonts].some((face) =>
+    face.family === "Archivo Variable" && face.status === "loaded" && face.stretch === "62% 125%"
+  ))).toBe(true);
   await mkdir(".screenshots", { recursive: true });
   await page.screenshot({
     path: `.screenshots/${info.project.name}-${name}.png`,
@@ -262,4 +270,77 @@ test("self-hosted type renders diacritics and reduced motion disables animated U
   await expect(page.locator("#glyph-proof")).toHaveText("å ñ ʻ '");
   await page.screenshot({ path: `.screenshots/${info.project.name}-glyphs.png` });
   await page.evaluate(() => document.getElementById("glyph-proof")?.remove());
+});
+
+
+test("home without an active drop: tabletop artwork and shop action", async ({ page }, info) => {
+  await go(page, "/", "closed");
+  await expect(page.getByRole("heading", { name: "A PIECE OF HOME." })).toBeVisible();
+  await shot(page, info, "home-no-drop");
+  await overflow(page);
+});
+
+for (const count of [1, 2, 3]) {
+  test(`collection with ${count} products adapts on home and shop`, async ({ page }, info) => {
+    for (const route of ["/", "/shop"]) {
+      await go(page, `${route}?mockCore=${count}`);
+      const collection = page.locator(".core-collection");
+      if (count === 1) {
+        await expect(collection).toHaveClass(/collection-feature/);
+        await expect(collection.getByText("100 pieces · 12 × 9 in finished")).toBeVisible();
+        const image = await collection.locator("img").boundingBox();
+        const caption = await collection.locator(".feature-info").boundingBox();
+        if (info.project.name === "desktop") {
+          expect(image!.width).toBeGreaterThan(700);
+          expect(caption!.x).toBeGreaterThan(image!.x + image!.width);
+        } else {
+          expect(image!.width).toBe(358);
+          expect(caption!.y).toBeGreaterThanOrEqual(image!.y + image!.height);
+        }
+      } else {
+        await expect(collection.locator(".product-card")).toHaveCount(count);
+        const columns = await collection.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length);
+        expect(columns).toBe(info.project.name === "desktop" ? count : count === 2 ? 1 : 2);
+      }
+      await shot(page, info, `${route === "/" ? "home" : "shop"}-core-${count}`);
+      await overflow(page);
+    }
+    await page.getByRole("link", { name: count === 1 ? "VIEW PUZZLE" : /Tumon Bay — Mock 2/ }).click();
+    await expect(page.getByRole("button", { name: "ADD TO CART", exact: true }).first()).toBeVisible();
+  });
+}
+
+test("mobile hero separates the art and caption; desktop preserves map labels", async ({ page }, info) => {
+  for (const state of ["upcoming", "live", "closed"]) {
+    await go(page, "/", state);
+    const art = await page.locator(".hero > img").boundingBox();
+    const caption = await page.locator(".hero-caption").boundingBox();
+    if (info.project.name === "mobile") {
+      expect(art!.width).toBe(390);
+      expect(art!.height).toBeCloseTo(487.5);
+      expect(caption!.y).toBeGreaterThanOrEqual(art!.y + art!.height);
+    } else if (state !== "closed") {
+      await expect(page.locator(".hero > img")).toHaveCSS("object-fit", "contain");
+    }
+    await expect(page.locator(".hero h1")).toHaveCSS("font-variation-settings", '"wdth" 125');
+    await expect(page.locator(".hero h1")).toHaveCSS("font-stretch", "125%");
+    expect(await page.locator(".hero h1").evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Archivo Variable");
+  }
+});
+
+test("gallery artwork fills the mobile content width and still swipes", async ({ page }, info) => {
+  for (const route of ["/drop", "/products/hafa-adai-from-tumon-bay"]) {
+    await go(page, route);
+    const image = page.locator(".gallery-image img").first();
+    const dimensions = await image.boundingBox();
+    if (info.project.name === "mobile") {
+      expect(dimensions!.width).toBe(358);
+      if (route === "/drop") expect(dimensions!.height).toBeGreaterThan(dimensions!.width);
+      await page.locator(".gallery-track").evaluate((el) => el.scrollTo({ left: el.clientWidth, behavior: "instant" }));
+      await expect(page.locator(".gallery-counter")).toContainText("2 /");
+    } else {
+      const nextImage = await page.locator(".gallery-image img").nth(1).boundingBox();
+      expect(nextImage!.y).toBeGreaterThanOrEqual(dimensions!.y + dimensions!.height);
+    }
+  }
 });

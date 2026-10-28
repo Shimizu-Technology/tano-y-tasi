@@ -2,8 +2,9 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { ArtImage } from "../components/ArtImage";
-import { Failure, Loading, Meta, ProductCard, Signup } from "../components/Shared";
+import { Failure, Loading, Meta, Signup } from "../components/Shared";
 import { dropNumber, releaseTimes, releaseDate } from "../utils";
+import { ProductCollection } from "../components/ProductCollection";
 import type { Art } from "../types";
 export const story =
   "Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.";
@@ -73,11 +74,7 @@ export function Home() {
             SHOP ALL →
           </Link>
         </div>
-        <div className="product-grid">
-          {data.core_products.map((p) => (
-            <ProductCard key={p.slug} product={p} />
-          ))}
-        </div>
+        <ProductCollection products={data.core_products} />
       </section>
       <section className="section story-strip">
         <p className="label">TÅNO — LAND. TÅSI — SEA.</p>
@@ -119,11 +116,7 @@ export function Shop() {
           </div>
         </Link>
       )}
-      <div className="product-grid">
-        {q.data.core_products.map((p) => (
-          <ProductCard key={p.slug} product={p} />
-        ))}
-      </div>
+      <ProductCollection products={q.data.core_products} />
     </div>
   );
 }

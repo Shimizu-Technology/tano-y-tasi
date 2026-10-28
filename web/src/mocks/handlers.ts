@@ -15,6 +15,7 @@ interface Database {
 let db: Database;
 let persist: ((db: Database) => void) | undefined;
 let state: DropState = "upcoming";
+let coreCount = 1;
 const fresh = (): Database => ({
   stock: { [CORE]: 40, [MAP]: 100 },
   orders: {},
@@ -23,10 +24,12 @@ const fresh = (): Database => ({
   sequence: 100000,
 });
 export function configureMocks(
-  options: { state?: DropState; database?: Database; save?: (db: Database) => void } = {}
+  options: { state?: DropState; coreCount?: number; database?: Database; save?: (db: Database) => void } = {}
 ) {
   state = options.state ?? "upcoming";
+  coreCount = options.coreCount === 2 || options.coreCount === 3 ? options.coreCount : 1;
   db = options.database ?? fresh();
+  for (let i = 2; i <= coreCount; i++) db.stock[`${CORE}-mock-${i}`] ??= 40;
   persist = options.save;
   if (state === "sold_out") db.stock[MAP] = 0;
 }
@@ -46,7 +49,13 @@ function expire() {
 }
 function products() {
   expire();
-  return catalog(state === "live" && db.stock[MAP] === 0 ? "sold_out" : state, db.stock);
+  const items = catalog(state === "live" && db.stock[MAP] === 0 ? "sold_out" : state, db.stock);
+  for (let i = 2; i <= coreCount; i++) {
+    const slug = `${CORE}-mock-${i}`;
+    const copy = catalog(state, { ...db.stock, [CORE]: db.stock[slug] })[0];
+    items.push({ ...copy, slug, name: `Tumon Bay — Mock ${i}` });
+  }
+  return items;
 }
 function drop() {
   const p = products()[1];
