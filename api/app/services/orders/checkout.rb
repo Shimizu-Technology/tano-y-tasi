@@ -108,7 +108,7 @@ module Orders
 
     def provision_session!(order)
       session = Payments::Gateway.create_session(order)
-      order.update!(provider_session_id: session.fetch(:id), payment_url: session.fetch(:url))
+      order.update!(provider_session_id: session.fetch(:id), payment_url: session.fetch(:url), expires_at: session.fetch(:expires_at))
     rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
       Release.call(order)
       Rails.logger.error("payment_session_failed order_id=#{order.id} error=#{error.class}")

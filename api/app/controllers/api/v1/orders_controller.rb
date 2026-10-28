@@ -6,7 +6,10 @@ module Api
       end
 
       def cancel
-        order = Orders::Release.call(Order.find_by!(token: params[:token]))
+        order = Order.find_by!(token: params[:token])
+        was_pending = order.status == "pending_payment"
+        order = Orders::Release.call(order)
+        Payments::Gateway.expire_session(order) if was_pending && order.status == "canceled"
         render json: { order: CatalogSerializer.order(order) }
       end
     end

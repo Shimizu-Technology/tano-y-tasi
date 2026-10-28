@@ -65,7 +65,7 @@ RSpec.describe Orders::Checkout do
       # The example itself has an outer fixture transaction; reservation is not nested here.
       expect(ActiveRecord::Base.connection.open_transactions).to eq(1)
       expect(order).to be_persisted
-      { id: "sim_session", url: "http://localhost:5181/pay" }
+      { id: "sim_session", url: "http://localhost:5181/pay", expires_at: order.expires_at }
     end
     checkout
   end

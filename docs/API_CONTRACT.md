@@ -100,7 +100,7 @@ Response `201`:
 - The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
 - `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at), `limit_exceeded` (details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
 - The per-customer limit counts quantities across this email's `paid` and unexpired `pending_payment` orders for that drop product (case-insensitive email).
-- Holds expire after 30 minutes. That also becomes the Stripe Checkout `expires_at`.
+- Holds last about 31 minutes. Stripe requires a Checkout session to stay open for at least 30 minutes after it is created, so the hold is extended to match the session window and both expire together. Holds are released 5 minutes after expiry, as a grace period for in-flight payments. Cancelling (`POST /orders/:token/cancel`) also expires the open Stripe session.
 
 ### `GET /api/v1/orders/:token`
 ```json

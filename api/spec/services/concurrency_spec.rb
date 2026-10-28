@@ -102,7 +102,7 @@ RSpec.describe "PostgreSQL inventory concurrency", type: :model do
           end
         end
       end.value
-      { id: "sim_#{order.token}", url: "http://localhost:5181/checkout/simulated/#{order.token}" }
+      { id: "sim_#{order.token}", url: "http://localhost:5181/checkout/simulated/#{order.token}", expires_at: order.expires_at }
     end
     expect(buy(1)).to be_a(Order)
   end
