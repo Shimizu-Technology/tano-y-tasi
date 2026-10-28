@@ -91,6 +91,7 @@ test("sold-out drop: artwork and disabled action remain", async ({ page }, info)
   await go(page, "/drop", "sold_out");
   await expect(page.getByRole("button", { name: "SOLD OUT", exact: true })).toBeDisabled();
   await expect(page.getByText("Drop 001 sold out on Dec 5.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Only \d+ left/)).toHaveCount(0);
   await shot(page, info, "drop-sold-out");
   await overflow(page);
 });

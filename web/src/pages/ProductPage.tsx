@@ -150,7 +150,7 @@ function ProductView({
                 <p className="muted small">One-time release. No restocks.</p>
               </div>
             )}
-            {p.availability.low_stock && p.availability.remaining !== null && (
+            {p.availability.state === "available" && p.availability.low_stock && (p.availability.remaining ?? 0) > 0 && (
               <p className="small">Only {p.availability.remaining} left</p>
             )}
             <div className="buy-controls">
