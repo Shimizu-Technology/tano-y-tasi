@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# No reset/drop convenience: this machine shares Postgres with other projects.
+require "fileutils"
+Dir.chdir File.expand_path("..", __dir__) do
+  system("bundle check") || system("bundle install", exception: true)
+  unless system("bin/rails", "runner", "name = ActiveRecord::Base.connection.current_database; abort name unless name == 'tano_y_tasi_development'; puts name")
+    abort "Create only tano_y_tasi_development and tano_y_tasi_test first; see README."
+  end
+  system("bin/rails", "db:migrate", exception: true)
+end

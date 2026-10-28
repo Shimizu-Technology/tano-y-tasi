@@ -1,0 +1,2 @@
+class PaymentEvent < ApplicationRecord
+end

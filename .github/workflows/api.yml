@@ -1,0 +1,47 @@
+name: API
+on:
+  pull_request:
+    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md"]
+  push:
+    branches: [main]
+    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md"]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tano_y_tasi_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/tano_y_tasi_test
+      PAYMENT_PROVIDER: simulated
+      WEB_APP_URL: http://localhost:5181
+      RAILS_MAX_THREADS: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.4
+          bundler-cache: true
+          working-directory: api
+      - name: Confirm isolated test database and migrate
+        run: |
+          bin/rails runner 'name = ActiveRecord::Base.connection.current_database; abort "Unsafe database" unless name == "tano_y_tasi_test"; puts name'
+          bin/rails db:migrate
+      - run: bundle exec rspec
+      - run: bundle exec rubocop
+      - run: bundle exec brakeman --no-pager --quiet
+      - run: bundle exec bundler-audit check --update
