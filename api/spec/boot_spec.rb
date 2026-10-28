@@ -58,7 +58,7 @@ RSpec.describe "Boot configuration" do
     # Confirm the only real database target first. The production subprocess uses
     # that same database name, an unreachable socket, and a mismatched allowlist;
     # its initializer must reject the configuration before any migration runs.
-    out, error, status = Open3.capture3({ "RAILS_ENV" => "test", "PAYMENT_PROVIDER" => "simulated", "DATABASE_URL" => nil },
+    out, error, status = Open3.capture3({ "RAILS_ENV" => "test", "PAYMENT_PROVIDER" => "simulated" },
       "bin/rails", "runner", "puts ActiveRecord::Base.connection.current_database", chdir: Rails.root.to_s)
     expect(status.success?).to be(true), error
     expect(out.strip).to eq("tano_y_tasi_test")
