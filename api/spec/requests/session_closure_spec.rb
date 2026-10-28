@@ -107,4 +107,26 @@ RSpec.describe "Released Stripe session closure", type: :request do
     expect(Stripe::Checkout::Session).to have_received(:expire).exactly(101).times
     expect(product.reload.stock_quantity).to eq(5)
   end
+
+  it "rotates persistently failing sessions so a healthy newer session still gets closed" do
+    rows = 101.times.map do |index|
+      row = Orders::Checkout.call(email: "rotate@example.com", idempotency_key: SecureRandom.uuid,
+        items: [ { product_slug: product.slug, quantity: 1 } ]).order
+      Orders::Release.call(row)
+      row.update!(provider: "stripe", provider_session_id: "cs_rotate_#{index}", updated_at: (200 - index).minutes.ago)
+      row
+    end
+    healthy = rows.last
+    allow(Stripe::Checkout::Session).to receive(:expire) do |session_id|
+      raise Stripe::InvalidRequestError.new("No such checkout.session", nil) unless session_id == healthy.provider_session_id
+
+      expired_session
+    end
+    allow(Stripe::Checkout::Session).to receive(:retrieve).and_raise(Stripe::InvalidRequestError.new("No such checkout.session", nil))
+    Payments::CloseReleasedSessions.call
+    expect(healthy.reload.provider_session_closed_at).to be_nil
+    Payments::CloseReleasedSessions.call
+    expect(healthy.reload.provider_session_closed_at).to be_present
+    expect(Order.where(id: rows.first(100).map(&:id)).where.not(provider_session_closed_at: nil)).not_to exist
+  end
 end
