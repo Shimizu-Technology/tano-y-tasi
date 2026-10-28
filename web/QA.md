@@ -156,3 +156,42 @@ Screenshot paths (full-page PNGs captured at the named viewport, local/gitignore
 Additional Home count previews: `web/.screenshots/{mobile,desktop}-home-core-{1,2,3}.png`. The full regression screenshot set was also refreshed. Playwright's report remains in `web/playwright-report/`.
 
 Resources: the two claimed Playwright runs (root PIDs 8560 and 42467) and their managed Vite/browser children exited. Port 5181 has no listener; the task-created T3 preview tab was closed. No task-owned server, browser, simulator or container was left running. Shared baseline services were left unchanged. The lead changed these lifecycle records to handoffs during execution; the helper's release command subsequently reported no owned record, and the inactive historical handoff entries remain in the session ledger.
+
+## PR #2 review fixes — 2026-10-29
+
+Tested implementation: `3f42b70b8e7608a498c7c7af507f6d6913f12054`, based on `841199f`. Sources: the seven verified review findings, root `AGENTS.md`, `docs/PRODUCT_BRIEF.md`, `docs/DESIGN_DIRECTION.md`, `docs/API_CONTRACT.md`, and the preceding QA record. The audience remains phone-first Guam shoppers and diaspora; Rails owns stock, customer limits and payment state. Scope is checkout recovery, reconciliation and production isolation. This section supersedes the earlier acceptance of mock-enabled production builds. No deployment was performed.
+
+All seven findings were addressed:
+
+1. `main.tsx`, `routes.tsx` and the extracted `pages/SimulatedPage.tsx` gate development code with `import.meta.env.DEV`. The worker moved from `public/` to `mocks/` and is served only by Vite's dev middleware. Build configuration rejects either true mock/payment flag; `.env.example` defaults both to false. `scripts/check-production.mjs`, run in CI after building, scans every emitted text chunk for worker, handler and simulated-page markers and verifies both unsafe flags fail the build.
+2. Rails checkout now returns `details.retry: "same_key"` while keeping a transient reservation and `"new_checkout"` after definitive rejection or an ended unsessioned hold. The drawer retains or replaces the key and offers the corresponding recovery action. MSW models both outcomes.
+3. A saved attempt for the unchanged email, payload and cart revision can retry despite refreshed zero stock. New attempts still require fresh availability.
+4. Cart changes persist a new revision. Checkout snapshots contain the revision, items, key and eventual order token. Paid reconciliation clears only its unchanged cart and removes only its matching attempt; it remains idempotent per order token and refreshes persisted cart state before comparing revisions.
+5. Rails limit errors include `product_slug`, with request/service assertions. The contract documents all checkout error detail shapes. MSW validation, duplicate-line aggregation, error messages/details and expiry grace were aligned; the drawer also recovers safely from older responses lacking a slug. MSW does not simulate IP throttling or real provider transport.
+6. `utils.ts` preserves cents while hiding `.00`, with four price assertions.
+7. `paymentRedirect.ts` validates the parsed HTTPS Stripe checkout host; development additionally accepts the exact same-origin simulated route. Invalid destinations show a cart-preserving error. Tests cover hostile URLs and production/development behavior.
+
+Final automated gates:
+
+- Web lint: passed; Vitest: 63/63 tests in 8 files (27 additional tests). New coverage is in cart, order state, cart drawer, payment redirect, price and mock-contract tests.
+- Production TypeScript/Vite build and `npm run check:dist`: passed. No MSW worker, mock handlers or simulated payment page in `dist`; both unsafe flags rejected.
+- Playwright: 56/56 results, 28 journeys at both mobile 390×844 and desktop 1440×900, no retries. The four added journeys below account for eight results.
+- `npm run audit:prod`: passed, zero vulnerabilities.
+- API RSpec: 130 examples, zero failures; final recovery-spec rerun: 9 examples, zero failures. Before each RSpec phase, `RAILS_ENV=test bin/rails runner 'puts ActiveRecord::Base.connection.current_database'` printed `tano_y_tasi_test`. No development or unrelated database was used.
+- API RuboCop: 68 files, no offenses; Brakeman: zero errors/warnings; bundler-audit with updated advisory DB: zero vulnerabilities.
+- Impeccable 4.6.0 on the changed UI files: `[]`, exit 0. `git diff --check`: passed.
+
+Agent-executed affected-flow acceptance used isolated per-browser MSW fixtures, example.com emails and no external payment/email services. Each required case passed at both viewports:
+
+| Case | Starting fixture and actions | Verified outcome |
+| --- | --- | --- |
+| R01 | Core puzzle, one transient failure; checkout → Try again → test payment | Same key, one order/reservation, paid confirmation and empty cart |
+| R02 | Core puzzle, one definitive rejection; checkout → Start a new checkout → payment | Rejected attempt removed, fresh key/order, paid confirmation and empty cart |
+| R03 | One core unit; transient setup failure → reopen refreshed drawer → retry → payment | Stock remained zero while held, retry stayed enabled, original key reused, final stock zero |
+| R04 | Start A → remove/re-add product through cart controls → start B → pay A → reload | New cart quantity and B's saved attempt survived both first reconciliation and reload |
+
+All 24 existing journeys also passed in both projects, including ordinary checkout, cancellation recovery, limits, navigation and layout. Earlier lint/TypeScript checks caught test/configuration issues; they were fixed before the final passing gates. Collaborative preview snapshots failed twice with `Preview automation snapshot timed out after 15000ms.` The tab was closed; browser acceptance comes from Playwright. Unit/component tests separately cover missing-slug recovery, untrusted redirects, cent formatting and cross-tab persisted-cart reconciliation.
+
+Limits: Chromium touch emulation, not physical devices; no Safari/Firefox, live Stripe, real email, production deployment or real web-to-Rails end-to-end payment run. Rails behavior was verified independently through its test database and stubbed provider transport. The lead retains final PR review and merge decisions.
+
+Resources: Playwright's owned process tree rooted at PID `49808` exited, including Vite PID `49897`; port 5181 has no remaining listener. Preview tab `tab_4w_f7aafa60-06cd-4aa5-a119-6dc8f3b268f3` was closed. Their records were released in both the current hook session `01a184e8-bdcd-70b0-a9e1-4dd89115511e` and the supplied session `db0f0ba3-e316-4410-bf82-d05b447f7412`. Both report no active owned resources. Pre-existing handoff records were left untouched. No session cleanup execution or broad kills were used. The branch/worktree remain available for the lead; no merge or GitHub comment was made.
