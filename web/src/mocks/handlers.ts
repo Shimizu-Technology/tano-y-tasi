@@ -8,7 +8,7 @@ interface StoredOrder {
 interface Database {
   stock: Record<string, number>;
   orders: Record<string, StoredOrder>;
-  attempts: Record<string, { fingerprint: string; result: CheckoutResult }>;
+  attempts: Record<string, { fingerprint: string; result: CheckoutResult; ready?: boolean }>;
   subscribers: string[];
   sequence: number;
 }
@@ -16,6 +16,7 @@ let db: Database;
 let persist: ((db: Database) => void) | undefined;
 let state: DropState = "upcoming";
 let coreCount = 1;
+let paymentFailures: ("same_key" | "new_checkout")[] = [];
 const fresh = (): Database => ({
   stock: { [CORE]: 40, [MAP]: 100 },
   orders: {},
@@ -24,8 +25,15 @@ const fresh = (): Database => ({
   sequence: 100000,
 });
 export function configureMocks(
-  options: { state?: DropState; coreCount?: number; database?: Database; save?: (db: Database) => void } = {}
+  options: {
+    state?: DropState;
+    coreCount?: number;
+    database?: Database;
+    save?: (db: Database) => void;
+    paymentFailures?: ("same_key" | "new_checkout")[];
+  } = {}
 ) {
+  paymentFailures = [...(options.paymentFailures ?? [])];
   state = options.state ?? "upcoming";
   coreCount = options.coreCount === 2 || options.coreCount === 3 ? options.coreCount : 1;
   db = options.database ?? fresh();
@@ -40,7 +48,7 @@ function release(order: Order) {
 }
 function expire() {
   for (const { order } of Object.values(db.orders)) {
-    if (order.status === "pending_payment" && Date.parse(order.expires_at) <= Date.now()) {
+    if (order.status === "pending_payment" && Date.parse(order.expires_at) + 5 * 60_000 <= Date.now()) {
       release(order);
       order.status = "expired";
     }
@@ -64,6 +72,32 @@ function drop() {
 }
 const error = (code: string, message: string, status = 422, details: Record<string, unknown> = {}) =>
   HttpResponse.json({ error: { code, message, details } }, { status });
+function provision(attempt: Database["attempts"][string], status: number) {
+  const order = db.orders[attempt.result.order.token].order;
+  if (attempt.ready === false && order.status !== "pending_payment")
+    return error("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", 503, {
+      retry: "new_checkout",
+    });
+  const failure = attempt.ready === false ? paymentFailures.shift() : undefined;
+  if (failure) {
+    if (failure === "new_checkout") {
+      release(order);
+      order.status = "canceled";
+    }
+    save();
+    return error(
+      "payment_unavailable",
+      failure === "same_key"
+        ? "Payment is temporarily unavailable. Retry the same request with the same idempotency_key."
+        : "Payment is unavailable for this checkout. Please start a new checkout.",
+      503,
+      { retry: failure }
+    );
+  }
+  attempt.ready = true;
+  save();
+  return HttpResponse.json({ ...attempt.result, order: { ...attempt.result.order, status: order.status } }, { status });
+}
 const validEmail = (email: unknown): email is string =>
   typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 function listProduct(p: ProductDetail): Product {
@@ -104,7 +138,7 @@ export const handlers = [
     const product = products().find((p) => p.slug === params.slug);
     return product
       ? HttpResponse.json({ product, server_time: now() })
-      : error("not_found", "We couldn’t find that puzzle.", 404);
+      : error("not_found", "We couldn't find that.", 404);
   }),
   http.get(path("/drops"), () => {
     const detail = drop();
@@ -119,40 +153,58 @@ export const handlers = [
   http.get(path("/drops/:slug"), ({ params }) =>
     params.slug === DROP
       ? HttpResponse.json({ drop: drop(), server_time: now() })
-      : error("not_found", "We couldn’t find that drop.", 404)
+      : error("not_found", "We couldn't find that.", 404)
   ),
   http.post(path("/checkout"), async ({ request }) => {
     let body: { email?: unknown; idempotency_key?: unknown; items?: unknown };
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return error("malformed", "Please check your checkout details.", 400);
+      return error("malformed", "Provide a valid JSON request.", 400);
     }
     expire();
-    if (!validEmail(body.email)) return error("invalid_email", "Enter a valid email address.");
-    const email = body.email.trim().toLowerCase();
-    if (typeof body.idempotency_key !== "string" || !body.idempotency_key)
-      return error("malformed", "A checkout key is required.", 400);
-    if (!Array.isArray(body.items) || body.items.length === 0)
-      return error("empty_cart", "Add a puzzle to your cart first.");
-    const items = body.items as CartItem[];
+    if (!body || typeof body !== "object") return error("malformed", "Provide a valid JSON request.", 400);
+    const rawEmail = typeof body.email === "string" ? body.email.trim() : body.email;
+    if (!validEmail(rawEmail)) return error("invalid_email", "Enter a valid email address.");
+    const email = rawEmail.toLowerCase();
+    if (
+      typeof body.idempotency_key !== "string" ||
+      !body.idempotency_key.trim() ||
+      new TextEncoder().encode(body.idempotency_key).length > 200
+    )
+      return error("malformed", "An idempotency_key is required (maximum 200 bytes).", 400);
+    if (body.items == null || (Array.isArray(body.items) && body.items.length === 0))
+      return error("empty_cart", "Your cart is empty.");
+    if (!Array.isArray(body.items)) return error("quantity_invalid", "items must be an array.");
+    if (body.items.length > 100) return error("quantity_invalid", "Provide an array of up to 100 cart items.");
+    const quantities = new Map<string, number>();
+    for (const item of body.items) {
+      if (!item || typeof item !== "object" || Array.isArray(item))
+        return error("quantity_invalid", "Each cart item must contain a product and quantity.");
+      if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10)
+        return error("quantity_invalid", "Quantities must be whole numbers from 1 to 10.");
+      if (typeof item.product_slug !== "string" || !item.product_slug.trim())
+        return error("unknown_product", "This product is unavailable.");
+      const quantity = (quantities.get(item.product_slug) ?? 0) + item.quantity;
+      if (quantity > 10) return error("quantity_invalid", "A product can have at most 10 units per order.");
+      quantities.set(item.product_slug, quantity);
+    }
+    const items: CartItem[] = [...quantities]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([product_slug, quantity]) => ({ product_slug, quantity }));
     const fingerprint = JSON.stringify({ email, items });
     const previous = db.attempts[body.idempotency_key];
     if (previous)
       return previous.fingerprint === fingerprint
-        ? HttpResponse.json(previous.result)
-        : error("idempotency_conflict", "This checkout has changed. Please start a new checkout.", 409);
-    const seen = new Set<string>();
+        ? provision(previous, 200)
+        : error("idempotency_conflict", "This checkout key was already used for a different cart.", 409);
     const all = products();
     for (const item of items) {
       const p = all.find((p) => p.slug === item.product_slug);
       const detail = { product_slug: item.product_slug };
-      if (!p) return error("unknown_product", "This puzzle is no longer available.", 422, detail);
-      if (!Number.isInteger(item.quantity) || item.quantity < 1 || seen.has(item.product_slug))
-        return error("quantity_invalid", "Choose a whole quantity above zero, with one line per puzzle.", 422, detail);
-      seen.add(item.product_slug);
+      if (!p) return error("unknown_product", "This product is unavailable.");
       if (p.kind === "drop" && ["upcoming", "closed"].includes(state))
-        return error("drop_not_live", "This drop is not available.", 422, {
+        return error("drop_not_live", "This drop is not open for checkout.", 422, {
           ...detail,
           release_at: p.drop!.release_at,
         });
@@ -167,8 +219,8 @@ export const handlers = [
                 0
               )
           : 0;
-      if (item.quantity + purchased > limit)
-        return error("limit_exceeded", `Limit ${limit} per customer.`, 422, {
+      if (p.kind === "drop" && item.quantity + purchased > limit)
+        return error("limit_exceeded", `This drop is limited to ${limit} per customer.`, 422, {
           ...detail,
           limit,
           already_purchased: purchased,
@@ -176,7 +228,7 @@ export const handlers = [
       if (db.stock[p.slug] === 0)
         return error("sold_out", `${p.name} just sold out.`, 422, { ...detail, available: 0 });
       if (item.quantity > db.stock[p.slug])
-        return error("insufficient_stock", "There aren’t enough puzzles left.", 422, {
+        return error("insufficient_stock", "There aren't enough pieces left for that quantity.", 422, {
           ...detail,
           available: db.stock[p.slug],
         });
@@ -208,23 +260,21 @@ export const handlers = [
       order: { token, number: order.number, status: order.status, expires_at: order.expires_at },
       payment_url: `${origin}/checkout/simulated/${token}`,
     };
-    db.attempts[body.idempotency_key] = { fingerprint, result };
-    save();
-    return HttpResponse.json(result, { status: 201 });
+    const attempt = { fingerprint, result, ready: false };
+    db.attempts[body.idempotency_key] = attempt;
+    return provision(attempt, 201);
   }),
   http.get(path("/orders/:token"), ({ params }) => {
     expire();
     const stored = db.orders[String(params.token)];
-    return stored
-      ? HttpResponse.json({ order: stored.order })
-      : error("not_found", "This order link could not be found.", 404);
+    return stored ? HttpResponse.json({ order: stored.order }) : error("not_found", "We couldn't find that.", 404);
   }),
   http.post(path("/orders/:token/cancel"), ({ params }) => cancel(String(params.token))),
   http.post(path("/simulated_payments/:token/cancel"), ({ params }) => cancel(String(params.token))),
   http.post(path("/simulated_payments/:token/complete"), ({ params }) => {
     expire();
     const stored = db.orders[String(params.token)];
-    if (!stored) return error("not_found", "Order not found.", 404);
+    if (!stored) return error("not_found", "We couldn't find that.", 404);
     if (stored.order.status === "pending_payment") {
       stored.order.status = "paid";
       stored.order.paid_at = now();
@@ -237,7 +287,7 @@ export const handlers = [
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return error("malformed", "Please enter your email.", 400);
+      return error("malformed", "Provide a valid JSON request.", 400);
     }
     if (!validEmail(body.email)) return error("invalid_email", "Enter a valid email address.");
     const email = body.email.toLowerCase().trim();
@@ -251,7 +301,7 @@ export const handlers = [
 function cancel(token: string) {
   expire();
   const stored = db.orders[token];
-  if (!stored) return error("not_found", "Order not found.", 404);
+  if (!stored) return error("not_found", "We couldn't find that.", 404);
   if (stored.order.status === "pending_payment") {
     release(stored.order);
     stored.order.status = "canceled";

@@ -1,6 +1,11 @@
 import type { Product } from "./types";
 export const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
 export const dropNumber = (n: number) => String(n).padStart(3, "0");
 export function releaseTimes(iso: string) {
   const time = (zone: string) =>

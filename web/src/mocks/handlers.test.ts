@@ -91,3 +91,82 @@ it("subscribes idempotently and rejects invalid email", async () => {
   }
   await expect(api.subscribe("bad", "home")).rejects.toMatchObject({ body: { code: "invalid_email" } });
 });
+it("retains the final unit on transient failure and provisions the same reservation on retry", async () => {
+  configureMocks({
+    state: "live",
+    paymentFailures: ["same_key"],
+    database: { stock: { [CORE]: 40, [MAP]: 1 }, orders: {}, attempts: {}, subscribers: [], sequence: 100000 },
+  });
+  const key = crypto.randomUUID();
+  await expect(start("guest@example.com", key)).rejects.toMatchObject({
+    status: 503,
+    body: { code: "payment_unavailable", details: { retry: "same_key" } },
+  });
+  expect((await api.product(MAP)).product.availability.remaining).toBe(0);
+  const result = await start("guest@example.com", key);
+  expect(result.order.number).toBe("TYT-100001");
+  expect((await api.product(MAP)).product.availability.remaining).toBe(0);
+});
+it("releases a definitive rejection, refuses its key, and accepts a new checkout", async () => {
+  configureMocks({ state: "live", paymentFailures: ["new_checkout"] });
+  const key = crypto.randomUUID();
+  for (let i = 0; i < 2; i++) {
+    await expect(start("guest@example.com", key)).rejects.toMatchObject({
+      status: 503,
+      body: { code: "payment_unavailable", details: { retry: "new_checkout" } },
+    });
+  }
+  const result = await start();
+  expect(result.order.number).toBe("TYT-100002");
+});
+it("matches Rails limit-error details exactly", async () => {
+  await start();
+  await start();
+  try {
+    await start();
+    expect.fail("Checkout should fail");
+  } catch (error) {
+    expect((error as ApiError).body).toEqual({
+      code: "limit_exceeded",
+      message: "This drop is limited to 2 per customer.",
+      details: { product_slug: MAP, limit: 2, already_purchased: 2 },
+    });
+  }
+});
+it.each([
+  ["unknown_product", [{ product_slug: "missing", quantity: 1 }], {}],
+  ["quantity_invalid", [{ product_slug: MAP, quantity: 11 }], {}],
+  ["quantity_invalid", [{ product_slug: MAP, quantity: 0 }], {}],
+  ["empty_cart", [], {}],
+])("matches Rails' %s detail shape", async (code, cart, details) => {
+  try {
+    await api.checkout("guest@example.com", cart as typeof items, crypto.randomUUID());
+    expect.fail("Checkout should fail");
+  } catch (error) {
+    expect((error as ApiError).body.code).toBe(code);
+    expect((error as ApiError).body.details).toEqual(details);
+  }
+});
+it("normalizes and aggregates duplicate lines like Rails before idempotency checks", async () => {
+  const key = crypto.randomUUID();
+  const result = await api.checkout("GUEST@example.com", [items[0], items[0]], key);
+  const retry = await api.checkout("guest@example.com", [{ product_slug: MAP, quantity: 2 }], key);
+  expect(retry).toEqual(result);
+  expect((await api.order(result.order.token)).order.items).toHaveLength(1);
+});
+it("matches Rails stock and drop error details", async () => {
+  configureMocks({ state: "upcoming" });
+  await expect(start()).rejects.toMatchObject({
+    body: { code: "drop_not_live", details: { product_slug: MAP, release_at: "2026-12-05T00:00:00Z" } },
+  });
+  configureMocks({
+    state: "live",
+    database: { stock: { [CORE]: 1, [MAP]: 0 }, orders: {}, attempts: {}, subscribers: [], sequence: 100000 },
+  });
+  await expect(start()).rejects.toMatchObject({
+    body: { code: "sold_out", details: { product_slug: MAP, available: 0 } },
+  });
+  await expect(
+    api.checkout("guest@example.com", [{ product_slug: CORE, quantity: 2 }], crypto.randomUUID())
+  ).rejects.toMatchObject({ body: { code: "insufficient_stock", details: { product_slug: CORE, available: 1 } } });
+});

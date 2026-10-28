@@ -20,7 +20,14 @@ export async function startMocks() {
   } catch {
     sessionStorage.removeItem("tyt-mock-db");
   }
-  configureMocks({ state, coreCount, database, save: (db) => sessionStorage.setItem("tyt-mock-db", JSON.stringify(db)) });
+  const failure = params.get("mockPayment");
+  configureMocks({
+    state,
+    coreCount,
+    database,
+    paymentFailures: failure === "same_key" || failure === "new_checkout" ? [failure] : [],
+    save: (db) => sessionStorage.setItem("tyt-mock-db", JSON.stringify(db)),
+  });
   const worker = setupWorker(...handlers);
   await worker.start({ onUnhandledRequest: "bypass", quiet: true });
 }

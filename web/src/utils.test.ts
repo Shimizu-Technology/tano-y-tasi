@@ -1,6 +1,6 @@
 import { checkoutFix } from "./api";
 import { catalog, CORE, MAP } from "./mocks/data";
-import { countdown, purchaseState, releaseTimes, remainingMs } from "./utils";
+import { money, countdown, purchaseState, releaseTimes, remainingMs } from "./utils";
 import type { DropState } from "./types";
 it("formats the release date across the date line, Guam first", () => {
   const t = releaseTimes("2026-12-05T00:00:00Z");
@@ -39,4 +39,13 @@ it("uses the remaining email allowance when fixing a limit error", () => {
 it("offers the available stock and keeps unknown error messages", () => {
   expect(checkoutFix({ code: "insufficient_stock", message: "stock", details: { available: 1 } }).quantity).toBe(1);
   expect(checkoutFix({ code: "dependency", message: "Try again." })).toEqual({ message: "Try again." });
+});
+
+it.each([
+  [3500, "$35"],
+  [3495, "$34.95"],
+  [3501, "$35.01"],
+  [0, "$0"],
+])("formats %i cents as %s", (cents, expected) => {
+  expect(money(Number(cents))).toBe(expected);
 });

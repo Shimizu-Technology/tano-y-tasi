@@ -8,7 +8,7 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: true } },
 });
 async function main() {
-  if (import.meta.env.VITE_API_MOCKS === "true") {
+  if (import.meta.env.DEV && import.meta.env.VITE_API_MOCKS === "true") {
     const { startMocks } = await import("./mocks/browser");
     await startMocks();
   }

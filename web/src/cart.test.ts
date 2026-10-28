@@ -16,10 +16,13 @@ it("removes a line and bounds quantity changes", () => {
   useCart.getState().set("core", 0);
   expect(useCart.getState().items).toEqual([]);
 });
-it("persists only slugs and quantities and rehydrates", async () => {
+it("persists slugs, quantities and revision and rehydrates", async () => {
   useCart.getState().add("core", 2, 10);
   const value = JSON.parse(localStorage.getItem("tyt-cart-v1")!);
-  expect(value.state).toEqual({ items: [{ product_slug: "core", quantity: 2 }] });
+  expect(value.state).toEqual({
+    items: [{ product_slug: "core", quantity: 2 }],
+    revision: useCart.getState().revision,
+  });
   useCart.setState({ items: [] });
   localStorage.setItem("tyt-cart-v1", JSON.stringify(value));
   await useCart.persist.rehydrate();
@@ -62,4 +65,12 @@ it("rejects malformed persisted quantities", async () => {
   );
   await useCart.persist.rehydrate();
   expect(useCart.getState().items).toEqual([{ product_slug: "valid", quantity: 10 }]);
+});
+
+it("changes revision after remove and re-add with an identical final payload", () => {
+  useCart.getState().add("core", 1, 10);
+  const revision = useCart.getState().revision;
+  useCart.getState().remove("core");
+  useCart.getState().add("core", 1, 10);
+  expect(useCart.getState().revision).not.toBe(revision);
 });

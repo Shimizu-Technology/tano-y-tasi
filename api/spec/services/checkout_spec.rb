@@ -77,7 +77,7 @@ RSpec.describe Orders::Checkout do
     checkout(idempotency_key: SecureRandom.uuid, email: "BUYER@example.com", items: [ { product_slug: product.slug, quantity: 1 } ])
     expect { checkout(idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]) }.to raise_error(ApiError) do |error|
       expect(error.code).to eq("limit_exceeded")
-      expect(error.details).to eq(limit: 2, already_purchased: 2)
+      expect(error.details).to eq(product_slug: product.slug, limit: 2, already_purchased: 2)
     end
   end
 

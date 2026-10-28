@@ -98,5 +98,6 @@ export interface ErrorBody {
     limit?: number;
     already_purchased?: number;
     release_at?: string;
+    retry?: "same_key" | "new_checkout";
   };
 }

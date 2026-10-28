@@ -3,6 +3,8 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, ApiError, checkoutFix } from "../api";
 import { useCart } from "../cart";
+import { checkoutFingerprint, clearAttempt, readAttempt, saveAttempt } from "../checkoutState";
+import { paymentRedirect } from "../paymentRedirect";
 import { rememberCheckout } from "../orderState";
 import type { ErrorBody } from "../types";
 import { money } from "../utils";
@@ -28,6 +30,10 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
     0
   );
   const loading = products.some((p) => p.isPending || p.isFetching);
+  const savedAttempt = readAttempt();
+  const canRetry =
+    savedAttempt?.fingerprint === checkoutFingerprint(email, cart.items) &&
+    savedAttempt?.cartRevision === cart.revision;
   const invalid = products.some(
     (q, index) =>
       q.isError ||
@@ -45,25 +51,32 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
     setError(null);
     localStorage.setItem("tyt-email", email);
     const checkoutItems = [...cart.items].sort((a, b) => a.product_slug.localeCompare(b.product_slug));
-    const fingerprint = JSON.stringify({ email: email.trim().toLowerCase(), items: checkoutItems });
-    let saved: { fingerprint: string; key: string } | null = null;
+    const fingerprint = checkoutFingerprint(email, checkoutItems);
+    const saved = readAttempt();
+    const attempt =
+      saved?.fingerprint === fingerprint && saved.cartRevision === cart.revision
+        ? saved
+        : { fingerprint, key: crypto.randomUUID(), cartRevision: cart.revision, items: checkoutItems };
+    saveAttempt(attempt);
     try {
-      saved = JSON.parse(sessionStorage.getItem("tyt-checkout-attempt") || "null");
-    } catch {
-      /* A corrupt old attempt is replaced. */
-    }
-    const key = saved?.fingerprint === fingerprint ? saved.key : crypto.randomUUID();
-    sessionStorage.setItem("tyt-checkout-attempt", JSON.stringify({ fingerprint, key }));
-    try {
-      const result = await api.checkout(email.trim(), checkoutItems, key);
-      rememberCheckout(result.order.token, checkoutItems);
-      window.location.assign(result.payment_url);
+      const result = await api.checkout(email.trim(), checkoutItems, attempt.key);
+      rememberCheckout(result.order.token, attempt);
+      const redirect = paymentRedirect(result.payment_url);
+      if (!redirect)
+        throw new ApiError(
+          {
+            code: "unsafe_payment_url",
+            message: "We couldn’t open a secure payment page. Your cart is safe. Please try again.",
+          },
+          502
+        );
+      window.location.assign(redirect);
     } catch (err) {
       const body =
         err instanceof ApiError
           ? err.body
           : { code: "network", message: "We couldn’t connect. Your cart is safe. Please try again." };
-      if (body.code === "idempotency_conflict") sessionStorage.removeItem("tyt-checkout-attempt");
+      if (body.code === "idempotency_conflict" || body.details?.retry === "new_checkout") clearAttempt(attempt.key);
       setError(body);
       setBusy(false);
       submitting.current = false;
@@ -94,7 +107,10 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
               {cart.items.map((item, index) => {
                 const query = products[index];
                 const p = query.data?.product;
-                const lineError = error?.details?.product_slug === item.product_slug ? checkoutFix(error) : null;
+                const affected =
+                  error?.details?.product_slug === item.product_slug ||
+                  (error && !error.details?.product_slug && cart.items.length === 1 && error.code === "limit_exceeded");
+                const lineError = affected && error ? checkoutFix(error) : null;
                 const max = p?.max_per_order ?? 10;
                 return (
                   <div className="cart-line" key={item.product_slug}>
@@ -123,7 +139,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                           Remove
                         </button>
                       </div>
-                      {p && !p.availability.purchasable && (
+                      {p && !canRetry && !p.availability.purchasable && (
                         <p className="line-error">
                           {p.availability.state === "upcoming"
                             ? "This drop hasn’t released yet."
@@ -131,7 +147,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                           Remove it to continue.
                         </p>
                       )}
-                      {p && p.availability.purchasable && item.quantity > max && (
+                      {p && !canRetry && p.availability.purchasable && item.quantity > max && (
                         <p className="line-error">
                           The available quantity changed.{" "}
                           <button
@@ -215,11 +231,21 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
               />
               {error && (
                 <p className="error" id="checkout-error" role={error.details?.product_slug ? undefined : "alert"}>
-                  {error.details?.product_slug ? "Please update the item above to continue." : error.message}
+                  {error.details?.product_slug
+                    ? "Please update the item above to continue."
+                    : error.code === "limit_exceeded" && !error.details?.product_slug
+                      ? `${checkoutFix(error).message} Update quantities or remove an item to continue.`
+                      : error.message}
                 </p>
               )}
-              <button className="button" disabled={busy || loading || invalid}>
-                {busy ? "Reserving your order…" : "CHECKOUT"}
+              <button className="button" disabled={busy || (!canRetry && (loading || invalid))}>
+                {busy
+                  ? "Reserving your order…"
+                  : error?.details?.retry === "new_checkout"
+                    ? "Start a new checkout"
+                    : canRetry && error
+                      ? "Try again"
+                      : "CHECKOUT"}
               </button>
               <p className="muted small">Your puzzles are held for about 30 minutes at checkout.</p>
             </form>

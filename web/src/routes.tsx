@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { Layout } from "./components/Layout";
 import { Home, Shop, Archive, Story, NotFound, Info } from "./pages/StorePages";
 import { ProductPage, DropPage } from "./pages/ProductPage";
-import { OrderPage, CancelPage, SimulatedPage } from "./pages/OrderPages";
+import { OrderPage, CancelPage } from "./pages/OrderPages";
 export const router = createBrowserRouter([
   {
     element: <Layout />,
@@ -16,7 +16,14 @@ export const router = createBrowserRouter([
       { path: "/archive", element: <Archive /> },
       { path: "/orders/:token", element: <OrderPage /> },
       { path: "/checkout/cancel/:token", element: <CancelPage /> },
-      { path: "/checkout/simulated/:token", element: <SimulatedPage /> },
+      ...(import.meta.env.DEV
+        ? [
+            {
+              path: "/checkout/simulated/:token",
+              lazy: async () => ({ Component: (await import("./pages/SimulatedPage")).SimulatedPage }),
+            },
+          ]
+        : []),
       { path: "/info/:topic", element: <Info /> },
       { path: "*", element: <NotFound /> },
     ],

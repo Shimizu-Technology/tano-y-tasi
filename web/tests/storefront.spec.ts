@@ -345,3 +345,72 @@ test("gallery artwork fills the mobile content width and still swipes", async ({
     }
   }
 });
+
+for (const retry of ["same_key", "new_checkout"]) {
+  test(`payment failure ${retry}: recover with the correct key and complete payment`, async ({ page }) => {
+    await go(page, `/products/hafa-adai-from-tumon-bay?mockPayment=${retry}`);
+    await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+    await page.getByLabel("Email address", { exact: true }).fill("recovery@example.com");
+    await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+    const action = page.getByRole("button", { name: retry === "same_key" ? "Try again" : "Start a new checkout", exact: true });
+    await expect(action).toBeVisible();
+    const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-mock-db")!).attempts);
+    const firstKey = Object.keys(attempts)[0];
+    expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-checkout-attempt") || "null")?.key ?? null)).toBe(retry === "same_key" ? firstKey : null);
+    await action.click();
+    await expect(page.getByText("TEST MODE · SIMULATED PAYMENT")).toBeVisible();
+    const keys = await page.evaluate(() => Object.keys(JSON.parse(sessionStorage.getItem("tyt-mock-db")!).attempts));
+    expect(keys.length).toBe(retry === "same_key" ? 1 : 2);
+    await page.getByRole("button", { name: "Pay (test)", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Paid");
+    await expect(page.getByRole("button", { name: "CART (0)" })).toBeVisible();
+    await overflow(page);
+  });
+}
+test("last-unit reservation retries after lost provider setup despite refreshed zero stock", async ({ page }) => {
+  await go(page, "/products/hafa-adai-from-tumon-bay?mockPayment=same_key");
+  // Own this tab's isolated MSW fixture: one remaining core unit.
+  await page.evaluate(() => {
+    const db = JSON.parse(sessionStorage.getItem("tyt-mock-db")!);
+    db.stock["hafa-adai-from-tumon-bay"] = 1;
+    sessionStorage.setItem("tyt-mock-db", JSON.stringify(db));
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  await page.getByLabel("Email address", { exact: true }).fill("last-unit@example.com");
+  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  const action = page.getByRole("button", { name: "Try again", exact: true });
+  await expect(action).toBeEnabled();
+  const originalKey = await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-checkout-attempt")!).key);
+  // Reopen after refresh to prove stock 0 does not block the existing reservation.
+  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await page.getByRole("button", { name: "CART (1)" }).click();
+  await expect(page.getByRole("button", { name: "CHECKOUT", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await expect(page.getByText("TEST MODE · SIMULATED PAYMENT")).toBeVisible();
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-checkout-attempt")!).key)).toBe(originalKey);
+  await page.getByRole("button", { name: "Pay (test)", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-mock-db")!).stock["hafa-adai-from-tumon-bay"])).toBe(0);
+});
+test("order A payment preserves a re-added cart and checkout B reservation", async ({ page }) => {
+  await addCore(page);
+  await checkout(page, "order-a@example.com");
+  const paymentA = page.url();
+  // Change the cart through its controls before completing A.
+  await page.getByRole("button", { name: "CART (1)" }).click();
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+  await addCore(page);
+  await checkout(page, "order-b@example.com");
+  const attemptB = await page.evaluate(() => sessionStorage.getItem("tyt-checkout-attempt"));
+  await page.goto(paymentA);
+  await page.getByRole("button", { name: "Pay (test)", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  await expect(page.getByRole("button", { name: "CART (1)" })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("tyt-checkout-attempt"))).toBe(attemptB);
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Paid");
+  await expect(page.getByRole("button", { name: "CART (1)" })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem("tyt-checkout-attempt"))).toBe(attemptB);
+});
