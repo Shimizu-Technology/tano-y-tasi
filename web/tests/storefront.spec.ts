@@ -212,6 +212,8 @@ test("limit errors use the email allowance with an inline remove action", async 
   await expect(page.getByText("A piece of home is waiting.")).toBeVisible();
 });
 test("all static and unavailable routes fit 320px and current viewport", async ({ page }) => {
+  // Visits every route at two widths; hosted CI runners need more than the default 30s.
+  test.setTimeout(120_000);
   for (const path of [
     "/",
     "/shop",
