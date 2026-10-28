@@ -78,12 +78,12 @@ RSpec.describe "Checkout", type: :request do
     expect(response.parsed_body.dig("error", "details")).to eq("limit" => 2, "already_purchased" => 0)
   end
 
-  it "returns 503 and releases the hold on a gateway failure" do
+  it "returns 503 and preserves the hold on a transient gateway failure" do
     allow(Payments::Gateway).to receive(:create_session).and_raise(Stripe::APIError, "failed")
     submit
     expect_error("payment_unavailable", :service_unavailable)
-    expect(product.reload.stock_quantity).to eq(50)
-    expect(Order.last.status).to eq("canceled")
+    expect(product.reload.stock_quantity).to eq(49)
+    expect(Order.last.status).to eq("pending_payment")
   end
 
   it "throttles checkout at ten requests per minute with a JSON error" do
@@ -106,7 +106,7 @@ RSpec.describe "Checkout", type: :request do
   end
 
   it "keeps a failed checkout unavailable on retries without reserving again" do
-    allow(Payments::Gateway).to receive(:create_session).and_raise(Stripe::APIConnectionError, "offline")
+    allow(Payments::Gateway).to receive(:create_session).and_raise(Stripe::InvalidRequestError.new("invalid", nil))
     2.times do
       submit
       expect_error("payment_unavailable", :service_unavailable)

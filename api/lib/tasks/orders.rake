@@ -1,6 +1,7 @@
 namespace :orders do
-  desc "Release one bounded batch (100) of holds expired beyond the five-minute grace period"
+  desc "Release up to 100 expired holds and retry closing up to 100 released Stripe sessions"
   task release_expired: :environment do
     Orders::ReleaseExpired.call
+    Payments::CloseReleasedSessions.call
   end
 end

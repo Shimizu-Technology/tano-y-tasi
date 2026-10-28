@@ -53,11 +53,11 @@ RSpec.describe Orders::Checkout do
     expect(InventoryMovement.count).to eq(0)
   end
 
-  it "releases inventory if provider creation fails" do
+  it "keeps the reservation available for retry after a transient provider failure" do
     allow(Payments::Gateway).to receive(:create_session).and_raise(Stripe::APIConnectionError, "offline")
     expect { checkout }.to raise_error(ApiError) { |error| expect(error.code).to eq("payment_unavailable") }
-    expect(product.reload.stock_quantity).to eq(5)
-    expect(Order.last.status).to eq("canceled")
+    expect(product.reload.stock_quantity).to eq(3)
+    expect(Order.last.status).to eq("pending_payment")
   end
 
   it "calls the gateway after the reservation transaction commits" do
@@ -70,7 +70,7 @@ RSpec.describe Orders::Checkout do
     checkout
   end
 
-  it "counts paid and unexpired pending orders toward the case-insensitive customer limit" do
+  it "counts paid and all pending orders toward the case-insensitive customer limit" do
     product.update!(kind: "drop", drop: create(:drop, per_customer_limit: 2))
     first = checkout(items: [ { product_slug: product.slug, quantity: 1 } ])
     Payments::Complete.call(first)

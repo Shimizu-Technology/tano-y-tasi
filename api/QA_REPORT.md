@@ -69,3 +69,30 @@ No real Stripe keys, provider network calls, browser/mobile journeys, deployment
 ## Resource disposition
 
 The initial background server PID `35744` exited before serving; its lifecycle records were cleared. Smoke server PID `37242` was validated, stopped with SIGTERM, and released in both lifecycle sessions (`01a184b1-1492-7513-a55f-6138917152b2` and `db0f0ba3-e316-4410-bf82-d05b447f7412`). Both report no active owned resources; port 3031 has no listener. No browser/device/container was started. Shared services were left running. The worktree is retained for integration; no PR was opened.
+
+## Review fixes — 2026-10-29
+
+This section supersedes the earlier session-failure, expiry-buffer, contract, and verification notes above. Starting head: `63c97719b95a7d1f88d5f798a9eea12ca440bc2c`, open PR #1 into `main`. Verification ran against the complete changed working tree on `feature/api-foundation`; the worker report identifies the resulting pushed commit. Sources remain the repository instructions, product brief, API contract, current services, and reliability guide. The local Brain-Dump search found no additional Tåno + Tåsi project notes.
+
+Scope: agent-executed affected-flow API QA for stock reservations, limited drops, payment retry/recovery, session closure, and boot safety. Fixtures are isolated test products/orders with transaction rollback, or explicitly deleted concurrency fixtures. WebMock blocks external network calls; Stripe responses and failures are simulated. Only `tano_y_tasi_development` and `tano_y_tasi_test` were migrated after runner checks confirmed each exact name. No server, browser, device, or container was started.
+
+Required acceptance and evidence:
+
+- R1 passed: an expired pending hold still counts throughout grace; legacy overlapping holds cannot complete into four fulfilled units; released and canceled late payments recheck the limit; pending violations restore all item reservations once. Paid `needs_attention` orders continue counting. Both event orders and a twelve-connection completion race are covered by `payment_limits_spec.rb` and `concurrency_spec.rb`. When the old payment needs attention first, its paid quantity also blocks fulfilling the replacement until refunds are reconciled.
+- R2 passed: connection errors, API errors, rate limits, timeouts, and interrupted IO preserve the reservation and return retryable 503 responses. Identical retries recover the same order with identical Stripe parameters. Invalid-request and idempotency errors release once and instruct the client to start a new checkout. A crash after Stripe returns but before session persistence replays unchanged expiry and saved line items even after catalog edits. Expired failed holds release normally. Evidence: `session_recovery_spec.rb`, plus the existing checkout and gateway specs.
+- R3 passed: injected expiration failure followed by a second cancel succeeds without a second stock release. Already-expired orders also retry; already-expired/complete Stripe sessions are confirmed by retrieval. The rake task closes newly expired holds and retries prior releases, bounded to 100 closures per run. Signed expiry webhooks persist closure after cancellation; async failure preserves retry work when Stripe is unavailable. Provider closure holds no inventory transaction or row lock. Evidence: `session_closure_spec.rb`, `webhooks_spec.rb`, and `concurrency_spec.rb`.
+- R4 passed: production uses Rails' resolved database name and requires an exact `EXPECTED_DATABASE_NAME` when configured, otherwise the `tano_y_tasi` prefix. Missing/mismatched names reject boot. A subprocess invoking the real `db:migrate` task with the test database name, an unreachable socket, and a mismatched allowlist was rejected by the initializer before connection or migration. A runner verified `tano_y_tasi_test` before that rejection test. No other database was contacted. Evidence: `boot_spec.rb`.
+
+Final gates:
+
+- `bundle exec rspec`: 129 examples, 0 failures (including 8 real-Postgres concurrency scenarios).
+- `bundle exec rubocop`: 68 files, 0 offenses.
+- `bundle exec brakeman --no-pager --quiet`: 0 errors, 0 security warnings.
+- `bundle exec bundler-audit check --update`: no vulnerabilities; 1,284 advisories, database commit `3df20d31748fbafd1f6c75ade50e5d1d266257ee`.
+- `git diff --check`: passed.
+
+The first run had two incorrect expectations that a replacement would fulfill after the old payment was already marked paid/needs-attention. The required paid-attention counting rule blocks that fulfillment too. Those expectations were corrected and the full suite passed; no required API scenario remains failed or blocked.
+
+`docs/API_CONTRACT.md` now documents grace-period/paid-attention limits, completion enforcement, saved Stripe expiry, transient versus definitive 503 recovery, and cancellation closure retries. The public JSON shape is unchanged. `api/.env.example` and `api/README.md` document the production allowlist and recovery operations. Migration `20261029000002` adds the session expiry/closure timestamps and an index for outstanding closure work.
+
+Limits: real Stripe transport, browser/mobile usability, hosted CI at the pushed head, independent review of these fixes, deployment, and merge are not part of this worker's execution. No GitHub comment or merge was performed. Resource status: no task-owned resources were started or left running; shared Postgres and other baseline services remain untouched. The named worktree is retained for the parent review.

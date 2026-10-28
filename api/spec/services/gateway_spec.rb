@@ -4,7 +4,7 @@ RSpec.describe Payments::Gateway do
   it "creates a Stripe session with snapshots, shipping territories and order-scoped idempotency" do
     product = create(:product)
     order = Orders::Checkout.call(email: "a@example.com", idempotency_key: "stripe-options", items: [ { product_slug: product.slug, quantity: 1 } ]).order
-    order.update!(provider: "stripe")
+    order.update!(provider: "stripe", provider_session_expires_at: (31.minutes.from_now).change(usec: 0))
     expect(Stripe::Checkout::Session).to receive(:create) do |options, request_options|
       expect(options[:metadata]).to eq(order_token: order.token)
       expect(options[:customer_email]).to eq("a@example.com")
@@ -37,14 +37,14 @@ RSpec.describe Payments::Gateway do
     product = create(:product)
     order = Orders::Checkout.call(email: "c@example.com", idempotency_key: "stripe-cancel", items: [ { product_slug: product.slug, quantity: 1 } ]).order
     order.update!(provider: "stripe", provider_session_id: "cs_cancel")
-    expect(Stripe::Checkout::Session).to receive(:expire).with("cs_cancel")
+    expect(Stripe::Checkout::Session).to receive(:expire).with("cs_cancel").and_return(Stripe::StripeObject.construct_from(status: "expired"))
     Orders::Release.call(order)
     described_class.expire_session(order)
   end
 
   it "does not raise when expiring the Stripe session fails" do
     order = Order.new(id: 1, provider: "stripe", provider_session_id: "cs_gone")
-    allow(Stripe::Checkout::Session).to receive(:expire).and_raise(Stripe::InvalidRequestError.new("gone", nil))
+    allow(Stripe::Checkout::Session).to receive(:expire).and_raise(Stripe::APIConnectionError.new("offline"))
     expect { described_class.expire_session(order) }.not_to raise_error
   end
 end

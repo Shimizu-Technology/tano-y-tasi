@@ -11,7 +11,10 @@ RSpec.describe "Stripe webhooks", type: :request do
     { id: "cs_test", metadata: { order_token: order.token }, payment_intent: "pi_test", payment_status: "paid", amount_total: 3500, currency: "usd",
       collected_information: { shipping_details: { name: "A Buyer", address: { country: "GU" } } } }
   end
-  before { stub_const("ENV", ENV.to_h.merge("STRIPE_WEBHOOK_SECRET" => secret)) }
+  before do
+    stub_const("ENV", ENV.to_h.merge("STRIPE_WEBHOOK_SECRET" => secret))
+    allow(Stripe::Checkout::Session).to receive(:expire).and_return(Stripe::StripeObject.construct_from(status: "expired"))
+  end
 
   def send_event(type = "checkout.session.completed", id: "evt_test", signature: nil, object: session)
     body = { id: id, object: "event", type: type, data: { object: object } }.to_json
@@ -24,6 +27,7 @@ RSpec.describe "Stripe webhooks", type: :request do
     2.times { send_event; expect(response).to have_http_status(:ok) }
     expect(order.reload.status).to eq("paid")
     expect(order.provider_payment_intent_id).to eq("pi_test")
+    expect(order.provider_session_closed_at).to be_present
     expect(order.shipping.dig("address", "country")).to eq("GU")
     expect(product.reload.stock_quantity).to eq(49)
     expect(PaymentEvent.count).to eq(1)
@@ -47,6 +51,7 @@ RSpec.describe "Stripe webhooks", type: :request do
       2.times { send_event(event_type) }
       expect(response).to have_http_status(:ok)
       expect(order.reload.status).to eq(status)
+      expect(order.provider_session_closed_at).to be_present
       expect(product.reload.stock_quantity).to eq(50)
     end
   end
@@ -61,6 +66,30 @@ RSpec.describe "Stripe webhooks", type: :request do
     send_event(object: session.merge(payment_status: "unpaid"))
     expect(response).to have_http_status(:ok)
     expect(order.reload.status).to eq("pending_payment")
+    expect(order.provider_session_closed_at).to be_present
+  end
+
+  it "records an expiry webhook as closed even after a prior cancel" do
+    Orders::Release.call(order)
+    expect(Stripe::Checkout::Session).not_to receive(:expire)
+    2.times { send_event("checkout.session.expired") }
+    expect(response).to have_http_status(:ok)
+    expect(order.reload.status).to eq("canceled")
+    expect(order.provider_session_closed_at).to be_present
+    expect(product.reload.stock_quantity).to eq(50)
+    expect(InventoryMovement.where(order: order, reason: "release").count).to eq(1)
+  end
+
+  it "retains closure work after async failure if Stripe is unreachable" do
+    allow(Stripe::Checkout::Session).to receive(:expire).and_raise(Stripe::APIConnectionError.new("offline"))
+    send_event("checkout.session.async_payment_failed")
+    expect(response).to have_http_status(:ok)
+    expect(order.reload.status).to eq("canceled")
+    expect(order.provider_session_closed_at).to be_nil
+    expect(product.reload.stock_quantity).to eq(50)
+    allow(Stripe::Checkout::Session).to receive(:expire).and_return(Stripe::StripeObject.construct_from(status: "expired"))
+    Payments::CloseReleasedSessions.call
+    expect(order.reload.provider_session_closed_at).to be_present
   end
 
   it "rejects mismatched amounts and session IDs" do

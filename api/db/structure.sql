@@ -174,6 +174,8 @@ CREATE TABLE public.orders (
     shipping jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
+    provider_session_expires_at timestamp(6) without time zone,
+    provider_session_closed_at timestamp(6) without time zone,
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
     CONSTRAINT order_status_valid CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('expired'::character varying)::text, ('canceled'::character varying)::text, ('refunded'::character varying)::text, ('needs_attention'::character varying)::text]))),
     CONSTRAINT order_totals_valid CHECK (((subtotal_cents >= 0) AND (total_cents >= 0) AND ((currency)::text = 'USD'::text)))
@@ -573,6 +575,13 @@ CREATE UNIQUE INDEX one_product_per_drop ON public.products USING btree (drop_id
 
 
 --
+-- Name: orders_unclosed_sessions; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX orders_unclosed_sessions ON public.orders USING btree (updated_at) WHERE (((provider)::text = 'stripe'::text) AND ((status)::text = ANY ((ARRAY['canceled'::character varying, 'expired'::character varying])::text[])) AND (provider_session_id IS NOT NULL) AND (provider_session_closed_at IS NULL));
+
+
+--
 -- Name: subscribers_email_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -626,4 +635,5 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261029000002'),
 ('20261029000001');

@@ -68,8 +68,11 @@ module Orders
         raise ApiError.new("unknown_product", "This product is unavailable.") if products.size != @items.size || products.any? { |product| product.status != "active" }
         products.each { |product| validate_product!(product, quantity_for(product)) }
         subtotal = products.sum { |product| product.price_cents * quantity_for(product) }
+        provider = Payments::Gateway.provider
+        expires_at = (provider == "stripe" ? Payments::Gateway::STRIPE_MIN_EXPIRY : 30.minutes).from_now.change(usec: 0)
         order = Order.create!(email: @email, idempotency_key: @key, request_fingerprint: fingerprint,
-          subtotal_cents: subtotal, total_cents: subtotal, currency: "USD", provider: Payments::Gateway.provider, expires_at: 30.minutes.from_now)
+          subtotal_cents: subtotal, total_cents: subtotal, currency: "USD", provider: provider, expires_at: expires_at,
+          provider_session_expires_at: provider == "stripe" ? expires_at : nil)
         products.each do |product|
           quantity = quantity_for(product)
           order.order_items.create!(product: product, product_slug: product.slug, name: product.name,
@@ -92,8 +95,7 @@ module Orders
         raise ApiError.new("drop_not_live", "This drop is not open for checkout.", details: { product_slug: product.slug, release_at: drop.release_at.iso8601 })
       end
       if drop
-        already = OrderItem.joins(:order).where(product: product, orders: { email: @email })
-          .where("orders.status = 'paid' OR (orders.status = 'pending_payment' AND orders.expires_at > ?)", Time.current).sum(:quantity)
+        already = CustomerLimit.quantity(product, @email)
         if already + quantity > drop.per_customer_limit
           raise ApiError.new("limit_exceeded", "This drop is limited to #{drop.per_customer_limit} per customer.", details: { limit: drop.per_customer_limit, already_purchased: already })
         end
@@ -107,12 +109,20 @@ module Orders
     end
 
     def provision_session!(order)
+      # Also initialize pre-migration reservations once, before any provider call.
+      if order.provider == "stripe" && order.provider_session_expires_at.nil?
+        expires_at = Payments::Gateway::STRIPE_MIN_EXPIRY.from_now.change(usec: 0)
+        order.update!(provider_session_expires_at: expires_at, expires_at: expires_at)
+      end
       session = Payments::Gateway.create_session(order)
       order.update!(provider_session_id: session.fetch(:id), payment_url: session.fetch(:url), expires_at: session.fetch(:expires_at))
-    rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+    rescue Stripe::InvalidRequestError, Stripe::IdempotencyError => error
       Release.call(order)
       Rails.logger.error("payment_session_failed order_id=#{order.id} error=#{error.class}")
-      raise ApiError.new("payment_unavailable", "Payment is temporarily unavailable. Please try again with a new checkout.", status: :service_unavailable)
+      raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable)
+    rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+      Rails.logger.error("payment_session_retryable order_id=#{order.id} error=#{error.class}")
+      raise ApiError.new("payment_unavailable", "Payment is temporarily unavailable. Retry the same request with the same idempotency_key.", status: :service_unavailable)
     end
 
     def conflict!

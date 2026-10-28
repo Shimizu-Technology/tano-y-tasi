@@ -37,8 +37,8 @@ RSpec.describe "PostgreSQL inventory concurrency", type: :model do
     threads&.each(&:join)
   end
 
-  def buy(index, key: SecureRandom.uuid, email: "race-#{index}@example.com")
-    Orders::Checkout.call(email: email, idempotency_key: key, items: [ { product_slug: @product.slug, quantity: 1 } ]).order
+  def buy(index, key: SecureRandom.uuid, email: "race-#{index}@example.com", quantity: 1)
+    Orders::Checkout.call(email: email, idempotency_key: key, items: [ { product_slug: @product.slug, quantity: quantity } ]).order
   rescue ApiError => error
     error.code
   end
@@ -105,5 +105,40 @@ RSpec.describe "PostgreSQL inventory concurrency", type: :model do
       { id: "sim_#{order.token}", url: "http://localhost:5181/checkout/simulated/#{order.token}", expires_at: order.expires_at }
     end
     expect(buy(1)).to be_a(Order)
+  end
+
+  it "does not hold inventory locks while closing a released Stripe session" do
+    order = buy(1)
+    order.update!(provider: "stripe", provider_session_id: "cs_unlocked")
+    Orders::Release.call(order)
+    allow(Stripe::Checkout::Session).to receive(:expire) do
+      expect(ActiveRecord::Base.connection.transaction_open?).to be(false)
+      Thread.new do
+        Product.connection_pool.with_connection do
+          Product.transaction { Product.lock("FOR UPDATE NOWAIT").find(@product.id) }
+        end
+      end.value
+      Stripe::StripeObject.construct_from(status: "expired")
+    end
+    Payments::Gateway.expire_session(order)
+    expect(order.reload.provider_session_closed_at).to be_present
+  end
+
+  it "serializes late payments against a replacement checkout for the same customer" do
+    @drop = create(:drop, per_customer_limit: 2)
+    @product.update!(kind: "drop", drop: @drop)
+    old = buy(1, email: "same@example.com", quantity: 2)
+    Orders::Release.call(old, status: "expired")
+    replacement = buy(2, email: "same@example.com", quantity: 2)
+    race(12) do |index|
+      candidate = Order.find(index.even? ? old.id : replacement.id)
+      Payments::Complete.call(candidate)
+    end
+    expect(old.reload.status).to eq("needs_attention")
+    expect(%w[paid needs_attention]).to include(replacement.reload.status)
+    expect(@product.reload.stock_quantity).to eq(replacement.status == "paid" ? 3 : 5)
+    expect(OrderItem.joins(:order).where(product: @product, orders: { status: "paid" }).sum(:quantity)).to be <= 2
+    expect(InventoryMovement.where(order: replacement, reason: "release").count).to eq(replacement.status == "paid" ? 0 : 1)
+    expect(InventoryMovement.where(order: old, reason: "late_payment_reserve").count).to eq(0)
   end
 end

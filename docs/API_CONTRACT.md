@@ -99,8 +99,9 @@ Response `201`:
 ```
 - The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
 - `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at), `limit_exceeded` (details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
-- The per-customer limit counts quantities across this email's `paid` and unexpired `pending_payment` orders for that drop product (case-insensitive email).
-- Holds last about 31 minutes. Stripe requires a Checkout session to stay open for at least 30 minutes after it is created, so the hold is extended to match the session window and both expire together. Holds are released 5 minutes after expiry, as a grace period for in-flight payments. Cancelling (`POST /orders/:token/cancel`) also expires the open Stripe session.
+- The per-customer limit counts quantities across this email's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that drop product (case-insensitive email). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
+- Stripe holds last 31 minutes, with the session expiry saved before the provider request; simulated holds last 30 minutes. Retries reuse the saved expiry and item snapshots. Holds are released 5 minutes after expiry, as a grace period for in-flight payments.
+- `503 payment_unavailable` after a transient provider failure preserves the hold; retry the **same payload and idempotency key**. Definitive provider rejection cancels the hold and the error message instructs the client to **start a new checkout** with a fresh key. Expired holds are cleaned up normally.
 
 ### `GET /api/v1/orders/:token`
 ```json
@@ -109,7 +110,7 @@ Response `201`:
 Order `status` is `pending_payment`, `paid`, `expired`, `canceled`, `refunded` or `needs_attention`. The token is a long random value (unguessable); it is the only way to read an order publicly.
 
 ### `POST /api/v1/orders/:token/cancel`
-The customer abandons checkout from the cancel page. If the order is `pending_payment`, the stock is released and the status becomes `canceled`. The call is idempotent and returns the order.
+The customer abandons checkout from the cancel page. If the order is `pending_payment`, the stock is released and the status becomes `canceled`. The call is idempotent and returns the order. For canceled or expired Stripe orders, every call retries closing an unconfirmed session. Closure failures leave persistent retry work for later cancels or the scheduled expiry task; stock is restored only once. A late payment still passes the stock and customer-limit checks and may require a refund.
 
 ### `POST /api/v1/webhooks/stripe`
 Verifies the `Stripe-Signature` header. Handles `checkout.session.completed` (marks paid and records the payment intent), `checkout.session.expired` (releases stock and marks expired), and `checkout.session.async_payment_failed` (releases stock and marks canceled). Events are idempotent by Stripe event id. Returns 2xx for ignored event types.

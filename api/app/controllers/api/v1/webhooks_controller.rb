@@ -14,7 +14,10 @@ module Api
             return render_error("malformed", "Payment session does not match the order.", :bad_request)
           end
           if %w[checkout.session.completed checkout.session.async_payment_succeeded].include?(event.type)
-            return render json: { received: true } unless session.payment_status == "paid"
+            unless session.payment_status == "paid"
+              order.update!(provider_session_closed_at: order.provider_session_closed_at || Time.current)
+              return render json: { received: true }
+            end
             unless session.amount_total == order.total_cents && session.currency == order.currency.downcase
               return render_error("malformed", "Payment amount does not match the order.", :bad_request)
             end

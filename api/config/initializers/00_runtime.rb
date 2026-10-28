@@ -1,12 +1,17 @@
-# Fail before connecting to a database if a URL targets another project.
-if ENV["DATABASE_URL"].present?
-  database = URI.parse(ENV.fetch("DATABASE_URL")).path.delete_prefix("/")
-  expected = { "development" => "tano_y_tasi_development", "test" => "tano_y_tasi_test" }[Rails.env]
-  raise "Unsafe DATABASE_URL: expected #{expected}" if expected && database != expected
-end
 provider = ENV.fetch("PAYMENT_PROVIDER", Rails.env.production? ? "" : "simulated")
 raise "PAYMENT_PROVIDER must be stripe in production" if Rails.env.production? && provider != "stripe"
 raise "Unknown PAYMENT_PROVIDER" unless %w[stripe simulated].include?(provider)
+# Resolve Rails' effective configuration without opening a connection. This also
+# runs through the :environment prerequisite of db:migrate and other rake tasks.
+database = ActiveRecord::Base.connection_db_config.database.to_s
+expected = { "development" => "tano_y_tasi_development", "test" => "tano_y_tasi_test" }[Rails.env]
+if Rails.env.production?
+  expected = ENV["EXPECTED_DATABASE_NAME"].presence
+  allowed = expected ? database == expected : database.start_with?("tano_y_tasi")
+  raise "Unsafe production database: expected #{expected || 'a name starting with tano_y_tasi'}" unless allowed
+elsif expected && database != expected
+  raise "Unsafe DATABASE_URL: expected #{expected}"
+end
 Rails.application.config.x.payment_provider = provider
 origins = ENV.fetch("WEB_APP_URL", Rails.env.production? ? "" : "http://localhost:5181").split(",").map(&:strip)
 raise "WEB_APP_URL is required" if origins.empty? || origins.any?(&:blank?)
