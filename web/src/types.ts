@@ -24,6 +24,7 @@ export interface Product {
   price_cents: number;
   currency: "USD";
   summary: string;
+  specs: { piece_count?: number; finished_size?: string };
   availability: {
     state: "available" | "sold_out" | "upcoming" | "closed";
     purchasable: boolean;

@@ -15,7 +15,8 @@ export function ArtImage({
   const [w, h] = art.aspect.split(":").map(Number);
   return (
     <img
-      className={`art-image ${loaded ? "loaded" : ""} ${className}`}
+      className={`art-image ${priority || loaded ? "loaded" : ""} ${className}`}
+      style={priority ? { transition: "none" } : undefined}
       src={`${art.base}-${art.widths[0]}.webp`}
       srcSet={art.widths.map((w) => `${art.base}-${w}.webp ${w}w`).join(", ")}
       sizes={sizes}

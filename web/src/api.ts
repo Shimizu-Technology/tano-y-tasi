@@ -71,3 +71,29 @@ export function checkoutFix(error: ErrorBody): { message: string; quantity?: num
       return { message: error.message };
   }
 }
+
+// The snapshot is data-only JSON; it never needs an inline executable script.
+export function restoreInitialData(client: import("@tanstack/react-query").QueryClient, doc: Document = document) {
+  const element = doc.getElementById("tyt-initial-data");
+  try {
+    if (!element?.textContent) return;
+    const data = JSON.parse(element.textContent) as import("../netlify/lib/storefront").InitialData;
+    if (data.pathname !== window.location.pathname || !Number.isFinite(data.snapshotTime) || !data.storefront) return;
+    const seed = (key: string[], value: unknown) => {
+      // Render immediately, then refresh stock/lifecycle in the background, even for a fresh snapshot.
+      client.setQueryDefaults(key, { staleTime: 0 });
+      client.setQueryData(key, value, { updatedAt: data.snapshotTime });
+    };
+    seed(["storefront"], data.storefront);
+    if (data.product) seed(["product", data.product.product.slug], data.product);
+    if (data.drops) seed(["drops"], data.drops);
+    if (data.drop) {
+      const slug = data.pathname.replace(/\/$/, "").split("/")[2] ?? "featured";
+      seed(["drop", slug], data.drop);
+    }
+  } catch {
+    // A malformed or older snapshot must retain the normal client-fetch path.
+  } finally {
+    element?.remove();
+  }
+}

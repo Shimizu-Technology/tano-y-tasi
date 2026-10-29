@@ -109,6 +109,7 @@ function listProduct(p: ProductDetail): Product {
     price_cents: p.price_cents,
     currency: p.currency,
     summary: p.summary,
+    specs: { piece_count: p.specs.piece_count, finished_size: p.specs.finished_size },
     availability: p.availability,
     drop: p.drop,
     image: p.image,
