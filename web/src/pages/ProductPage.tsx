@@ -105,6 +105,26 @@ function ProductView({
     add(p.slug, Math.min(quantity, room), max);
     openCart();
   }
+  // Only confirmed specs are shown; the merchant clears a placeholder in the admin once a value is final.
+  const specRows = (
+    [
+      ["Pieces", "piece_count"],
+      ["Finished size", "finished_size"],
+      ["Box size", "box_size"],
+      ["Material", "material"],
+      ["Cut", "cut"],
+      ["Made in", "made_in"],
+    ] as const
+  )
+    .map(([label, key]) => [label, key, p.specs[key]] as const)
+    .filter(
+      ([, key, value]) =>
+        value != null &&
+        String(value).trim() !== "" &&
+        !/^(TBD|to be confirmed)$/i.test(String(value).trim()) &&
+        !p.placeholders.includes(`specs.${key}`)
+    )
+    .map(([label, , value]) => [label, value] as const);
   const label = purchase.disabled ? purchase.label : room === 0 ? "VIEW CART" : purchase.label;
   return (
     <>
@@ -161,21 +181,16 @@ function ProductView({
               </p>
             )}
             <div className="accordions">
-              <details open>
-                <summary>Details<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
-                <dl>
-                  {([
-                    ["Pieces", p.specs.piece_count],
-                    ["Finished size", p.specs.finished_size],
-                    ["Box size", p.specs.box_size],
-                    ["Material", p.specs.material],
-                    ["Cut", p.specs.cut],
-                    ["Made in", p.specs.made_in],
-                  ] as const).filter(([, value]) => value != null && String(value).trim() !== "" && !/^(TBD|to be confirmed)$/i.test(String(value).trim())).map(([label, value]) => (
-                    <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-                  ))}
-                </dl>
-              </details>
+              {specRows.length > 0 && (
+                <details open>
+                  <summary>Details<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
+                  <dl>
+                    {specRows.map(([label, value]) => (
+                      <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                    ))}
+                  </dl>
+                </details>
+              )}
               <details>
                 <summary>What’s in the box<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <ul>
@@ -187,7 +202,7 @@ function ProductView({
               <details>
                 <summary>The art<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>{p.art.story}</p>
-                <p className="muted small">{p.art.credit}</p>
+                {!p.placeholders.includes("art.credit") && <p className="muted small">{p.art.credit}</p>}
               </details>
               <details>
                 <summary>Shipping<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
