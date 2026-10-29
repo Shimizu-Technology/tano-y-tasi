@@ -1,3 +1,4 @@
+import { useEffect, useState, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +37,26 @@ function MapDetails() {
     </div>
   );
 }
+function HeroCaption({ children }: { children: ReactNode }) {
+  const [enter, setEnter] = useState(() => sessionStorage.getItem("tyt-hero-seen") !== "true");
+  useEffect(() => {
+    sessionStorage.setItem("tyt-hero-seen", "true");
+    if (!enter) return;
+    // Drop the marker once the ~300 ms entrance has played, so content that arrives
+    // later (a fresh response replacing the edge snapshot) appears without animating.
+    const timer = setTimeout(() => setEnter(false), 400);
+    return () => clearTimeout(timer);
+  }, [enter]);
+  const caption = useRef<HTMLDivElement>(null);
+  // Only children present on the first commit take part in the entrance; anything a
+  // refetch inserts afterwards (even within the 400 ms window) appears without animating.
+  useLayoutEffect(() => {
+    if (!enter) return;
+    for (const child of caption.current?.children ?? []) child.setAttribute("data-enter-item", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <div ref={caption} className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
+}
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
@@ -60,7 +81,7 @@ export function Home() {
         aria-label={d ? "Guåhan Sunset Map puzzle" : "Puzzles of Guåhan"}
       >
         <ArtImage art={hero} sizes="(min-width: 900px) 60vw, 100vw" priority />
-        <div className="hero-caption">
+        <HeroCaption>
           <h1>
             {d ? (
               "GUÅHAN"
@@ -86,7 +107,7 @@ export function Home() {
               <span>Shop {core.name} — {money(core.price_cents)}</span><ArrowRight aria-hidden="true" />
             </Link>
           )}
-        </div>
+        </HeroCaption>
       </section>
       <section className="section collection">
         <div className="section-heading">

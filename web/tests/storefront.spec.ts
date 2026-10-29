@@ -245,7 +245,7 @@ test("all static and unavailable routes fit 320px and current viewport", async (
     await overflow(page);
   }
 });
-test("self-hosted type renders diacritics and reduced motion disables animated UI", async ({ page }, info) => {
+test("self-hosted type renders diacritics and reduced motion keeps gentle fades", async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await go(page, "/", "live");
   await page.evaluate(() => document.fonts.ready);
@@ -256,8 +256,11 @@ test("self-hosted type renders diacritics and reduced motion disables animated U
       .evaluate((el) => getComputedStyle(el).animationName)
   ).toBe("none");
   await page.getByRole("button", { name: "CART (0)" }).click();
-  expect(await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).transitionDuration)).toBe("0s");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveCSS("transition-duration", "0.1s");
+  await expect(dialog).toHaveCSS("transform", "none");
   await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
   await page.evaluate(() => {
     const proof = document.createElement("div");
     proof.id = "glyph-proof";
