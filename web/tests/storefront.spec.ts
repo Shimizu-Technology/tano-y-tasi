@@ -183,7 +183,7 @@ test("story: founder, land and sea", async ({ page }, info) => {
 });
 test("archive: empty first-drop state", async ({ page }, info) => {
   await go(page, "/archive");
-  await expect(page.getByRole("heading", { name: "The first drop releases Dec 5." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Drop 001 releases .+ ChST\.$/ })).toBeVisible();
   await shot(page, info, "archive-empty");
   await overflow(page);
 });

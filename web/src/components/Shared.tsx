@@ -92,7 +92,9 @@ export function ProductCard({ product }: { product: Product }) {
               ? product.drop.state === "upcoming"
                 ? `COMING ${releaseDate(product.drop.release_at).toUpperCase()}`
                 : `DROP ${dropNumber(product.drop.number)}`
-              : "100 PIECES · CORE COLLECTION"}
+              : product.specs?.piece_count != null
+                ? `${product.specs.piece_count} PIECES · CORE COLLECTION`
+                : "CORE COLLECTION"}
       </p>
     </Link>
   );

@@ -128,6 +128,7 @@ export function Archive() {
   if (q.isPending) return <Loading layout="archive" />;
   // A failed background refresh keeps showing the data already on screen.
   if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
+  const next = q.data.current ?? q.data.upcoming[0];
   return (
     <div className="page archive">
       <Meta title="Archive" />
@@ -154,10 +155,20 @@ export function Archive() {
         </div>
       ) : (
         <div className="archive-empty">
-          <h2>The first drop releases Dec 5.</h2>
-          <Link className="text-link" to="/drop">
-            Meet Drop 001 <ArrowRight aria-hidden="true" />
-          </Link>
+          {next ? (
+            <>
+              <h2>
+                {next.state === "upcoming"
+                  ? `Drop ${dropNumber(next.number)} releases ${releaseTimes(next.release_at).guam}.`
+                  : `Drop ${dropNumber(next.number)} is available now.`}
+              </h2>
+              <Link className="text-link" to="/drop">
+                Meet Drop {dropNumber(next.number)} <ArrowRight aria-hidden="true" />
+              </Link>
+            </>
+          ) : (
+            <h2>The first drop hasn’t been announced yet.</h2>
+          )}
         </div>
       )}
     </div>

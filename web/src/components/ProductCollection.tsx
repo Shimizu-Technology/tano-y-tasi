@@ -22,7 +22,7 @@ function FeaturedProduct({ product }: { product: Product }) {
       </Link>
       <div className="feature-info">
         {product.availability.state === "sold_out" && <p className="label muted">SOLD OUT</p>}
-        {specs && <p className="small muted">{specs.piece_count} pieces · {specs.finished_size} finished</p>}
+        {specLine(specs) && <p className="small muted">{specLine(specs)}</p>}
         <h2>{product.name}</h2>
         <p className="price">{money(product.price_cents)}</p>
         <p className="feature-summary">{product.summary}</p>
@@ -30,4 +30,12 @@ function FeaturedProduct({ product }: { product: Product }) {
       </div>
     </article>
   );
+}
+
+function specLine(specs: Product["specs"] | undefined) {
+  const parts = [
+    specs?.piece_count != null ? `${specs.piece_count} pieces` : null,
+    specs?.finished_size ? `${specs.finished_size} finished` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
