@@ -860,7 +860,6 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
-('20261029000005'),
 ('20261029000004'),
 ('20261029000003'),
 ('20261029000002'),
