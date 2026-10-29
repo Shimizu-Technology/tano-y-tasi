@@ -1,3 +1,4 @@
+import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
@@ -11,7 +12,7 @@ import type { Drop, ProductDetail } from "../types";
 export function ProductPage() {
   const { slug } = useParams();
   const q = useQuery({ queryKey: ["product", slug], queryFn: () => api.product(slug!) });
-  if (q.isPending) return <Loading />;
+  if (q.isPending) return <Loading layout="product" />;
   if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
   return (
     <ProductView
@@ -38,7 +39,7 @@ export function DropPage() {
       return { ...detail, receivedAt: Date.now() };
     },
   });
-  if (q.isPending) return <Loading />;
+  if (q.isPending) return <Loading layout="drop" />;
   if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
   if (!q.data.drop)
     return (
@@ -117,16 +118,9 @@ function ProductView({
         <div className="product-layout">
           <Gallery images={p.images} name={p.name} />
           <div className="product-info">
-            <p className="label product-state">
-              {d ? (
-                <>
-                  {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} ·{" "}
-                  {d.state === "live" ? "AVAILABLE NOW" : d.state.replace("_", " ").toUpperCase()}
-                </>
-              ) : (
-                "CORE COLLECTION"
-              )}
-            </p>
+            {d && <p className="label product-state">
+              {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {d.state === "live" ? "AVAILABLE NOW" : d.state.replace("_", " ").toUpperCase()}
+            </p>}
             <h1>{p.name}</h1>
             <p className="product-price">{money(p.price_cents)}</p>
             <p className="product-description">{p.description}</p>
@@ -168,42 +162,22 @@ function ProductView({
             )}
             <div className="accordions">
               <details open>
-                <summary>Details</summary>
+                <summary>Details<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <dl>
-                  <div>
-                    <dt>Pieces</dt>
-                    <dd>{p.specs.piece_count}</dd>
-                  </div>
-                  <div>
-                    <dt>Finished size</dt>
-                    <dd>{p.specs.finished_size}</dd>
-                  </div>
-                  <div>
-                    <dt>Box size</dt>
-                    <dd>{p.specs.box_size}</dd>
-                  </div>
-                  <div>
-                    <dt>Material</dt>
-                    <dd>{p.specs.material}</dd>
-                  </div>
-                  <div>
-                    <dt>Cut</dt>
-                    <dd>{p.specs.cut}</dd>
-                  </div>
-                  <div>
-                    <dt>Made in</dt>
-                    <dd>{p.specs.made_in}</dd>
-                  </div>
+                  {([
+                    ["Pieces", p.specs.piece_count],
+                    ["Finished size", p.specs.finished_size],
+                    ["Box size", p.specs.box_size],
+                    ["Material", p.specs.material],
+                    ["Cut", p.specs.cut],
+                    ["Made in", p.specs.made_in],
+                  ] as const).filter(([, value]) => value != null && String(value).trim() !== "" && !/^(TBD|to be confirmed)$/i.test(String(value).trim())).map(([label, value]) => (
+                    <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                  ))}
                 </dl>
-                {p.placeholders.length > 0 && (
-                  <p className="small muted">
-                    Preview details: price{p.kind === "drop" ? ", piece count and size" : ""}, packaging and art credit
-                    are to be confirmed.
-                  </p>
-                )}
               </details>
               <details>
-                <summary>What’s in the box</summary>
+                <summary>What’s in the box<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <ul>
                   {p.includes.map((i) => (
                     <li key={i}>{i}</li>
@@ -211,15 +185,14 @@ function ProductView({
                 </ul>
               </details>
               <details>
-                <summary>The art</summary>
+                <summary>The art<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>{p.art.story}</p>
                 <p className="muted small">{p.art.credit}</p>
               </details>
               <details>
-                <summary>Shipping</summary>
+                <summary>Shipping<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>
-                  Shipping details are being confirmed. Rates and delivery information are placeholders for this
-                  preview.
+                  Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.
                 </p>
               </details>
             </div>

@@ -49,3 +49,10 @@ export function countdown(ms: number) {
   const seconds = Math.floor(ms / 1000);
   return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds / 60) % 60).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
+
+export function heroReleaseTime(iso: string) {
+  const date = new Date(iso);
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: "Pacific/Guam", weekday: "short", month: "short", day: "numeric" }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone: "Pacific/Guam", hour: "numeric", minute: "2-digit" }).format(date);
+  return `${day} · ${time} ChST`;
+}

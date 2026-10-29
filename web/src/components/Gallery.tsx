@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { Plus } from "lucide-react";
+import { useRef, useState, type CSSProperties } from "react";
 import type { Art } from "../types";
 import { ArtImage } from "./ArtImage";
 import { Modal } from "./Modal";
@@ -9,6 +10,7 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
     <div className="gallery">
       <div
         className="gallery-track"
+        style={{ "--gallery-aspect": images[index].aspect.replace(":", "/") } as CSSProperties}
         onScroll={(e) => {
           if (matchMedia("(max-width: 899px)").matches) {
             const el = e.currentTarget;
@@ -24,7 +26,7 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
             onClick={() => setViewer(i)}
           >
             <ArtImage art={art} priority={i === 0} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
-            <span className="gallery-zoom label">EXPLORE IMAGE +</span>
+            <span className="gallery-zoom label">EXPLORE IMAGE <Plus aria-hidden="true" /></span>
           </button>
         ))}
       </div>
@@ -32,7 +34,7 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
         <span>
           {index + 1} / {images.length}
         </span>
-        <span>SWIPE TO EXPLORE</span>
+        {images.length > 1 && <span className="gallery-swipe">SWIPE TO EXPLORE</span>}
       </div>
       {viewer !== null && <ImageViewer images={images} initial={viewer} onClose={() => setViewer(null)} />}
     </div>

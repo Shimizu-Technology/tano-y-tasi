@@ -1,3 +1,4 @@
+import { Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
@@ -26,10 +27,35 @@ export function Meta({
 export function Wordmark() {
   return <span className="wordmark">TÅNO + TÅSI</span>;
 }
-export function Loading() {
+export function Loading({ layout = "page" }: { layout?: "home" | "collection" | "product" | "drop" | "archive" | "page" }) {
+  const product = layout === "product" || layout === "drop";
   return (
-    <div className="page loading" role="status">
-      Loading the collection…
+    <div className={`loading-layout loading-${layout}`} role="status" aria-label="Loading the collection">
+      <span className="sr-only">Loading the collection…</span>
+      <div aria-hidden="true">
+        {layout === "home" ? (
+          <>
+            <div className="hero skeleton-hero">
+              <div className="skeleton skeleton-art" />
+              <div className="hero-caption"><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-button" /></div>
+            </div>
+            <div className="section"><div className="skeleton skeleton-title" /><div className="skeleton-tiles"><div className="skeleton tile" /><div className="skeleton tile" /></div></div>
+          </>
+        ) : product ? (
+          <div className="product-page">
+            <div className="product-breadcrumb"><div className="skeleton skeleton-line" /></div>
+            <div className="product-layout">
+              <div className={`skeleton skeleton-product-art ${layout === "drop" ? "skeleton-map-art" : ""}`} />
+              <div className="product-info"><div className="skeleton skeleton-title" /><div className="skeleton skeleton-line" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-button" /></div>
+            </div>
+          </div>
+        ) : (
+          <div className="page">
+            <div className="page-heading"><div className="skeleton skeleton-title" /><div className="skeleton skeleton-line" /></div>
+            {layout === "collection" || layout === "archive" ? <div className="skeleton-tiles"><div className="skeleton tile" /><div className="skeleton tile" /></div> : <div className="skeleton skeleton-copy" />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -78,7 +104,6 @@ export function Signup({ source = "home", dropSlug }: { source?: string; dropSlu
   return (
     <section className="signup" id="notify">
       <div>
-        <p className="label">DROP ALERTS</p>
         <h2>New drops, first.</h2>
         <p className="muted">No spam. Just a piece of home.</p>
       </div>
@@ -184,7 +209,7 @@ export function Quantity({
         onClick={() => onChange(value - 1)}
         disabled={disabled || value <= 1}
       >
-        −
+        <Minus aria-hidden="true" />
       </button>
       <output aria-label={label}>{value}</output>
       <button
@@ -193,7 +218,7 @@ export function Quantity({
         onClick={() => onChange(value + 1)}
         disabled={disabled || value >= max}
       >
-        +
+        <Plus aria-hidden="true" />
       </button>
     </div>
   );
