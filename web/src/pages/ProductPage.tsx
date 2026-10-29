@@ -6,6 +6,7 @@ import { api } from "../api";
 import { useCart } from "../cart";
 import { useOpenCart } from "../components/Layout";
 import { Gallery } from "../components/Gallery";
+import { VillageFinder } from "../components/village/VillageFinder";
 import { Countdown, Failure, Loading, Meta, Quantity, ReleaseTimes, Signup } from "../components/Shared";
 import { dropNumber, money, purchaseState, releaseDate } from "../utils";
 import type { Drop, ProductDetail } from "../types";
@@ -217,6 +218,7 @@ function ProductView({
             </div>
           </div>
         </div>
+        {p.slug === "guahan-sunset-map" && <VillageFinder />}
       </div>
       {d && d.state !== "live" && (
         <div className="section">
