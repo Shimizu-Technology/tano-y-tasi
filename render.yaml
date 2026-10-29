@@ -1,0 +1,62 @@
+services:
+  - type: web
+    name: tano-y-tasi-api
+    runtime: docker
+    rootDir: api
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: singapore
+    plan: starter
+    branch: main
+    autoDeployTrigger: commit
+    healthCheckPath: /up
+    preDeployCommand: bin/release-migrate
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: PAYMENT_PROVIDER
+        value: stripe
+      - key: RAILS_MAX_THREADS
+        value: '3'
+      - key: EXPECTED_DATABASE_NAME
+        value: tano_y_tasi_production
+      - key: WEB_APP_URL
+        value: https://tanoytasi.shimizu-technology.com
+      - key: FRONTEND_URL
+        value: https://tanoytasi.shimizu-technology.com
+      - key: API_HOSTS
+        value: tano-y-tasi-api.onrender.com
+      - key: FORCE_SSL
+        value: 'true'
+      - key: ASSUME_SSL
+        value: 'true'
+      - key: EMAIL_DELIVERY_ENABLED
+        value: 'false'
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_MIGRATION_URL
+        sync: false
+      - key: SECRET_KEY_BASE
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_AUTHORIZED_PARTIES
+        sync: false
+      - key: CLERK_JWKS_URL
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: ADMIN_NOTIFICATION_EMAILS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAILER_FROM_EMAIL
+        sync: false
+      - key: MAILER_REPLY_TO
+        sync: false

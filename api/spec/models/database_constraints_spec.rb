@@ -26,4 +26,12 @@ RSpec.describe "Database invariants" do
       Subscriber.transaction(requires_new: true) { Subscriber.insert_all!([ { email: "A@EXAMPLE.COM" } ]) }
     end.to raise_error(ActiveRecord::RecordNotUnique)
   end
+  it "enforces normalized admin email uniqueness without model validation" do
+    User.create!(clerk_id: "admin_one", email: "admin@example.com")
+    expect do
+      User.transaction(requires_new: true) do
+        User.insert_all!([ { clerk_id: "admin_two", email: "admin@example.com", created_at: Time.current, updated_at: Time.current } ])
+      end
+    end.to raise_error(ActiveRecord::RecordNotUnique, /users_email_unique/)
+  end
 end

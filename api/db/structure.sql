@@ -14,6 +14,42 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: admin_invitations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_invitations (
+    id bigint NOT NULL,
+    email character varying NOT NULL,
+    clerk_invitation_id character varying,
+    accepted_at timestamp(6) without time zone,
+    revoked_at timestamp(6) without time zone,
+    invited_by_id bigint,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT invitation_email_normalized CHECK (((email)::text = lower(btrim((email)::text))))
+);
+
+
+--
+-- Name: admin_invitations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.admin_invitations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: admin_invitations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.admin_invitations_id_seq OWNED BY public.admin_invitations.id;
+
+
+--
 -- Name: ar_internal_metadata; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -65,18 +101,61 @@ ALTER SEQUENCE public.drops_id_seq OWNED BY public.drops.id;
 
 
 --
+-- Name: email_deliveries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.email_deliveries (
+    id bigint NOT NULL,
+    order_id bigint NOT NULL,
+    kind character varying NOT NULL,
+    "to" character varying NOT NULL,
+    subject character varying NOT NULL,
+    status character varying DEFAULT 'pending'::character varying NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    resend_number integer DEFAULT 0 NOT NULL,
+    outbound_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_error text,
+    provider_message_id character varying,
+    sent_at timestamp(6) without time zone,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT email_delivery_valid CHECK ((((status)::text = ANY ((ARRAY['pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])) AND (attempts >= 0)))
+);
+
+
+--
+-- Name: email_deliveries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.email_deliveries_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: email_deliveries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.email_deliveries_id_seq OWNED BY public.email_deliveries.id;
+
+
+--
 -- Name: inventory_movements; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.inventory_movements (
     id bigint NOT NULL,
     product_id bigint NOT NULL,
-    order_id bigint NOT NULL,
+    order_id bigint,
     delta integer NOT NULL,
     balance integer NOT NULL,
     reason character varying NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
+    note text,
     CONSTRAINT inventory_movement_valid CHECK (((balance >= 0) AND (delta <> 0)))
 );
 
@@ -176,6 +255,12 @@ CREATE TABLE public.orders (
     updated_at timestamp(6) without time zone NOT NULL,
     provider_session_expires_at timestamp(6) without time zone,
     provider_session_closed_at timestamp(6) without time zone,
+    fulfillment_status character varying DEFAULT 'unfulfilled'::character varying NOT NULL,
+    tracking_number character varying,
+    tracking_url character varying,
+    fulfilled_at timestamp(6) without time zone,
+    notes text,
+    CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
     CONSTRAINT order_status_valid CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('expired'::character varying)::text, ('canceled'::character varying)::text, ('refunded'::character varying)::text, ('needs_attention'::character varying)::text]))),
     CONSTRAINT order_totals_valid CHECK (((subtotal_cents >= 0) AND (total_cents >= 0) AND ((currency)::text = 'USD'::text)))
@@ -328,10 +413,61 @@ ALTER SEQUENCE public.subscribers_id_seq OWNED BY public.subscribers.id;
 
 
 --
+-- Name: users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.users (
+    id bigint NOT NULL,
+    clerk_id character varying NOT NULL,
+    email character varying NOT NULL,
+    name character varying,
+    role character varying DEFAULT 'admin'::character varying NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    last_signed_in_at timestamp(6) without time zone,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT admin_identity_valid CHECK ((((role)::text = 'admin'::text) AND ((email)::text = lower(btrim((email)::text)))))
+);
+
+
+--
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- Name: admin_invitations id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_invitations ALTER COLUMN id SET DEFAULT nextval('public.admin_invitations_id_seq'::regclass);
+
+
+--
 -- Name: drops id; Type: DEFAULT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.drops ALTER COLUMN id SET DEFAULT nextval('public.drops_id_seq'::regclass);
+
+
+--
+-- Name: email_deliveries id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries ALTER COLUMN id SET DEFAULT nextval('public.email_deliveries_id_seq'::regclass);
 
 
 --
@@ -377,6 +513,21 @@ ALTER TABLE ONLY public.subscribers ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: admin_invitations admin_invitations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_invitations
+    ADD CONSTRAINT admin_invitations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ar_internal_metadata ar_internal_metadata_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -390,6 +541,14 @@ ALTER TABLE ONLY public.ar_internal_metadata
 
 ALTER TABLE ONLY public.drops
     ADD CONSTRAINT drops_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: email_deliveries email_deliveries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT email_deliveries_pkey PRIMARY KEY (id);
 
 
 --
@@ -449,6 +608,21 @@ ALTER TABLE ONLY public.subscribers
 
 
 --
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: index_admin_invitations_on_invited_by_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_admin_invitations_on_invited_by_id ON public.admin_invitations USING btree (invited_by_id);
+
+
+--
 -- Name: index_drops_on_number; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -460,6 +634,20 @@ CREATE UNIQUE INDEX index_drops_on_number ON public.drops USING btree (number);
 --
 
 CREATE UNIQUE INDEX index_drops_on_slug ON public.drops USING btree (slug);
+
+
+--
+-- Name: index_email_deliveries_on_order_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_email_deliveries_on_order_id ON public.email_deliveries USING btree (order_id);
+
+
+--
+-- Name: index_email_deliveries_on_order_id_and_kind_and_to; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_email_deliveries_on_order_id_and_kind_and_to ON public.email_deliveries USING btree (order_id, kind, "to");
 
 
 --
@@ -568,6 +756,20 @@ CREATE UNIQUE INDEX index_products_on_slug ON public.products USING btree (slug)
 
 
 --
+-- Name: index_users_on_clerk_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_users_on_clerk_id ON public.users USING btree (clerk_id);
+
+
+--
+-- Name: one_pending_admin_invitation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX one_pending_admin_invitation ON public.admin_invitations USING btree (email) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL));
+
+
+--
 -- Name: one_product_per_drop; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -589,6 +791,21 @@ CREATE UNIQUE INDEX subscribers_email_unique ON public.subscribers USING btree (
 
 
 --
+-- Name: users_email_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (lower((email)::text));
+
+
+--
+-- Name: admin_invitations fk_rails_49ad58b754; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_invitations
+    ADD CONSTRAINT fk_rails_49ad58b754 FOREIGN KEY (invited_by_id) REFERENCES public.users(id);
+
+
+--
 -- Name: inventory_movements fk_rails_665a2ba6d3; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -602,6 +819,14 @@ ALTER TABLE ONLY public.inventory_movements
 
 ALTER TABLE ONLY public.products
     ADD CONSTRAINT fk_rails_87af88941b FOREIGN KEY (drop_id) REFERENCES public.drops(id);
+
+
+--
+-- Name: email_deliveries fk_rails_8e555e3c0e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_deliveries
+    ADD CONSTRAINT fk_rails_8e555e3c0e FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
 
 
 --
@@ -635,5 +860,8 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261029000004'),
+('20261029000003'),
 ('20261029000002'),
 ('20261029000001');
+

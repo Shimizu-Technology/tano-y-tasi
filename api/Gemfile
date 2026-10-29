@@ -20,3 +20,7 @@ end
 group :test do
   gem "webmock"
 end
+
+gem "jwt", "= 3.3.0"
+
+gem "resend", "= 1.17.0"

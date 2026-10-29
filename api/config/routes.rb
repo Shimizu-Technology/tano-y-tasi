@@ -2,6 +2,23 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
   namespace :api do
     namespace :v1 do
+      namespace :admin do
+        get "me", to: "dashboard#me"
+        get "dashboard", to: "dashboard#show"
+        resources :orders, param: :number, only: [ :index, :show, :update ] do
+          post :fulfill, on: :member
+          post :unfulfill, on: :member
+          post "email_deliveries/:id/resend", to: "orders#resend", on: :member
+        end
+        resources :products, param: :slug, only: [ :index, :show, :update ] do
+          post :stock_adjustments, on: :member
+          get :inventory_movements, on: :member
+        end
+        resources :drops, param: :slug, only: [ :index, :show, :update ]
+        resources :subscribers, only: :index
+        resources :users, only: [ :index, :update ]
+        resources :invitations, only: [ :create, :destroy ]
+      end
       get "storefront", to: "catalog#storefront"
       get "products", to: "catalog#products"
       get "products/:slug", to: "catalog#product"
