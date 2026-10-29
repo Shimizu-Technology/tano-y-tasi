@@ -51,11 +51,14 @@ export const api = {
 };
 export function checkoutFix(error: ErrorBody): { message: string; quantity?: number; remove?: boolean } {
   switch (error.code) {
-    case "limit_exceeded":
-      return {
-        message: `You can order ${Math.max(0, (error.details?.limit ?? 2) - (error.details?.already_purchased ?? 0))} more with this email.`,
-        quantity: Math.max(0, (error.details?.limit ?? 2) - (error.details?.already_purchased ?? 0)),
-      };
+    case "limit_exceeded": {
+      const limit = error.details?.limit ?? 2;
+      const left = Math.max(0, limit - (error.details?.already_purchased ?? 0));
+      const allowance = left === 0
+        ? "You've already reached it with this email."
+        : `You can order ${left} more with this email.`;
+      return { message: `This drop is limited to ${limit} per customer. ${allowance}`, quantity: left };
+    }
     case "insufficient_stock":
       return { message: `Only ${error.details?.available ?? 0} available.`, quantity: error.details?.available ?? 0 };
     case "sold_out":

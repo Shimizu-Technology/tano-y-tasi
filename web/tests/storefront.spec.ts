@@ -207,7 +207,7 @@ test("limit errors use the email allowance with an inline remove action", async 
   await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
   await page.getByLabel("Email address", { exact: true }).fill("LIMIT@example.com");
   await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("You can order 0 more with this email.");
+  await expect(page.getByRole("alert")).toContainText("This drop is limited to 2 per customer. You've already reached it with this email.");
   await page.getByRole("alert").getByRole("button", { name: "Remove" }).click();
   await expect(page.getByText("A piece of home is waiting.")).toBeVisible();
 });
