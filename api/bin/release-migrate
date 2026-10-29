@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Load Bundler first so the Gemfile's uri version wins over Ruby's default gem.
+require_relative "../config/boot"
 require "uri"
 
 # Render pre-deploy only: production migrations must use Neon's direct URL.
