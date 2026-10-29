@@ -13,7 +13,8 @@ export function ProductPage() {
   const { slug } = useParams();
   const q = useQuery({ queryKey: ["product", slug], queryFn: () => api.product(slug!) });
   if (q.isPending) return <Loading layout="product" />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   return (
     <ProductView
       key={q.data.product.slug}
@@ -40,7 +41,8 @@ export function DropPage() {
     },
   });
   if (q.isPending) return <Loading layout="drop" />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   if (!q.data.drop)
     return (
       <div className="page empty-page">

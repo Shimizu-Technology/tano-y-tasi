@@ -19,7 +19,8 @@ const tabletop: Art = {
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   const data = q.data;
   const d = data.featured_drop;
   const live = d?.state === "live";
@@ -92,7 +93,8 @@ export function Home() {
 export function Shop() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="collection" />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   const d = q.data.featured_drop;
   return (
     <div className="page">
@@ -124,7 +126,8 @@ export function Shop() {
 export function Archive() {
   const q = useQuery({ queryKey: ["drops"], queryFn: api.drops });
   if (q.isPending) return <Loading layout="archive" />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   return (
     <div className="page archive">
       <Meta title="Archive" />

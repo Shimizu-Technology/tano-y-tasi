@@ -62,3 +62,24 @@ it("publishes only the known shipping calculation and destinations", () => {
   expect(screen.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
   expect(screen.queryByText(/placeholder|returns policy/i)).not.toBeInTheDocument();
 });
+
+it("keeps showing the page when a background refresh fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+  try {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } });
+    client.setQueryData(["storefront"], storefront);
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes><Route path="/" element={<Home />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    // Stale data triggers a background refetch on mount, which rejects.
+    await vi.waitFor(() => expect(client.getQueryState(["storefront"])?.status).toBe("error"));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("GUÅHAN");
+    expect(screen.queryByText("The shop is taking a moment.")).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
