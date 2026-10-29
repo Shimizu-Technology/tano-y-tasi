@@ -1,0 +1,55 @@
+[
+  {
+    "role": "hero",
+    "alt": "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay.",
+    "base": "/images/products/hafa-adai-from-tumon-bay/finished-tabletop",
+    "widths": [
+      640,
+      1280,
+      2000
+    ],
+    "aspect": "3:4"
+  },
+  {
+    "role": "gallery",
+    "alt": "The completed Tumon Bay puzzle, with the GUAM sign, palms, and blue water.",
+    "base": "/images/products/hafa-adai-from-tumon-bay/finished-square",
+    "widths": [
+      640,
+      1280,
+      2000
+    ],
+    "aspect": "1:1"
+  },
+  {
+    "role": "box",
+    "alt": "Front of the Håfa Adai from Tumon Bay puzzle box.",
+    "base": "/images/products/hafa-adai-from-tumon-bay/box-front",
+    "widths": [
+      640,
+      952
+    ],
+    "aspect": "952:800"
+  },
+  {
+    "role": "detail",
+    "alt": "Close view of interlocking pieces in the Tumon Bay puzzle.",
+    "base": "/images/products/hafa-adai-from-tumon-bay/piece-detail",
+    "widths": [
+      640,
+      1071
+    ],
+    "aspect": "4:3"
+  },
+  {
+    "role": "lifestyle",
+    "alt": "The finished Tumon Bay puzzle laid out in a wide view.",
+    "base": "/images/products/hafa-adai-from-tumon-bay/finished-landscape",
+    "widths": [
+      1280,
+      2000,
+      2800
+    ],
+    "aspect": "4:3"
+  }
+]

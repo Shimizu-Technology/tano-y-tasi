@@ -16,6 +16,26 @@ const tabletop: Art = {
   role: "lifestyle",
   alt: "Finished Tumon Bay puzzle on a table, with flowers and its keepsake box.",
 };
+const flatPuzzle: Art = {
+  base: "/images/products/hafa-adai-from-tumon-bay/finished-flat",
+  widths: [640, 1280, 2000],
+  aspect: "12:7",
+  role: "hero",
+  alt: "Finished puzzle of the colorful GUAM sign at Tumon Bay, with blue water and open sky.",
+};
+const mapDetails: Art[] = [
+  { base: "detail-koko", alt: "A ko'ko' bird among the small illustrations on the Guåhan map." },
+  { base: "detail-two-lovers-point", alt: "Map detail showing Two Lovers Point on Guåhan's northern coast." },
+  { base: "detail-humatak", alt: "Illustrated map detail of Humåtak and its bay." },
+].map((art) => ({ ...art, base: `/images/products/guahan-sunset-map/${art.base}`, widths: [640, 1280, 2000], aspect: "4:3", role: "detail" }));
+
+function MapDetails() {
+  return (
+    <div className="map-details">
+      {mapDetails.map((art) => <ArtImage key={art.base} art={art} sizes="(min-width: 900px) 28vw, 100vw" />)}
+    </div>
+  );
+}
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
@@ -78,11 +98,14 @@ export function Home() {
         <ProductCollection products={data.core_products} />
       </section>
       <section className="section story-strip">
-        <h2>Tåno is land. Tåsi is sea.</h2>
-        <p>{story}</p>
-        <Link className="text-link label" to="/story">
-          Our story <ArrowRight aria-hidden="true" />
-        </Link>
+        <div className="story-strip-copy">
+          <h2>Tåno is land. Tåsi is sea.</h2>
+          <p>{story}</p>
+          <Link className="text-link label" to="/story">
+            Our story <ArrowRight aria-hidden="true" />
+          </Link>
+        </div>
+        <MapDetails />
       </section>
       <div className="section">
         <Signup />
@@ -153,24 +176,21 @@ export function Archive() {
             </div>
           ))}
         </div>
-      ) : (
-        <div className="archive-empty">
-          {next ? (
-            <>
-              <h2>
-                {next.state === "upcoming"
-                  ? `Drop ${dropNumber(next.number)} releases ${releaseTimes(next.release_at).guam}.`
-                  : `Drop ${dropNumber(next.number)} is available now.`}
-              </h2>
-              <Link className="text-link" to="/drop">
-                Meet Drop {dropNumber(next.number)} <ArrowRight aria-hidden="true" />
-              </Link>
-            </>
-          ) : (
-            <h2>The first drop hasn’t been announced yet.</h2>
-          )}
-        </div>
-      )}
+      ) : next ? (
+        <article className="archive-preview">
+          <Link to={`/drops/${next.slug}`} aria-label={`Explore Drop ${dropNumber(next.number)} — ${next.name}`}>
+            <ArtImage art={next.product.image} sizes="(min-width: 900px) 50vw, 100vw" priority />
+          </Link>
+          <div>
+            <p className="label">Drop {dropNumber(next.number)} · {next.state === "upcoming" ? "Upcoming" : "Available now"}</p>
+            <h2>{next.name}</h2>
+            <p><time dateTime={next.release_at}>{releaseTimes(next.release_at).guam}</time></p>
+            <Link className="text-link label" to={`/drops/${next.slug}`}>
+              Meet Drop {dropNumber(next.number)} <ArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+        </article>
+      ) : <p className="muted">No past drops yet.</p>}
     </div>
   );
 }
@@ -178,24 +198,31 @@ export function Story() {
   return (
     <div className="page story-page">
       <Meta title="Our Story" />
-      <div className="story-intro">
-        <img src="/images/brand/logo-mark-800.png" width="280" height="224" alt="Tåno Tåsi — land and sea" />
+      <section className="story-intro">
+        <div className="story-emblem">
+          <img src="/images/brand/logo-mark-800.png" width="280" height="224" alt="Tåno Tåsi — land and sea" />
+        </div>
         <div>
           <h1>A piece of home.</h1>
           <p className="story-lead">{story}</p>
         </div>
-      </div>
-      <div className="story-chapter">
-        <div>
+      </section>
+      <section className="story-chapter story-meaning">
+        <div className="story-copy">
           <h2>Tåno. Tåsi.</h2>
           <p>Land and sea. The two things that define our islands, and the connection that stays with us.</p>
-          <p>We start with puzzles of Guåhan. Familiar places to spend time with, share, and piece together.</p>
         </div>
-        <ArtImage art={tabletop} sizes="(min-width: 900px) 55vw, 100vw" />
-      </div>
-      <Link to="/shop" className="text-link label">
-        EXPLORE THE COLLECTION <ArrowRight aria-hidden="true" />
-      </Link>
+        <MapDetails />
+      </section>
+      <section className="story-chapter story-puzzles">
+        <ArtImage art={flatPuzzle} sizes="(min-width: 900px) 55vw, 100vw" />
+        <div className="story-copy">
+          <p>We start with puzzles of Guåhan. Familiar places to spend time with, share, and piece together.</p>
+          <Link to="/shop" className="text-link label">
+            EXPLORE THE COLLECTION <ArrowRight aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

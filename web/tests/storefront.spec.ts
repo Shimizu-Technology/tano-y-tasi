@@ -12,7 +12,7 @@ async function shot(page: Page, info: TestInfo, name: string) {
   await page.evaluate(async () => {
     await Promise.all(
       [...document.images]
-        .filter((i) => i.loading !== "lazy" || i.getBoundingClientRect().top < innerHeight)
+        .filter((i) => i.checkVisibility() && (i.loading !== "lazy" || i.getBoundingClientRect().top < innerHeight))
         .map((i) => i.decode().catch(() => {}))
     );
   });
@@ -183,9 +183,13 @@ test("story: founder, land and sea", async ({ page }, info) => {
 });
 test("archive: empty first-drop state", async ({ page }, info) => {
   await go(page, "/archive");
-  await expect(page.getByRole("heading", { name: /^Drop 001 releases .+ ChST\.$/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Guåhan Sunset Map" })).toBeVisible();
+  await expect(page.getByText("Drop 001 · Upcoming", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sat, Dec 5, 10:00 AM ChST", { exact: true })).toBeVisible();
   await shot(page, info, "archive-empty");
   await overflow(page);
+  await page.getByRole("link", { name: "Meet Drop 001", exact: true }).click();
+  await expect(page.getByRole("button", { name: "RELEASES DEC 5" })).toBeDisabled();
 });
 test("signup: valid email saves and invalid input stays local", async ({ page }) => {
   await go(page, "/");
@@ -350,8 +354,30 @@ test("gallery artwork fills the mobile content width and still swipes", async ({
       await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeHidden();
       const nextImage = await page.locator(".gallery-image img").nth(1).boundingBox();
       expect(nextImage!.y).toBeGreaterThanOrEqual(dimensions!.y + dimensions!.height);
+      const thirdImage = await page.locator(".gallery-image img").nth(2).boundingBox();
+      expect(thirdImage!.y).toBe(nextImage!.y);
+      expect(thirdImage!.x).toBeGreaterThan(nextImage!.x);
+      for (const img of await page.locator(".gallery-image img").all()) {
+        const ratio = await img.evaluate((el: HTMLImageElement) => ({ rendered: el.width / el.height, expected: Number(el.getAttribute("width")) / Number(el.getAttribute("height")) }));
+        expect(ratio.rendered).toBeCloseTo(ratio.expected, 1);
+      }
     }
   }
+});
+
+test("header rule follows scrolling without changing its height", async ({ page }) => {
+  await go(page, "/");
+  const header = page.locator(".site-header");
+  const height = await header.evaluate((el) => el.getBoundingClientRect().height);
+  await expect(header).not.toHaveClass(/is-scrolled/);
+  expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe("rgba(0, 0, 0, 0)");
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await expect(header).toHaveClass(/is-scrolled/);
+  expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe("rgb(221, 213, 200)");
+  expect(await header.evaluate((el) => el.getBoundingClientRect().height)).toBe(height);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(header).not.toHaveClass(/is-scrolled/);
+  expect(await header.evaluate((el) => el.getBoundingClientRect().height)).toBe(height);
 });
 
 for (const retry of ["same_key", "new_checkout"]) {

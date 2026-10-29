@@ -17,7 +17,7 @@ function FeaturedProduct({ product }: { product: Product }) {
   const specs = product.specs;
   return (
     <article className="collection-feature core-collection">
-      <Link className="feature-art tile" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
+      <Link className="feature-art" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
         <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
       </Link>
       <div className="feature-info">

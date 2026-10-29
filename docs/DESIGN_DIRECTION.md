@@ -41,7 +41,7 @@ Never use gradients, drop shadows on cards, or rounded "pill" cards. Corner radi
 
 - Max content width 1440px. Gutters: 16px mobile, 24px tablet, 40px desktop.
 - Spacing rhythm is on an 8px grid. Major section spacing is 96px mobile and 160px desktop.
-- Product grid: **2 columns on mobile, 3 on desktop**. Square image tiles on `--color-paper` with no border. Name and price sit below in `body`; the state label (`SOLD OUT`, `DROP 001`, `COMING DEC 5`) goes in `label` style.
+- Product grid: **2 columns on mobile, 3 on desktop**. Square image tiles on `--color-paper` with no border; contain the artwork so landscape puzzles stay whole. A single-product feature uses the image's natural aspect ratio. Name and price sit below in `body`; the state label (`SOLD OUT`, `DROP 001`, `COMING DEC 5`) goes in `label` style.
 
 ## Header and navigation
 
@@ -60,9 +60,9 @@ Never use gradients, drop shadows on cards, or rounded "pill" cards. Corner radi
    - A secondary text link names the first available core puzzle and its price from the API, with a Lucide arrow.
    - Mobile: full-width 4:5 art, then caption. Desktop ≥900px: art occupies about 60% of the hero at near viewport height, with a bottom-aligned caption beside it. No decorative kicker or vertical side label.
 2. **The core collection:** a real 24–32px h2, plus `Shop all` and the product collection. A single featured puzzle shows its available specs instead of a repeated collection label.
-3. **Story strip:** h2 `Tåno is land. Tåsi is sea.`, the brand paragraph at a narrow measure (~36ch), and `Our story` with a Lucide arrow.
-4. **Signup:** h2 `New drops, first.`, with an email field and `SIGN UP`. No decorative kicker.
-5. **Footer:** the small rounded logo emblem, real links to Shipping and FAQ, "Made for Guåhan and everyone carrying it with them," and © year. Contact remains a route but is not linked until contact details are supplied.
+3. **Story strip:** h2 `Tåno is land. Tåsi is sea.`, the brand paragraph at a narrow measure (~36ch), and `Our story` with a Lucide arrow. At ≥900px, an unequal-size composition of the ko'ko', Two Lovers Point and Humåtak map details fills the other half. Mobile stays one column with the ko'ko' detail.
+4. **Signup:** h2 `New drops, first.`, with an email field and `SIGN UP`. Separate it with space, without a top rule or decorative kicker.
+5. **Footer:** a raised-paper tone step, the small rounded logo emblem, real links to Shipping and FAQ, "Made for Guåhan and everyone carrying it with them," and © year. No decorative top or inner rules. Contact remains a route but is not linked until contact details are supplied.
 
 ### Shop
 Title `Shop` with a muted `1 puzzle` / `N puzzles` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
@@ -75,15 +75,15 @@ Title `Shop` with a muted `1 puzzle` / `N puzzles` count on the baseline, then t
 
 ### Product detail
 - Mobile: a horizontally swipeable gallery (CSS scroll-snap) with an `1 / 5` counter and `SWIPE TO EXPLORE` only when there are multiple images on mobile, then the info block, then a full-width sticky-bottom `ADD TO CART` bar once the main button scrolls out of view.
-- Desktop: two columns. The images stack on the left (about 60%); the info column on the right is sticky.
+- Desktop: two columns. The gallery on the left (about 60%) has a large lead image, then a two-column grid of the remaining images at their natural aspects; the info column on the right is sticky.
 - Info order: drop state label when applicable (core context is already in the breadcrumb), name (`title`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** ("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."). Hide unknown spec rows (`TBD` or `To be confirmed`) and omit internal preview notes.
 - Images open in a full-screen viewer with pinch/zoom on mobile. The map is high resolution, so let people inspect it.
 
 ### Story
-Large logo emblem, the brand paragraph, a short section on the meaning of *tåno* and *tåsi*, a tabletop photo, with no decorative kicker or unapproved founder placeholder. Keep it to one calm page.
+Alternating image/text sections: the large logo emblem with the brand paragraph; the meaning of *tåno* and *tåsi* with map details; the upright, flat puzzle photo with "We start with puzzles of Guåhan…" and the collection CTA. One h1, no decorative kicker or unapproved founder placeholder. Keep it to one calm page; mobile uses a single column.
 
 ### Archive
-A grid of past drops (sold out or closed) with date and quantity. Empty state: "The first drop releases Dec 5." with a link to the drop.
+A grid of past drops (sold out or closed) with date and quantity. When the archive is empty, preview the next upcoming drop as the first entry: artwork, name, drop number, "Upcoming", release date/time in ChST and a link to the drop. Take the entry from the API; if a drop is already live, preview it as "Available now". If none is announced, show "No past drops yet."
 
 ### Cart drawer
 Opens from the right on desktop (420px) and as a full-height sheet on mobile. It shows line items (thumbnail, name, price, stepper, remove), a subtotal, the note "Shipping calculated at checkout," and a `CHECKOUT` button. Checkout asks for an email (prefilled if previously entered) before hand-off. Errors from the API (sold out, limit, drop not live) appear inline on the affected line, in plain language, with a fix ("Reduce to 2", "Remove").
@@ -108,6 +108,8 @@ Subtle and fast: image fade-in on load (150ms), drawer and sheet slide (220ms ea
 ## Imagery
 
 Use the files in `web/public/images/products/*` and `web/public/images/brand/*`. Use `srcset` and `sizes` with lazy loading below the fold and `fetchpriority="high"` on the hero. Always set width and height or an aspect ratio to avoid layout shift. Alt text describes the artwork, for example "Puzzle of the colorful GUAM letter sign on the sand at Tumon Bay."
+
+The core Tumon puzzle leads with `finished-flat` (12:7), followed by `piece-detail` and `finished-tabletop`. Keep the portrait tabletop scene for the no-drop home hero and its edge preload. The square/landscape duplicate crops and misprinted box-front stay on disk but are omitted from the catalog gallery. Cart thumbnails contain the full artwork.
 
 ## Copy voice
 

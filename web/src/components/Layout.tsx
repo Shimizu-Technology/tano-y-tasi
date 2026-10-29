@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useSyncExternalStore } from "react";
 import { Link, NavLink, Outlet, ScrollRestoration } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
@@ -14,7 +14,13 @@ const links = [
   ["/story", "STORY"],
   ["/archive", "ARCHIVE"],
 ];
+function subscribeToScroll(onChange: () => void) {
+  window.addEventListener("scroll", onChange, { passive: true });
+  return () => window.removeEventListener("scroll", onChange);
+}
 export function Layout() {
+  // Recheck after subscribing, including scroll restoration during route mounting.
+  const scrolled = useSyncExternalStore(subscribeToScroll, () => window.scrollY > 0, () => false);
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const items = useCart((s) => s.items);
@@ -35,7 +41,7 @@ export function Layout() {
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <header className="site-header">
+      <header className={`site-header${scrolled ? " is-scrolled" : ""}`}>
         <Link to="/" aria-label="Tåno + Tåsi home">
           <Wordmark />
         </Link>

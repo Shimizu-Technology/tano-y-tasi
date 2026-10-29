@@ -23,38 +23,12 @@ export function dropSummary(state: DropState): DropSummary {
   };
 }
 const coreImages = [
-  art(
-    CORE,
-    "finished-square",
-    [640, 1280, 2000],
-    "1:1",
-    "Puzzle of the colorful GUAM letter sign on the sand at Tumon Bay.",
-    "hero"
-  ),
-  art(CORE, "box-front", [640, 952], "640:538", "Tåno + Tåsi keepsake puzzle box featuring the GUAM sign.", "box"),
-  art(
-    CORE,
-    "finished-tabletop",
-    [640, 1280, 2000],
-    "3:4",
-    "Finished Tumon Bay puzzle on a table beside flowers.",
-    "lifestyle"
-  ),
-  art(
-    CORE,
-    "piece-detail",
-    [640, 1071],
-    "4:3",
-    "Close-up of the cut and printed pieces of the Tumon Bay puzzle.",
-    "detail"
-  ),
-  art(
-    CORE,
-    "finished-landscape",
-    [1280, 2000, 2800],
-    "4:3",
-    "The complete Tumon Bay puzzle showing the GUAM sign and blue ocean."
-  ),
+  art(CORE, "finished-flat", [640, 1280, 2000], "12:7",
+    "Finished puzzle of the colorful GUAM sign at Tumon Bay, with blue water and open sky.", "hero"),
+  art(CORE, "piece-detail", [640, 1071], "4:3",
+    "Close view of interlocking pieces in the Tumon Bay puzzle.", "detail"),
+  art(CORE, "finished-tabletop", [640, 1280, 2000], "3:4",
+    "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay.", "lifestyle"),
 ];
 const mapImages = [
   art(
