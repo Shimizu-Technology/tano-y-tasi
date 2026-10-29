@@ -136,12 +136,20 @@ RSpec.describe "Admin API", type: :request do
 
   it "paginates subscribers and exports safe CSV" do
     26.times { |n| Subscriber.create!(email: "sub#{n}@example.com", source: "footer") }
+    %w[= + -].each { |prefix| Subscriber.create!(email: "#{prefix}formula@example.com", source: "footer") }
     get "/api/v1/admin/subscribers?page=2", headers: headers
-    expect(response.parsed_body).to include("total" => 26, "pages" => 2)
-    expect(response.parsed_body["subscribers"].size).to eq(1)
+    expect(response.parsed_body).to include("total" => 29, "pages" => 2)
+    expect(response.parsed_body["subscribers"].size).to eq(4)
     get "/api/v1/admin/subscribers.csv", headers: headers
     expect(response.media_type).to eq("text/csv")
-    expect(CSV.parse(response.body).size).to eq(27)
+    rows = CSV.parse(response.body, headers: true)
+    expect(rows.size).to eq(29)
+    expect(rows.filter_map { |row| row["email"] if row["email"].include?("formula") }).to contain_exactly("'=formula@example.com", "'+formula@example.com", "'-formula@example.com")
+
+    csv_controller = Api::V1::Admin::SubscribersController.new
+    expect([ "@formula", "\tformula", "\rformula", "\nformula" ].map { |value| csv_controller.send(:csv_safe, value) }).to eq(
+      [ "'@formula", "'\tformula", "'\rformula", "'\nformula" ]
+    )
   end
 
   it "creates one invitation with the required Clerk payload and revokes idempotently" do
@@ -158,6 +166,18 @@ RSpec.describe "Admin API", type: :request do
     post "/api/v1/admin/invitations", params: { email: "new@example.com" }, headers: headers, as: :json
     expect(response).to have_http_status(:service_unavailable)
     expect(AdminInvitation.pending.where(email: "new@example.com")).not_to exist
+  end
+
+  it "keeps a failed Clerk revocation locally revoked and retries the provider" do
+    stub_request(:post, "https://api.clerk.com/v1/invitations/inv_pending/revoke").to_timeout
+    delete "/api/v1/admin/invitations/#{invitation.id}", headers: headers
+    expect(response).to have_http_status(:service_unavailable)
+    expect(invitation.reload).to have_attributes(revoked_at: be_present, clerk_invitation_id: "inv_pending")
+
+    stub_request(:post, "https://api.clerk.com/v1/invitations/inv_pending/revoke").to_return(body: { id: "inv_pending" }.to_json)
+    delete "/api/v1/admin/invitations/#{invitation.id}", headers: headers
+    expect(response).to have_http_status(:ok)
+    expect(invitation.reload.clerk_invitation_id).to be_nil
   end
 
   it "rejects self-deactivation and cannot remove the last active admin" do

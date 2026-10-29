@@ -4,6 +4,7 @@ require "base64"
 
 class ClerkAuthenticator
   JWKS_CACHE_TTL = 1.hour
+  UNKNOWN_KID_REFRESH_INTERVAL = 1.minute
 
   class << self
     def verify(token)
@@ -11,29 +12,28 @@ class ClerkAuthenticator
 
       raise ClerkClient::Unavailable, "Clerk issuer or authorized parties are not configured" unless configured?
 
-      jwks = fetch_jwks
-      raise ClerkClient::Unavailable, "Clerk JWKS unavailable" if jwks.nil?
+      header = JWT.decode(token, nil, false).last
+      return nil unless header["alg"] == "RS256" && header["kid"].present?
 
-      # Try each key until one works (Clerk may rotate keys)
-      jwks["keys"].each do |jwk_data|
-        begin
-          jwk = JWT::JWK.new(jwk_data)
-          options = { algorithms: [ "RS256" ], verify_iss: true, iss: issuer,
-            required_claims: %w[iss sub exp], verify_expiration: true, verify_not_before: true }
-          options.merge!(verify_aud: true, aud: audiences) if audiences.any?
-          payload = JWT.decode(token, jwk.public_key, true, options).first
-          next if payload["sub"].blank?
-          # Clerk permits azp to be absent (no frontend Origin was supplied).
-          # When present it must match our explicit allowed frontend origins.
-          next if payload.key?("azp") && !authorized_parties.include?(payload["azp"])
-
-          return payload
-        rescue JWT::DecodeError
-          next
-        end
+      jwks, from_cache = fetch_jwks
+      jwk_data = signing_key(jwks, header.fetch("kid"))
+      if jwk_data.nil? && from_cache
+        jwks = refresh_jwks_for_unknown_kid(header.fetch("kid"))
+        jwk_data = signing_key(jwks, header.fetch("kid"))
       end
+      return nil unless jwk_data
 
-      nil # No key could verify the token
+      jwk = JWT::JWK.new(jwk_data)
+      options = { algorithms: [ "RS256" ], verify_iss: true, iss: issuer,
+        required_claims: %w[iss sub exp], verify_expiration: true, verify_not_before: true }
+      options.merge!(verify_aud: true, aud: audiences) if audiences.any?
+      payload = JWT.decode(token, jwk.public_key, true, options).first
+      return nil if payload["sub"].blank?
+      # Clerk permits azp to be absent (no frontend Origin was supplied).
+      # When present it must match our explicit allowed frontend origins.
+      return nil if payload.key?("azp") && !authorized_parties.include?(payload["azp"])
+
+      payload
     rescue ClerkClient::Unavailable
       raise
     rescue JWT::DecodeError, ArgumentError
@@ -89,25 +89,66 @@ class ClerkAuthenticator
     end
 
     def fetch_jwks
-      if cached_jwks_valid?
-        @cached_jwks
-      else
-        response = fetch_jwks_from_clerk
-        return nil unless response
+      return [ @cached_jwks, true ] if cached_jwks_valid?
 
-        unless response.is_a?(Hash) && response["keys"].is_a?(Array) && response["keys"].any?
-          raise ClerkClient::Unavailable, "Clerk JWKS has no signing keys"
-        end
+      jwks_mutex.synchronize do
+        return [ @cached_jwks, true ] if cached_jwks_valid?
 
-        @cached_jwks = response
-        @cached_url = jwks_url
-        @cached_at = Time.current
-        @cached_jwks
+        [ fetch_and_cache_jwks, false ]
       end
     end
 
     def cached_jwks_valid?
       @cached_url == jwks_url && @cached_jwks.present? && @cached_at.present? && (Time.current - @cached_at) < JWKS_CACHE_TTL
+    end
+
+    def refresh_jwks_for_unknown_kid(kid)
+      jwks_mutex.synchronize do
+        current = cached_jwks_valid? ? @cached_jwks : nil
+        return current if signing_key(current, kid)
+
+        now = Time.current
+        recently_refreshed = @unknown_kid_refresh_url == jwks_url && @unknown_kid_refreshed_at.present? &&
+          (now - @unknown_kid_refreshed_at) < UNKNOWN_KID_REFRESH_INTERVAL
+        return current if recently_refreshed
+
+        @unknown_kid_refresh_url = jwks_url
+        @unknown_kid_refreshed_at = now
+        fetch_and_cache_jwks
+      end
+    end
+
+    def fetch_and_cache_jwks
+      validated = validate_jwks(fetch_jwks_from_clerk)
+      @cached_jwks = validated
+      @cached_url = jwks_url
+      @cached_at = Time.current
+      @cached_jwks
+    end
+
+    def validate_jwks(response)
+      keys = response.is_a?(Hash) && response["keys"].is_a?(Array) ? response["keys"] : []
+      usable = keys.filter_map do |data|
+        next unless data.is_a?(Hash) && data["kty"] == "RSA" && data["kid"].present?
+        next if data["alg"].present? && data["alg"] != "RS256"
+        next if data["use"].present? && data["use"] != "sig"
+
+        jwk = JWT::JWK.new(data)
+        data if jwk.public_key.is_a?(OpenSSL::PKey::RSA)
+      rescue JWT::JWKError, ArgumentError, OpenSSL::PKey::PKeyError
+        nil
+      end
+      raise ClerkClient::Unavailable, "Clerk JWKS has no usable RS256 signing keys" if usable.empty?
+
+      { "keys" => usable }
+    end
+
+    def signing_key(jwks, kid)
+      jwks&.fetch("keys", [])&.find { |key| key["kid"] == kid }
+    end
+
+    def jwks_mutex
+      @jwks_mutex ||= Mutex.new
     end
 
     def fetch_jwks_from_clerk
@@ -124,12 +165,13 @@ class ClerkAuthenticator
       if response.code == "200"
         JSON.parse(response.body)
       else
-        Rails.logger.error("Failed to fetch Clerk JWKS: HTTP #{response.code}")
-        nil
+        raise ClerkClient::Unavailable, "Clerk JWKS HTTP #{response.code}"
       end
+    rescue ClerkClient::Unavailable
+      raise
     rescue StandardError => e
       Rails.logger.error("Failed to fetch Clerk JWKS: #{e.message}")
-      nil
+      raise ClerkClient::Unavailable, "Clerk JWKS unavailable"
     end
   end
 end

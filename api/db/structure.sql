@@ -791,6 +791,13 @@ CREATE UNIQUE INDEX subscribers_email_unique ON public.subscribers USING btree (
 
 
 --
+-- Name: users_email_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (lower((email)::text));
+
+
+--
 -- Name: admin_invitations fk_rails_49ad58b754; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -853,6 +860,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261029000004'),
 ('20261029000003'),
 ('20261029000002'),
 ('20261029000001');

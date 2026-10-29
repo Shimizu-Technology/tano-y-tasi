@@ -29,7 +29,7 @@ Always check the connected database with `rails runner` before **each** `db:` co
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`: required when Stripe is selected. Never commit keys. Point Stripe webhooks at `/api/v1/webhooks/stripe`.
 - `API_HOSTS`: comma-separated API hostnames, without schemes or ports. Localhost is included. Add the deployed API host explicitly.
 - `DATABASE_URL`: CI/production connection string. CI must target `tano_y_tasi_test`. `PGHOST` and `PGPORT` configure local sockets.
-- `EXPECTED_DATABASE_NAME`: optional production allowlist containing one exact database name. Without it, production requires the resolved name to start with `tano_y_tasi`. A missing or mismatched name raises at boot, including migration tasks. Set this explicitly when hosting assigns a different name.
+- `EXPECTED_DATABASE_NAME`: production database allowlist containing one exact database name. `bin/release-migrate` requires it and aborts unless the connected name matches exactly. Set this explicitly when hosting assigns a different name.
 - `RAILS_MAX_THREADS`: connection pool (local default 20) and Puma thread count (default 3). Set 3 on Render; concurrency specs need at least 13 connections.
 - `SECRET_KEY_BASE`: required for production. `FORCE_SSL` / `ASSUME_SSL` default true in production and parse explicit booleans; set according to the hosting proxy.
 
@@ -80,7 +80,7 @@ Public order tokens are bearer secrets; do not publish order links or log tokens
 
 ## Admin access and transactional email
 
-Configure the Clerk application for Restricted sign-up. Rails verifies RS256 signatures against a one-hour JWKS cache, derives the issuer from `CLERK_PUBLISHABLE_KEY`, checks issuer/expiry/not-before, and checks `azp` when present. `CLERK_AUTHORIZED_PARTIES` must be explicitly configured. A verified primary email from the Clerk Backend API can provision an admin only through `ADMIN_EMAILS` or a pending invitation. Existing inactive users cannot bootstrap again. Tokens never supply email or role authority. Missing/invalid Clerk configuration and dependency outages return 503 on admin access without preventing storefront boot.
+Configure the Clerk application for Restricted sign-up. Rails verifies RS256 signatures with the usable JWKS key matching the token `kid`, derives the issuer from `CLERK_PUBLISHABLE_KEY`, checks issuer/expiry/not-before, and checks `azp` when present. The validated JWKS cache lasts one hour; an unknown `kid` gets one single-flight refresh at most once per minute so normal key rotation does not wait for cache expiry. Unusable JWKS responses return 503 and are not cached. `CLERK_AUTHORIZED_PARTIES` must be explicitly configured. A verified primary email from the Clerk Backend API can provision an admin only through `ADMIN_EMAILS` or a pending invitation. Normalized admin emails are unique. Existing inactive users cannot bootstrap again under a new Clerk ID, and an active email is never silently relinked to a different Clerk ID. Tokens never supply email or role authority. Missing/invalid Clerk configuration and dependency outages return 503 on admin access without preventing storefront boot.
 
 The paid transition writes recipient-level email records in the transaction, then sends inline after the outermost transaction commits. Fulfillment uses the same pattern. Network sends never hold an order/inventory transaction. Failed delivery is recorded and logged without failing payment processing. Resends serialize through a PostgreSQL session advisory lock; retries reuse the saved payload and idempotency key. Explicit admin resends create a new key generation and payload. Customer keys are `kind-token`; admin notices append a recipient digest so multiple admins do not collide. Disabled delivery records `skipped` and sends nothing.
 
@@ -90,15 +90,15 @@ Run `bin/rails emails:retry_failed` from a scheduled job/operator session to rec
 
 The root `render.yaml` deploys `main` to `tano-y-tasi-api` in Singapore on Render Starter, using the Dockerfile under `api/`. It uses one Puma process (`workers 0`), three threads, `/up` as a database-free boot check, and `bin/release-migrate` as the pre-deploy command. No jemalloc was added because the HafaPass reference image does not use it. The image builds gems in a separate stage and runs as an unprivileged user.
 
-Use a pooled Neon `DATABASE_URL` at runtime (`prepared_statements: false`), and a direct `DATABASE_MIGRATION_URL` for PostgreSQL migration advisory locks. The release script selects the direct URL when present, checks the effective name, migrates, checks again, and seeds. The same production name guard remains active: `tano_y_tasi_production` matches the default prefix; the blueprint also sets that exact `EXPECTED_DATABASE_NAME`. Seeds upsert the catalog, preserve existing inventory/drop timing, and never alter orders. They do refresh seeded catalog copy/prices and drop name/limit, so review catalog changes before a deploy.
+Use a pooled Neon `DATABASE_URL` at runtime (`prepared_statements: false`), and a separate direct `DATABASE_MIGRATION_URL` for PostgreSQL migration advisory locks. In production, the release script aborts before boot unless both `DATABASE_MIGRATION_URL` and `EXPECTED_DATABASE_NAME` are present. It rejects a migration URL equal to `DATABASE_URL` or whose host contains `-pooler`, then requires the connected database name to match `EXPECTED_DATABASE_NAME` exactly before migrating and again before seeding. Seeds upsert the catalog, preserve existing inventory/drop timing, and never alter orders. They do refresh seeded catalog copy/prices and drop name/limit, so review catalog changes before a deploy.
 
 Set the following environment variables in Render (also documented in `.env.example`):
 
 | Variable | Production setting / purpose |
 | --- | --- |
 | `DATABASE_URL` | Secret pooled Neon connection URL, `sslmode=require`. |
-| `DATABASE_MIGRATION_URL` | Secret direct Neon connection URL; release falls back to `DATABASE_URL` when absent. |
-| `EXPECTED_DATABASE_NAME` | `tano_y_tasi_production`; exact database-name guard. |
+| `DATABASE_MIGRATION_URL` | Required secret direct Neon connection URL. It must differ from `DATABASE_URL`, and its host must not contain `-pooler`. |
+| `EXPECTED_DATABASE_NAME` | Required by production release; `tano_y_tasi_production` and checked as an exact database name. |
 | `SECRET_KEY_BASE` | Rails production secret. |
 | `WEB_APP_URL` | `https://tanoytasi.shimizu-technology.com`; CORS allowlist and payment return origin. |
 | `FRONTEND_URL` | Same single web origin; email order links and Clerk `/admin/sign-up` redirect. Defaults to the first `WEB_APP_URL` origin. |

@@ -6,12 +6,13 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 
 - The admin is **invite-only**. Shoppers never sign in; checkout stays guest-only.
 - The Clerk application runs in Restricted sign-up mode. People sign in with email (code or password) or Google.
-- The Rails `users` table holds the role. Columns: `clerk_id` (unique), `email` (normalized), `name`, `role` (`admin` only for now), `active`, `last_signed_in_at`.
+- The Rails `users` table holds the role. Columns: `clerk_id` (unique), `email` (normalized and unique), `name`, `role` (`admin` only for now), `active`, `last_signed_in_at`.
 - **Provisioning on first request:** look up the user by `clerk_id`. If no row exists, fetch the user's **verified** primary email from the Clerk Backend API (`CLERK_SECRET_KEY`). Then create an admin if that email:
   1. appears in `ADMIN_EMAILS` (comma-separated env bootstrap list), or
   2. matches a pending `admin_invitations` row (marked accepted at that point).
 
   Otherwise the user is not provisioned and gets 403.
+- Provisioning is serialized with invitation revocation by normalized email. An existing inactive user with the verified email remains forbidden even under a new Clerk ID. An active user with that email and a different Clerk ID is also forbidden and logged; changing the Clerk identity requires a separate explicit relinking operation.
 - **Status codes:**
   - `401 unauthenticated`: missing, invalid or expired token.
   - `403 forbidden`: a valid Clerk identity with no active admin row and no qualifying invitation or allowlist entry.
@@ -63,7 +64,7 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 ### Admin users
 - `GET /users`: active admins, plus `invitations[]` (pending).
 - `POST /invitations`: `{ email }`. Creates an `admin_invitations` row and sends a **Clerk invitation** through the Backend API (`POST /v1/invitations` with `redirect_url` = `${FRONTEND_URL}/admin/sign-up`), with `ignore_existing: true`, so the person can sign up in Restricted mode. Idempotent per pending email. Returns `{ "invitation": { id, email, created_at, accepted_at, revoked_at } }` (201); revoke returns the same envelope (200). Provider failure returns `503 identity_unavailable` and does not create a qualifying local invitation.
-- `DELETE /invitations/:id`: revokes the invitation, in Clerk too.
+- `DELETE /invitations/:id`: records the local revocation first, serialized with provisioning by normalized email, then revokes the Clerk invitation outside the database lock. If Clerk is unavailable, the local invitation stays revoked and the endpoint returns retryable `503 identity_unavailable`; repeating the delete retries the provider revocation.
 - `PATCH /users/:id`: `{ active: false }` deactivates an admin. An admin can't deactivate themselves or the last active admin (`422`).
 
 ## Emails (Resend)
@@ -92,5 +93,5 @@ The `email_deliveries` table stores `order_id, kind (order_confirmation|admin_ne
 - Inventory response is `{ inventory_movements: [{ id, delta, balance, reason, note, order_id, created_at }] }`, latest 50 first. For admin changes, `reason` is `admin_adjustment`, `note` preserves the supplied human reason, and `order_id` is null. Stock adjustments require a JSON integer, nonzero delta, and a nonblank reason; strings/floats are rejected with `422 invalid_adjustment`.
 - Model validation returns `422 invalid_record`; fulfillment rules use `invalid_fulfillment`, user guards use `invalid_user`, and accepted invitation revocation uses `invalid_invitation`. Errors retain the standard `{ error: { code, message, details } }` shape. Tracking URLs accept only HTTP(S). Non-editable fields are ignored through strong params.
 - Subscriber CSV headers are `email,source,drop_slug,created_at`; formula-like values are escaped with a leading apostrophe for spreadsheet safety.
-- Clerk `azp` may be absent as in the reference verifier; when present it must match `CLERK_AUTHORIZED_PARTIES`. `iss`, `sub`, and `exp` are required; RS256 signature, issuer, expiry, and not-before are checked. The JWKS cache lasts one hour. Only verified primary email from the Backend API qualifies for provisioning.
+- Clerk `azp` may be absent as in the reference verifier; when present it must match `CLERK_AUTHORIZED_PARTIES`. `iss`, `sub`, and `exp` are required; RS256 signature, issuer, expiry, and not-before are checked. JWT verification selects the usable RS256 signing key matching `kid`; malformed or unusable JWKS responses return 503 and are not cached. The JWKS cache lasts one hour, with one single-flight unknown-`kid` refresh at most once per minute for rotation. Only verified primary email from the Backend API qualifies for provisioning.
 - Delivery status `sent` means Resend accepted the message. It does not assert inbox arrival. Provider errors never fail payment completion; automatic retry retains a stable idempotency key within Resend's retention window. Uncertain older outcomes require operator reconciliation.

@@ -82,6 +82,29 @@ RSpec.describe "Admin provisioning", type: :request do
     expect(a_request(:get, "https://api.clerk.com/v1/users/#{admin.clerk_id}")).not_to have_been_made
   end
 
+  it "does not recreate an inactive admin under a different Clerk ID" do
+    User.create!(clerk_id: "old_clerk_id", email: "invited@example.com", active: false)
+    ENV["ADMIN_EMAILS"] = "invited@example.com"
+    stub_identity("new_user")
+
+    get "/api/v1/admin/me", headers: signin_headers
+
+    expect(response).to have_http_status(:forbidden)
+    expect(User.where(email: "invited@example.com").pluck(:clerk_id, :active)).to eq([ [ "old_clerk_id", false ] ])
+  end
+
+  it "does not silently relink an active email to a different Clerk ID" do
+    User.create!(clerk_id: "old_clerk_id", email: "invited@example.com")
+    ENV["ADMIN_EMAILS"] = "invited@example.com"
+    stub_identity("new_user")
+    expect(Rails.logger).to receive(:warn).with(/ADMIN_PROVISIONING_EMAIL_CONFLICT.*existing_clerk_id=old_clerk_id.*attempted_clerk_id=new_user/)
+
+    get "/api/v1/admin/me", headers: signin_headers
+
+    expect(response).to have_http_status(:forbidden)
+    expect(User.where(email: "invited@example.com").pluck(:clerk_id)).to eq([ "old_clerk_id" ])
+  end
+
   it "finds the canonical clerk_id after a uniqueness race" do
     ENV["ADMIN_EMAILS"] = "invited@example.com"
     stub_identity("new_user")

@@ -1,13 +1,32 @@
 #!/usr/bin/env ruby
-# Render pre-deploy only: use Neon's direct URL for migration advisory locks.
-ENV["DATABASE_URL"] = ENV["DATABASE_MIGRATION_URL"] if ENV["DATABASE_MIGRATION_URL"].to_s != ""
+require "uri"
+
+# Render pre-deploy only: production migrations must use Neon's direct URL.
+if ENV["RAILS_ENV"] == "production"
+  migration_url = ENV["DATABASE_MIGRATION_URL"].to_s
+  expected_name = ENV["EXPECTED_DATABASE_NAME"].to_s
+  abort "DATABASE_MIGRATION_URL is required in production" if migration_url.empty?
+  abort "EXPECTED_DATABASE_NAME is required in production" if expected_name.empty?
+  abort "DATABASE_MIGRATION_URL must differ from DATABASE_URL" if migration_url == ENV["DATABASE_URL"].to_s
+
+  begin
+    migration_host = URI.parse(migration_url).host.to_s.downcase
+  rescue URI::InvalidURIError
+    abort "DATABASE_MIGRATION_URL is invalid"
+  end
+  abort "DATABASE_MIGRATION_URL must use a direct, non-pooler host" if migration_host.empty? || migration_host.include?("-pooler")
+  ENV["DATABASE_URL"] = migration_url
+elsif ENV["DATABASE_MIGRATION_URL"].to_s != ""
+  ENV["DATABASE_URL"] = ENV.fetch("DATABASE_MIGRATION_URL")
+end
+
 require_relative "../config/environment"
 require "rake"
 Rails.application.load_tasks
 name = ActiveRecord::Base.connection.current_database
-expected = ENV["EXPECTED_DATABASE_NAME"].presence
+expected = ENV["EXPECTED_DATABASE_NAME"].to_s
 allowed = if Rails.env.production?
-  expected ? name == expected : name.start_with?("tano_y_tasi")
+  name == expected
 else
   name == { "development" => "tano_y_tasi_development", "test" => "tano_y_tasi_test" }.fetch(Rails.env)
 end
