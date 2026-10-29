@@ -46,7 +46,7 @@ export function VillageFinder() {
         </div>
       </div>
       <figure className="village-finder-figure">
-        <VillageMap key={slug} village={selected} />
+        <VillageMap key={slug} village={selected} onRetry={() => select.current?.focus()} />
         <figcaption className="village-finder-caption">
           <span>{caption}</span>
           <button
@@ -64,7 +64,7 @@ export function VillageFinder() {
   );
 }
 
-function VillageMap({ village }: { village?: Village }) {
+function VillageMap({ village, onRetry }: { village?: Village; onRetry?: () => void }) {
   const [zoomed, setZoomed] = useState(false);
   const [settled, setSettled] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -95,7 +95,8 @@ function VillageMap({ village }: { village?: Village }) {
       <img
         className="village-finder-map"
         src={`${artwork}-1280.webp`}
-        srcSet={`${artwork}-640.webp 640w, ${artwork}-1280.webp 1280w, ${artwork}-2000.webp 2000w`}
+        // Descriptors are the files' real widths (the names are their heights).
+        srcSet={`${artwork}-640.webp 509w, ${artwork}-1280.webp 1017w, ${artwork}-2000.webp 1590w`}
         sizes="(min-width: 900px) 480px, 60vw"
         width="509" height="640" loading="lazy" decoding="async"
         style={style}
@@ -119,7 +120,7 @@ function VillageMap({ village }: { village?: Village }) {
       {failed && (
         <div className="village-finder-error" role="status">
           <span>The detailed image couldn’t load.</span>
-          <button className="village-finder-reset" onClick={() => { setFailed(false); setLoaded(false); setAttempt(attempt + 1); }}>Try again</button>
+          <button className="village-finder-reset" onClick={() => { setFailed(false); setLoaded(false); setAttempt(attempt + 1); onRetry?.(); }}>Try again</button>
         </div>
       )}
     </div>

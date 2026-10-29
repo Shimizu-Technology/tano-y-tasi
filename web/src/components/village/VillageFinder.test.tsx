@@ -50,7 +50,11 @@ it("waits for a successful image load and offers recovery when a crop fails", as
     expect(container.querySelector('[data-ready="true"]')).toBeNull();
     fireEvent.error(crop);
     expect(screen.getByText("The detailed image couldn’t load.")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+    fireEvent.click(retry);
+    // The retry button disappears, so keyboard focus returns to the village picker.
+    expect(screen.getByRole("combobox")).toHaveFocus();
     fireEvent.load(screen.getByRole("img", { name: "Yigo on the illustrated Guåhan map" }));
     expect(container.querySelector('[data-ready="true"]')).not.toBeNull();
     expect(screen.queryByText("The detailed image couldn’t load.")).not.toBeInTheDocument();
