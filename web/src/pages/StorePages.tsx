@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -47,7 +47,15 @@ function HeroCaption({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setEnter(false), 400);
     return () => clearTimeout(timer);
   }, [enter]);
-  return <div className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
+  const caption = useRef<HTMLDivElement>(null);
+  // Only children present on the first commit take part in the entrance; anything a
+  // refetch inserts afterwards (even within the 400 ms window) appears without animating.
+  useLayoutEffect(() => {
+    if (!enter) return;
+    for (const child of caption.current?.children ?? []) child.setAttribute("data-enter-item", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return <div ref={caption} className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
 }
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });

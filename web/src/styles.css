@@ -1557,12 +1557,12 @@ button, .product-card, .archive-card, .feature-art, .gallery-image, .wide-drop, 
 button:active:not(:disabled), .text-link:active, summary:active { transform: scale(0.97); }
 .product-card:active, .archive-card:active, .feature-art:active, .gallery-image:active, .wide-drop:active { transform: scale(0.98); }
 .cart-count { display: inline-block; }
-.hero-caption[data-enter="once"] > * {
+.hero-caption[data-enter="once"] > [data-enter-item] {
   animation: hero-enter 200ms var(--ease-out) both;
 }
-.hero-caption[data-enter="once"] > .hero-summary { animation-delay: 50ms; }
-.hero-caption[data-enter="once"] > .hero-release { animation-delay: 50ms; }
-.hero-caption[data-enter="once"] > a { animation-delay: 100ms; }
+.hero-caption[data-enter="once"] > .hero-summary[data-enter-item] { animation-delay: 50ms; }
+.hero-caption[data-enter="once"] > .hero-release[data-enter-item] { animation-delay: 50ms; }
+.hero-caption[data-enter="once"] > a[data-enter-item] { animation-delay: 100ms; }
 @keyframes hero-enter {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1575,7 +1575,7 @@ button:active:not(:disabled), .text-link:active, summary:active { transform: sca
   button:active:not(:disabled), .product-card:active, .archive-card:active, .feature-art:active, .gallery-image:active,
   .wide-drop:active, .text-link:active, summary:active { transform: none; }
   .cart-dialog[data-state="closing"] { opacity: 0; }
-  .hero-caption[data-enter="once"] > * { animation: hero-fade 100ms var(--ease-out) both; }
+  .hero-caption[data-enter="once"] > [data-enter-item] { animation: hero-fade 100ms var(--ease-out) both; }
   @starting-style { .cart-dialog[open], .menu-dialog[open] { transform: none; opacity: 0; } }
   .accordions details::details-content { transition: opacity 100ms var(--ease-out); }
 }

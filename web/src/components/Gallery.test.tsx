@@ -115,3 +115,24 @@ it("keeps zoomed artwork on screen when the viewer is resized (phone rotation)",
     vi.unstubAllGlobals();
   }
 });
+
+it("ignores a resize that lands after the viewer has closed", () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+  let resized: () => void = () => {};
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {}
+    disconnect() {}
+  });
+  try {
+    const { container, unmount } = render(<Gallery images={images} name="Puzzle" />);
+    fireEvent.click(screen.getByRole("button", { name: "View image 1 of Puzzle" }));
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "3" } });
+    expect(container.querySelector(".viewer-canvas")).not.toBeNull();
+    unmount();
+    expect(() => resized()).not.toThrow();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

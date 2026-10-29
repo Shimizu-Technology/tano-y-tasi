@@ -149,3 +149,30 @@ it("drops the entrance marker after it plays, so later content doesn't animate",
     vi.useRealTimers();
   }
 });
+
+it("animates only the hero children from the first render, even if a refresh lands inside the entrance", () => {
+  sessionStorage.removeItem("tyt-hero-seen");
+  vi.useFakeTimers();
+  try {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    client.setQueryData(["storefront"], { ...storefront, core_products: [] });
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/"]}><Routes><Route path="/" element={<Home />} /></Routes></MemoryRouter>
+      </QueryClientProvider>
+    );
+    const caption = container.querySelector(".hero-caption")!;
+    const initial = [...caption.children];
+    expect(initial.every((child) => child.hasAttribute("data-enter-item"))).toBe(true);
+    // A fresh response at ~200 ms adds the core puzzle link while the entrance is still running.
+    act(() => vi.advanceTimersByTime(200));
+    act(() => { client.setQueryData(["storefront"], storefront); });
+    // React Query batches observer notifications on a timer.
+    act(() => vi.advanceTimersByTime(10));
+    const added = [...caption.children].filter((child) => !initial.includes(child));
+    expect(added.length).toBeGreaterThan(0);
+    expect(added.some((child) => child.hasAttribute("data-enter-item"))).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});

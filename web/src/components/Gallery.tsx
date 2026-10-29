@@ -106,7 +106,11 @@ function ZoomableArtwork({ art, index, count, onIndex }: { art: Art; index: numb
     const el = canvas.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     // At 1× the artwork is centred by layout; only a zoomed view needs re-bounding.
-    const observer = new ResizeObserver(() => { if (view.current.zoom > 1) paint(view.current); });
+    const observer = new ResizeObserver(() => {
+      // The viewer may be closing or swapping images when a resize lands.
+      if (view.current.zoom <= 1 || canvas.current !== el || !el.isConnected || !image.current) return;
+      paint(view.current);
+    });
     observer.observe(el);
     return () => observer.disconnect();
     // paint reads the current art; re-subscribe when the artwork changes.
