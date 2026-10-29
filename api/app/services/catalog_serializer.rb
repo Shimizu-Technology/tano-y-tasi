@@ -1,8 +1,13 @@
 class CatalogSerializer
+  # Public summaries only carry specs the merchant has confirmed (not listed as placeholders).
+  def self.summary_specs(product)
+    product.specs.slice("piece_count", "finished_size").reject { |key, _| Array(product.placeholders).include?("specs.#{key}") }
+  end
+
   def self.product(product, detail: false)
     availability = product.availability
     data = product.slice(:slug, :name, :kind, :price_cents, :currency, :summary).symbolize_keys.merge(
-      specs: product.specs.slice("piece_count", "finished_size"), availability: availability, drop: product.drop && drop(product.drop), image: product.images.first)
+      specs: summary_specs(product), availability: availability, drop: product.drop && drop(product.drop), image: product.images.first)
     if detail
       data.merge!(product.slice(:description, :specs, :includes, :art, :images, :placeholders).symbolize_keys)
       limit = product.drop&.per_customer_limit

@@ -48,7 +48,7 @@ test("home upcoming: hero, collection and island identity", async ({ page }, inf
   await go(page, "/");
   await expect(page.getByRole("heading", { name: "GUÅHAN", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "NOTIFY ME" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "CORE COLLECTION" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The core collection", exact: true })).toBeVisible();
   await shot(page, info, "home-upcoming");
   await overflow(page);
 });
@@ -183,7 +183,7 @@ test("story: founder, land and sea", async ({ page }, info) => {
 });
 test("archive: empty first-drop state", async ({ page }, info) => {
   await go(page, "/archive");
-  await expect(page.getByRole("heading", { name: "The first drop releases Dec 5." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Drop 001 releases .+ ChST\.$/ })).toBeVisible();
   await shot(page, info, "archive-empty");
   await overflow(page);
 });
@@ -313,7 +313,7 @@ for (const count of [1, 2, 3]) {
   });
 }
 
-test("mobile hero separates the art and caption; desktop preserves map labels", async ({ page }, info) => {
+test("mobile hero separates art and caption; desktop gives art 60% with visible shop actions", async ({ page }, info) => {
   for (const state of ["upcoming", "live", "closed"]) {
     await go(page, "/", state);
     const art = await page.locator(".hero > img").boundingBox();
@@ -323,7 +323,11 @@ test("mobile hero separates the art and caption; desktop preserves map labels", 
       expect(art!.height).toBeCloseTo(487.5);
       expect(caption!.y).toBeGreaterThanOrEqual(art!.y + art!.height);
     } else if (state !== "closed") {
-      await expect(page.locator(".hero > img")).toHaveCSS("object-fit", "contain");
+      await expect(page.locator(".hero > img")).toHaveCSS("object-fit", "cover");
+      expect(art!.width / page.viewportSize()!.width).toBeCloseTo(0.6);
+      expect(caption!.x).toBeGreaterThanOrEqual(art!.x + art!.width);
+      await expect(page.getByRole("link", { name: state === "live" ? "SHOP THE DROP" : "NOTIFY ME", exact: true })).toBeInViewport();
+      await expect(page.getByRole("link", { name: "Shop Håfa Adai from Tumon Bay — $35", exact: true })).toBeInViewport();
     }
     await expect(page.locator(".hero h1")).toHaveCSS("font-variation-settings", '"wdth" 125');
     await expect(page.locator(".hero h1")).toHaveCSS("font-stretch", "125%");
@@ -341,7 +345,9 @@ test("gallery artwork fills the mobile content width and still swipes", async ({
       if (route === "/drop") expect(dimensions!.height).toBeGreaterThan(dimensions!.width);
       await page.locator(".gallery-track").evaluate((el) => el.scrollTo({ left: el.clientWidth, behavior: "instant" }));
       await expect(page.locator(".gallery-counter")).toContainText("2 /");
+      await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeVisible();
     } else {
+      await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeHidden();
       const nextImage = await page.locator(".gallery-image img").nth(1).boundingBox();
       expect(nextImage!.y).toBeGreaterThanOrEqual(dimensions!.y + dimensions!.height);
     }
@@ -415,4 +421,54 @@ test("order A payment preserves a re-added cart and checkout B reservation", asy
   await expect(page.getByRole("status")).toHaveText("Paid");
   await expect(page.getByRole("button", { name: "CART (1)" })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem("tyt-checkout-attempt"))).toBe(attemptB);
+});
+
+
+test("home core link names the buyable puzzle and preserves the path into cart", async ({ page }) => {
+  await go(page, "/");
+  const core = page.getByRole("link", { name: "Shop Håfa Adai from Tumon Bay — $35", exact: true });
+  await expect(core).toBeInViewport();
+  await core.click();
+  await expect(page).toHaveURL(/products\/hafa-adai-from-tumon-bay/);
+  await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
+  const cart = page.getByRole("dialog", { name: "Your cart" });
+  await expect(cart).toBeVisible();
+  await expect(cart.getByRole("status")).toHaveText("1");
+  await expect(cart.getByText("$35", { exact: true })).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "CART (1)" }).click();
+  await expect(cart.getByRole("status")).toHaveText("1");
+});
+
+test("shipping, FAQ and product details publish supported facts without preview filler", async ({ page }, info) => {
+  await go(page, "/info/faq");
+  await expect(page.getByText(/Drop 001 releases Sat, Dec 5, 10:00 AM ChST/)).toContainText("Fri, Dec 4, 4:00 PM PT · Fri, Dec 4, 2:00 PM HT");
+  await expect(page.getByText("Drop 001 is limited to 2 per customer.")).toBeVisible();
+  await expect(page.getByText("No. Drops are one-time releases and never restock.")).toBeVisible();
+  await expect(page.getByText(/held for about 30 minutes/)).toBeVisible();
+  await shot(page, info, "faq");
+  const footer = page.locator("footer");
+  await expect(footer.getByRole("link", { name: "Contact", exact: true })).toHaveCount(0);
+  await expect(footer.getByText(/coming soon/i)).toHaveCount(0);
+  await footer.getByRole("link", { name: "Shipping", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Shipping", exact: true })).toBeVisible();
+  await expect(page.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
+  await go(page, "/products/hafa-adai-from-tumon-bay");
+  await expect(page.getByText("Box size", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Material", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Preview details/)).toHaveCount(0);
+  await page.locator("summary").filter({ hasText: /^Shipping$/ }).click();
+  await expect(page.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
+  await overflow(page);
+});
+
+test("storefront type stays at least 12px and placeholder text uses the readable ink token", async ({ page }) => {
+  await go(page, "/");
+  expect(await page.evaluate(() => [...document.querySelectorAll("header *, main *, footer *")].filter((el) =>
+    el.textContent?.trim() && el.checkVisibility() && parseFloat(getComputedStyle(el).fontSize) < 12
+  ).map((el) => el.className))).toEqual([]);
+  expect(await page.getByLabel("Email for drop alerts").evaluate((input) => ({
+    placeholder: getComputedStyle(input, "::placeholder").color,
+    muted: getComputedStyle(document.querySelector(".muted")!).color,
+  }))).toEqual({ placeholder: "rgb(95, 90, 83)", muted: "rgb(95, 90, 83)" });
 });

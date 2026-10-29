@@ -21,13 +21,21 @@ function FeaturedProduct({ product }: { product: Product }) {
         <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
       </Link>
       <div className="feature-info">
-        <p className="label muted">{product.availability.state === "sold_out" ? "SOLD OUT · CORE COLLECTION" : "CORE COLLECTION"}</p>
+        {product.availability.state === "sold_out" && <p className="label muted">SOLD OUT</p>}
+        {specLine(specs) && <p className="small muted">{specLine(specs)}</p>}
         <h2>{product.name}</h2>
         <p className="price">{money(product.price_cents)}</p>
         <p className="feature-summary">{product.summary}</p>
-        {specs && <p className="small muted">{specs.piece_count} pieces · {specs.finished_size} finished</p>}
         <Link className="button" to={`/products/${product.slug}`}>VIEW PUZZLE</Link>
       </div>
     </article>
   );
+}
+
+function specLine(specs: Product["specs"] | undefined) {
+  const parts = [
+    specs?.piece_count != null ? `${specs.piece_count} pieces` : null,
+    specs?.finished_size ? `${specs.finished_size} finished` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
 }

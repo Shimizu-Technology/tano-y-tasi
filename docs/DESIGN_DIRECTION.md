@@ -30,11 +30,12 @@ Never use gradients, drop shadows on cards, or rounded "pill" cards. Corner radi
 
 - Use one family: **Archivo** (variable, with width and weight axes), self-hosted via `@fontsource-variable/archivo`. Use the wide plus heavy settings for the wordmark and display moments, and normal width and weight for body. Verify that å, ñ and the ʻ/' glyphs render.
 - Scale (mobile → desktop):
-  - `label` 11/12px, uppercase, tracking 0.08em, weight 600: nav, eyebrow, state labels.
-  - `body` 15/16px, weight 400, line-height 1.5.
+  - `label` 12px, uppercase, tracking 0.08em, weight 600: nav and information-bearing state labels.
+  - `body` 16px, weight 400, line-height 1.5.
   - `title` 20/24px, weight 600: product names on product pages.
   - `display` clamp(40px, 9vw, 112px), wide width, weight 800, uppercase, tight leading 0.9: hero headline only.
-- Prices use tabular numbers. Never set essential details smaller than 13px.
+- Buttons use 13px; `.small` is at least 13px. No storefront text is smaller than 12px. Prices use tabular numbers. Hero summaries use at least 18px in full ink.
+- Email placeholders use `--color-ink-muted`, with the same readable contrast as secondary text.
 
 ## Layout
 
@@ -53,17 +54,18 @@ Never use gradients, drop shadows on cards, or rounded "pill" cards. Corner radi
 ## Pages
 
 ### Home
-1. **Hero (full-bleed)** led by the drop's state:
-   - Drop upcoming or live: Drop artwork (map), eyebrow `DROP 001`, display headline `GUÅHAN`, one line ("Releases Sat, Dec 5 · 10:00 AM ChST" or "Available now · 100 made"), and one action (`NOTIFY ME` / `SHOP THE DROP`).
+1. **Hero** led by the drop's state:
+   - Drop upcoming or live: drop artwork (map), display headline `GUÅHAN`, the product summary from the API, then `Drop 001 · Releases Sat, Dec 5 · 10:00 AM ChST` or `Drop 001 · Available now · 100 made` using the API's date and quantity. Primary action: `NOTIFY ME` / `SHOP THE DROP`.
    - No active drop: the Tumon puzzle tabletop photo with display headline `A PIECE OF HOME.` and `SHOP`.
-   - Mobile uses a tall crop (4:5); desktop uses landscape (16:9 to 3:2) with text bottom-left on a legible area. No dark overlays heavier than a soft bottom scrim.
-2. **The Collection:** label `CORE COLLECTION`, then the grid.
-3. **Story strip:** the brand paragraph in `title` size at a narrow measure (~36ch), centered or left-aligned, with `OUR STORY →`. Generous space.
-4. **Drop alerts:** one line ("New drops, first. No spam.") with an email field and `SIGN UP`.
-5. **Footer:** the rounded logo emblem (small), links (Shipping & Returns placeholder, FAQ placeholder, Wholesale "coming soon", Contact, Instagram/TikTok placeholders), and "Made for Guåhan and everyone carrying it with them." plus © year.
+   - A secondary text link names the first available core puzzle and its price from the API, with a Lucide arrow.
+   - Mobile: full-width 4:5 art, then caption. Desktop ≥900px: art occupies about 60% of the hero at near viewport height, with a bottom-aligned caption beside it. No decorative kicker or vertical side label.
+2. **The core collection:** a real 24–32px h2, plus `Shop all` and the product collection. A single featured puzzle shows its available specs instead of a repeated collection label.
+3. **Story strip:** h2 `Tåno is land. Tåsi is sea.`, the brand paragraph at a narrow measure (~36ch), and `Our story` with a Lucide arrow.
+4. **Signup:** h2 `New drops, first.`, with an email field and `SIGN UP`. No decorative kicker.
+5. **Footer:** the small rounded logo emblem, real links to Shipping and FAQ, "Made for Guåhan and everyone carrying it with them," and © year. Contact remains a route but is not linked until contact details are supplied.
 
 ### Shop
-Title `SHOP` with a small count, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
+Title `Shop` with a muted `1 puzzle` / `N puzzles` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
 
 ### Drop (`/drop` → current or next drop; `/drops/:slug` for any)
 - **Upcoming:** large artwork, `DROP 001 — GUÅHAN SUNSET MAP`, the release time in **ChST**, plus PT and HT on a second line, quantity ("100 made"), limit ("Limit 2 per customer"), price, a detail gallery, and the drop-alert form. The add-to-cart button is disabled and reads `RELEASES DEC 5`. A countdown is optional and must only show inside the final 48 hours.
@@ -72,13 +74,13 @@ Title `SHOP` with a small count, then the core collection grid. If a drop is liv
 - **Closed:** like sold out, with the reason "This drop has closed."
 
 ### Product detail
-- Mobile: a horizontally swipeable gallery (CSS scroll-snap) with an `1 / 5` counter, then the info block, then a full-width sticky-bottom `ADD TO CART` bar once the main button scrolls out of view.
+- Mobile: a horizontally swipeable gallery (CSS scroll-snap) with an `1 / 5` counter and `SWIPE TO EXPLORE` only when there are multiple images on mobile, then the info block, then a full-width sticky-bottom `ADD TO CART` bar once the main button scrolls out of view.
 - Desktop: two columns. The images stack on the left (about 60%); the info column on the right is sticky.
-- Info order: state label, name (`title`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** (placeholder copy marked as such).
+- Info order: drop state label when applicable (core context is already in the breadcrumb), name (`title`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** ("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."). Hide unknown spec rows (`TBD` or `To be confirmed`) and omit internal preview notes.
 - Images open in a full-screen viewer with pinch/zoom on mobile. The map is high resolution, so let people inspect it.
 
 ### Story
-Large logo emblem, the brand paragraph, a short section on the meaning of *tåno* and *tåsi*, a tabletop photo, and a line about Christian as founder (placeholder copy until he approves). Keep it to one calm page.
+Large logo emblem, the brand paragraph, a short section on the meaning of *tåno* and *tåsi*, a tabletop photo, with no decorative kicker or unapproved founder placeholder. Keep it to one calm page.
 
 ### Archive
 A grid of past drops (sold out or closed) with date and quantity. Empty state: "The first drop releases Dec 5." with a link to the drop.
@@ -91,6 +93,13 @@ Opens from the right on desktop (420px) and as a full-height sheet on mobile. It
 - Hand-off goes to Stripe or the simulated payment page.
 - **Confirmation** (`/orders/:token`): "Thank you" headline, order number, items, total, and status. If the order is still pending, poll politely: visibility-aware, stopping on paid, expired or canceled, with a cap.
 - **Cancelled/expired:** a calm message, with the cart restored and a way back.
+
+### Information pages
+Shipping states the checkout calculation and supported destinations (United States, Guam and Puerto Rico). FAQ covers the release time in ChST/PT/HT, per-customer limit from data, no drop restocks, supported destinations, and the roughly 30-minute checkout hold. Do not publish unconfirmed policies.
+
+## Loading and icons
+
+Route loading states reserve the hero aspect ratio, collection tiles, or product columns with flat tone blocks and accessible status text. No shimmer. The main region keeps the footer below the viewport during loading. Use Lucide SVG icons at 16px and stroke width 1.5 for arrows, quantity controls and accordion markers; hide decorative icons from assistive technology.
 
 ## Motion
 

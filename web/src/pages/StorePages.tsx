@@ -1,9 +1,10 @@
+import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { ArtImage } from "../components/ArtImage";
 import { Failure, Loading, Meta, Signup } from "../components/Shared";
-import { dropNumber, releaseTimes, releaseDate } from "../utils";
+import { dropNumber, releaseTimes, releaseDate, money, heroReleaseTime } from "../utils";
 import { ProductCollection } from "../components/ProductCollection";
 import type { Art } from "../types";
 export const story =
@@ -17,11 +18,13 @@ const tabletop: Art = {
 };
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
-  if (q.isPending) return <Loading />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  if (q.isPending) return <Loading layout="home" />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   const data = q.data;
   const d = data.featured_drop;
   const live = d?.state === "live";
+  const core = data.core_products.find((product) => product.availability.purchasable);
   const hero = d?.product.image ?? tabletop;
   return (
     <>
@@ -30,17 +33,14 @@ export function Home() {
         rel="preload"
         as="image"
         imageSrcSet={hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", ")}
-        imageSizes="100vw"
+        imageSizes="(min-width: 900px) 60vw, 100vw"
       />
       <section
         className={`hero ${d ? "map-hero" : "core-hero"}`}
         aria-label={d ? "Guåhan Sunset Map puzzle" : "Puzzles of Guåhan"}
       >
-        <ArtImage art={hero} sizes="100vw" priority />
+        <ArtImage art={hero} sizes="(min-width: 900px) 60vw, 100vw" priority />
         <div className="hero-caption">
-          <p className="label">
-            {d ? `DROP ${dropNumber(d.number)} · LIMITED EDITION PUZZLE` : "TÅNO + TÅSI · ISLAND SUPPLY CO."}
-          </p>
           <h1>
             {d ? (
               "GUÅHAN"
@@ -52,35 +52,36 @@ export function Home() {
               </>
             )}
           </h1>
-          <p>
-            {d
-              ? live
-                ? `Available now · ${d.quantity} made`
-                : `Releases ${releaseTimes(d.release_at).guam}`
-              : "Puzzles from the island. For wherever you are."}
-          </p>
+          <p className="hero-summary">{d?.product.summary ?? core?.summary ?? "Puzzles from the island. For wherever you are."}</p>
+          {d && (
+            <p className="hero-release">
+              Drop {dropNumber(d.number)} · {live ? `Available now · ${d.quantity} made` : `Releases ${heroReleaseTime(d.release_at)}`}
+            </p>
+          )}
           <Link className="button" to={d ? (live ? "/drop" : "/drop#notify") : "/shop"}>
             {d ? (live ? "SHOP THE DROP" : "NOTIFY ME") : "SHOP"}
           </Link>
+          {core && (
+            <Link className="text-link hero-core-link" to={`/products/${core.slug}`}>
+              <span>Shop {core.name} — {money(core.price_cents)}</span><ArrowRight aria-hidden="true" />
+            </Link>
+          )}
         </div>
-        <span className="hero-side label" aria-hidden="true">
-          GUÅHAN · MARIANA ISLANDS
-        </span>
       </section>
       <section className="section collection">
         <div className="section-heading">
-          <h2 className="label">CORE COLLECTION</h2>
+          <h2>The core collection</h2>
           <Link className="text-link label" to="/shop">
-            SHOP ALL →
+            Shop all <ArrowRight aria-hidden="true" />
           </Link>
         </div>
         <ProductCollection products={data.core_products} />
       </section>
       <section className="section story-strip">
-        <p className="label">TÅNO — LAND. TÅSI — SEA.</p>
+        <h2>Tåno is land. Tåsi is sea.</h2>
         <p>{story}</p>
         <Link className="text-link label" to="/story">
-          OUR STORY →
+          Our story <ArrowRight aria-hidden="true" />
         </Link>
       </section>
       <div className="section">
@@ -91,16 +92,18 @@ export function Home() {
 }
 export function Shop() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
-  if (q.isPending) return <Loading />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  if (q.isPending) return <Loading layout="collection" />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   const d = q.data.featured_drop;
   return (
     <div className="page">
       <Meta title="Shop" />
       <div className="page-heading">
-        <h1>
-          SHOP <sup>{String(q.data.core_products.length).padStart(2, "0")}</sup>
-        </h1>
+        <div className="shop-title">
+          <h1>Shop</h1>
+          <span className="muted">{q.data.core_products.length} {q.data.core_products.length === 1 ? "puzzle" : "puzzles"}</span>
+        </div>
         <p className="muted">The core collection. Made to come back to.</p>
       </div>
       {d?.state === "live" && (
@@ -112,7 +115,7 @@ export function Shop() {
             </p>
             <h2>{d.name}</h2>
             <p>{d.quantity} made. One time only.</p>
-            <span className="text-link label">SHOP THE DROP →</span>
+            <span className="text-link label">SHOP THE DROP <ArrowRight aria-hidden="true" /></span>
           </div>
         </Link>
       )}
@@ -122,8 +125,10 @@ export function Shop() {
 }
 export function Archive() {
   const q = useQuery({ queryKey: ["drops"], queryFn: api.drops });
-  if (q.isPending) return <Loading />;
-  if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
+  if (q.isPending) return <Loading layout="archive" />;
+  // A failed background refresh keeps showing the data already on screen.
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
+  const next = q.data.current ?? q.data.upcoming[0];
   return (
     <div className="page archive">
       <Meta title="Archive" />
@@ -150,11 +155,20 @@ export function Archive() {
         </div>
       ) : (
         <div className="archive-empty">
-          <span className="label muted">THE BEGINNING</span>
-          <h2>The first drop releases Dec 5.</h2>
-          <Link className="text-link" to="/drop">
-            Meet Drop 001 →
-          </Link>
+          {next ? (
+            <>
+              <h2>
+                {next.state === "upcoming"
+                  ? `Drop ${dropNumber(next.number)} releases ${releaseTimes(next.release_at).guam}.`
+                  : `Drop ${dropNumber(next.number)} is available now.`}
+              </h2>
+              <Link className="text-link" to="/drop">
+                Meet Drop {dropNumber(next.number)} <ArrowRight aria-hidden="true" />
+              </Link>
+            </>
+          ) : (
+            <h2>The first drop hasn’t been announced yet.</h2>
+          )}
         </div>
       )}
     </div>
@@ -167,7 +181,6 @@ export function Story() {
       <div className="story-intro">
         <img src="/images/brand/logo-mark-800.png" width="280" height="224" alt="Tåno Tåsi — land and sea" />
         <div>
-          <p className="label">OUR STORY</p>
           <h1>A piece of home.</h1>
           <p className="story-lead">{story}</p>
         </div>
@@ -177,12 +190,11 @@ export function Story() {
           <h2>Tåno. Tåsi.</h2>
           <p>Land and sea. The two things that define our islands, and the connection that stays with us.</p>
           <p>We start with puzzles of Guåhan. Familiar places to spend time with, share, and piece together.</p>
-          <p className="muted small">Founded by Christian Tenorio. Founder story to be approved.</p>
         </div>
         <ArtImage art={tabletop} sizes="(min-width: 900px) 55vw, 100vw" />
       </div>
       <Link to="/shop" className="text-link label">
-        EXPLORE THE COLLECTION →
+        EXPLORE THE COLLECTION <ArrowRight aria-hidden="true" />
       </Link>
     </div>
   );
@@ -202,25 +214,39 @@ export function NotFound() {
 }
 export function Info() {
   const { topic } = useParams();
-  const content: Record<string, [string, string]> = {
-    shipping: [
-      "Shipping & Returns",
-      "Shipping rates, delivery areas, and the returns policy are being confirmed. These details are placeholders for this preview.",
-    ],
-    faq: ["FAQ", "Product and ordering information will be published here before launch."],
-    contact: ["Contact", "Contact details are being confirmed. Please check back before launch."],
-  };
-  const c = content[topic ?? ""];
-  return c ? (
-    <div className="page narrow empty-page">
-      <Meta title={c[0]} />
-      <h1>{c[0]}</h1>
-      <p>{c[1]}</p>
-      <Link className="text-link" to="/shop">
-        Back to the collection →
-      </Link>
+  return topic === "faq" ? <FAQ /> : topic === "shipping" || topic === "contact" ? (
+    <div className="page narrow info-page">
+      <Meta title={topic === "shipping" ? "Shipping" : "Contact"} />
+      <h1>{topic === "shipping" ? "Shipping" : "Contact"}</h1>
+      <p>{topic === "shipping"
+        ? "Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."
+        : "Contact details are not available yet."}</p>
+      <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
     </div>
-  ) : (
-    <NotFound />
+  ) : <NotFound />;
+}
+function FAQ() {
+  const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
+  const drop = q.data?.featured_drop;
+  const times = drop ? releaseTimes(drop.release_at) : null;
+  return (
+    <div className="page narrow info-page">
+      <Meta title="FAQ" />
+      <h1>FAQ</h1>
+      <div className="faq-answers">
+        <section>
+          <h2>When does the next drop release?</h2>
+          {times ? <p>Drop {dropNumber(drop!.number)} {drop!.state === "upcoming" ? "releases" : "released"} {times.guam} · {times.pacific} · {times.hawaii}.</p>
+            : q.isPending ? <p role="status">Loading release details…</p>
+              : q.isError ? <p>Release details are unavailable. <button className="inline-link" onClick={() => void q.refetch()}>Try again</button></p>
+                : <p>The next release has not been announced.</p>}
+        </section>
+        {drop && <section><h2>How many can I buy?</h2><p>Drop {dropNumber(drop.number)} is limited to {drop.per_customer_limit} per customer.</p></section>}
+        <section><h2>Do drops restock?</h2><p>No. Drops are one-time releases and never restock.</p></section>
+        <section><h2>Where do you ship?</h2><p>We ship to the United States, Guam and Puerto Rico. Shipping is calculated at checkout.</p></section>
+        <section><h2>How long is my checkout held?</h2><p>Your puzzles are held for about 30 minutes at checkout.</p></section>
+      </div>
+      <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
+    </div>
   );
 }

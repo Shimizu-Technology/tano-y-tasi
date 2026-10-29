@@ -92,12 +92,8 @@ function Footer() {
           carrying it with them.
         </p>
         <div className="footer-links">
-          <Link to="/info/shipping">Shipping & Returns</Link>
+          <Link to="/info/shipping">Shipping</Link>
           <Link to="/info/faq">FAQ</Link>
-          <span>Wholesale — coming soon</span>
-          <Link to="/info/contact">Contact</Link>
-          <span>Instagram — coming soon</span>
-          <span>TikTok — coming soon</span>
         </div>
       </div>
       <div className="footer-bottom">

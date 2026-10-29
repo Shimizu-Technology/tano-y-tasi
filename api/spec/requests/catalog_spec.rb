@@ -15,6 +15,12 @@ RSpec.describe "Catalog", type: :request do
     expect(Time.iso8601(json["server_time"])).to be_within(2.seconds).of(Time.current)
   end
 
+  it "omits summary specs the catalog still marks as placeholders" do
+    core.update!(specs: { piece_count: 750, finished_size: "22 × 30 in" }, placeholders: [ "specs.finished_size" ])
+    get "/api/v1/storefront"
+    expect(response.parsed_body["core_products"].first["specs"]).to eq("piece_count" => 750)
+  end
+
   it "includes only summary specs in every product summary" do
     core.update!(specs: { piece_count: 100, finished_size: "12 × 9 in", material: "Cardboard" })
     limited.update!(specs: { piece_count: 500, finished_size: "16 × 20 in", material: "Cardboard" })

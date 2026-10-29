@@ -53,7 +53,8 @@ export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT
   ];
   const hero = product?.images[0] ?? (route.kind === "home" ? data.storefront.featured_drop?.product.image ?? tabletop : undefined);
   if (hero) {
-    const sizes = route.kind === "home" ? "100vw" : "(min-width: 900px) 58vw, calc(100vw - 32px)";
+    // Must match the rendered <img sizes> so the browser reuses the preloaded candidate.
+    const sizes = route.kind === "home" ? "(min-width: 900px) 60vw, 100vw" : "(min-width: 900px) 58vw, calc(100vw - 32px)";
     tags.push(`<link data-tyt-preload rel="preload" as="image" imagesrcset="${escapeHtml(hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", "))}" imagesizes="${sizes}" fetchpriority="high" />`);
   }
   tags.push(`<script type="application/json" id="tyt-initial-data">${serializeData(data)}</script>`);

@@ -1,6 +1,6 @@
 import { checkoutFix } from "./api";
 import { catalog, CORE, MAP } from "./mocks/data";
-import { money, countdown, purchaseState, releaseTimes, remainingMs } from "./utils";
+import { money, countdown, purchaseState, releaseTimes, remainingMs, heroReleaseTime } from "./utils";
 import type { DropState } from "./types";
 it("formats the release date across the date line, Guam first", () => {
   const t = releaseTimes("2026-12-05T00:00:00Z");
@@ -48,4 +48,8 @@ it.each([
   [0, "$0"],
 ])("formats %i cents as %s", (cents, expected) => {
   expect(money(Number(cents))).toBe(expected);
+});
+
+it("keeps the hero release in Guam time across the date line", () => {
+  expect(heroReleaseTime("2026-12-05T00:00:00Z")).toBe("Sat, Dec 5 · 10:00 AM ChST");
 });
