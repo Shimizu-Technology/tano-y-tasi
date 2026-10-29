@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { restoreInitialData } from "../../src/api";
 import { catalog, CORE, MAP, dropSummary } from "../../src/mocks/data";
 import { enhanceResponse, matchRoute, serializeData, transformHtml } from "./storefront";
@@ -115,18 +115,43 @@ it.each([`/products/${CORE}`, "/drop", `/drops/${drop.slug}`, "/archive"])("hydr
     drop: { drop, server_time, receivedAt: snapshotTime } };
   document.body.innerHTML = `<script type="application/json" id="tyt-initial-data">${serializeData(data)}</script>`;
   const client = new QueryClient();
+  const before = Date.now();
   restoreInitialData(client);
+  const after = Date.now();
   expect(client.getQueryData(["storefront"])).toEqual(data.storefront);
   expect(client.getQueryData(["product", CORE])).toEqual(data.product);
   expect(client.getQueryData(["drops"])).toEqual(drops);
   const slug = path.replace(/\/$/, "").split("/")[2] ?? "featured";
-  expect(client.getQueryData(["drop", slug])).toEqual(data.drop);
-  expect(client.getQueryState(["product", CORE])?.dataUpdatedAt).toBe(snapshotTime);
+  const seededDrop = client.getQueryData<NonNullable<InitialData["drop"]>>(["drop", slug]);
+  expect(seededDrop).toEqual({ ...data.drop, receivedAt: seededDrop?.receivedAt });
+  for (const stamp of [seededDrop!.receivedAt, client.getQueryState(["product", CORE])!.dataUpdatedAt]) {
+    expect(stamp).toBeGreaterThanOrEqual(before);
+    expect(stamp).toBeLessThanOrEqual(after);
+  }
   expect(client.getQueryDefaults(["storefront"]).staleTime).toBe(0);
   expect(document.getElementById("tyt-initial-data")).toBeNull();
-  // A cached snapshot must not restart the countdown when it reaches the client.
-  const remaining = Date.parse(drop.release_at) - (Date.parse(server_time) + (snapshotTime + 30_000 - data.drop!.receivedAt));
-  expect(remaining).toBe(Date.parse(drop.release_at) - Date.parse(server_time) - 30_000);
+});
+it("uses the shopper's clock and still refetches on mount when the edge clock is skewed", async () => {
+  // Shopper's clock is one hour behind the edge that built the snapshot.
+  vi.useFakeTimers({ now: snapshotTime - 3_600_000, toFake: ["Date"] });
+  try {
+    window.history.replaceState(null, "", "/drop");
+    const data: InitialData = { ...snapshot("/drop"), drops, drop: { drop, server_time, receivedAt: snapshotTime } };
+    document.body.innerHTML = `<script type="application/json" id="tyt-initial-data">${serializeData(data)}</script>`;
+    const client = new QueryClient();
+    const restoredAt = Date.now();
+    restoreInitialData(client);
+    // Countdown math (release - server_time - (now - receivedAt)) starts from the snapshot's server_time.
+    const seeded = client.getQueryData<{ receivedAt: number }>(["drop", "featured"]);
+    expect(seeded?.receivedAt).toBe(restoredAt);
+    const queryFn = vi.fn(async () => data.drop);
+    const observer = new QueryObserver(client, { queryKey: ["drop", "featured"], queryFn });
+    const unsubscribe = observer.subscribe(() => {});
+    await vi.waitFor(() => expect(queryFn).toHaveBeenCalledTimes(1));
+    unsubscribe();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 it("ignores malformed or mismatched snapshots", () => {
   for (const content of ["{broken", JSON.stringify(snapshot("/other"))]) {
