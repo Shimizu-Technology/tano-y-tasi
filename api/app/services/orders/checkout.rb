@@ -29,7 +29,7 @@ module Orders
           conflict! if order.request_fingerprint != fingerprint
           provision_session!(order) if order.payment_url.nil? && order.status == "pending_payment"
           if order.payment_url.nil?
-            raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable)
+            raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable, details: { retry: "new_checkout" })
           end
           Result.new(order: order.reload, created: existing.nil?)
         ensure
@@ -97,7 +97,7 @@ module Orders
       if drop
         already = CustomerLimit.quantity(product, @email)
         if already + quantity > drop.per_customer_limit
-          raise ApiError.new("limit_exceeded", "This drop is limited to #{drop.per_customer_limit} per customer.", details: { limit: drop.per_customer_limit, already_purchased: already })
+          raise ApiError.new("limit_exceeded", "This drop is limited to #{drop.per_customer_limit} per customer.", details: { product_slug: product.slug, limit: drop.per_customer_limit, already_purchased: already })
         end
       end
       if product.stock_quantity.zero?
@@ -119,10 +119,10 @@ module Orders
     rescue Stripe::InvalidRequestError, Stripe::IdempotencyError => error
       Release.call(order)
       Rails.logger.error("payment_session_failed order_id=#{order.id} error=#{error.class}")
-      raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable)
+      raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable, details: { retry: "new_checkout" })
     rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
       Rails.logger.error("payment_session_retryable order_id=#{order.id} error=#{error.class}")
-      raise ApiError.new("payment_unavailable", "Payment is temporarily unavailable. Retry the same request with the same idempotency_key.", status: :service_unavailable)
+      raise ApiError.new("payment_unavailable", "Payment is temporarily unavailable. Retry the same request with the same idempotency_key.", status: :service_unavailable, details: { retry: "same_key" })
     end
 
     def conflict!

@@ -27,6 +27,7 @@ RSpec.describe "Stripe checkout recovery", type: :request do
       expect(response).to have_http_status(:service_unavailable)
       expect(response.parsed_body.dig("error", "code")).to eq("payment_unavailable")
       expect(response.parsed_body.dig("error", "message")).to include("same idempotency_key")
+      expect(response.parsed_body.dig("error", "details")).to eq("retry" => "same_key")
       expect(Order.last.status).to eq("pending_payment")
       expect(product.reload.stock_quantity).to eq(3)
       travel 20.seconds
@@ -48,6 +49,7 @@ RSpec.describe "Stripe checkout recovery", type: :request do
         submit
         expect(response).to have_http_status(:service_unavailable)
         expect(response.parsed_body.dig("error", "message")).to include("start a new checkout")
+        expect(response.parsed_body.dig("error", "details")).to eq("retry" => "new_checkout")
       end
       expect(Stripe::Checkout::Session).to have_received(:create).once
       expect(Order.last.status).to eq("canceled")
@@ -94,6 +96,7 @@ RSpec.describe "Stripe checkout recovery", type: :request do
     submit
     expect(response).to have_http_status(:service_unavailable)
     expect(response.parsed_body.dig("error", "message")).to include("start a new checkout")
+    expect(response.parsed_body.dig("error", "details")).to eq("retry" => "new_checkout")
     expect(Stripe::Checkout::Session).to have_received(:create).once
   end
 end

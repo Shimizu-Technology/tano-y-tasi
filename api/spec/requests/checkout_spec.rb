@@ -75,13 +75,14 @@ RSpec.describe "Checkout", type: :request do
     product.update!(kind: "drop", drop: create(:drop))
     submit(items: [ { product_slug: product.slug, quantity: 3 } ])
     expect_error("limit_exceeded")
-    expect(response.parsed_body.dig("error", "details")).to eq("limit" => 2, "already_purchased" => 0)
+    expect(response.parsed_body.dig("error", "details")).to eq("product_slug" => product.slug, "limit" => 2, "already_purchased" => 0)
   end
 
   it "returns 503 and preserves the hold on a transient gateway failure" do
     allow(Payments::Gateway).to receive(:create_session).and_raise(Stripe::APIError, "failed")
     submit
     expect_error("payment_unavailable", :service_unavailable)
+    expect(response.parsed_body.dig("error", "details")).to eq("retry" => "same_key")
     expect(product.reload.stock_quantity).to eq(49)
     expect(Order.last.status).to eq("pending_payment")
   end

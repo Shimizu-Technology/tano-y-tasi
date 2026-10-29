@@ -1,0 +1,33 @@
+import { setupWorker } from "msw/browser";
+import { handlers, configureMocks } from "./handlers";
+import type { DropState } from "../types";
+export async function startMocks() {
+  const params = new URLSearchParams(location.search);
+  const requestedCount = params.get("mockCore");
+  if (import.meta.env.DEV && requestedCount && ["1", "2", "3"].includes(requestedCount))
+    sessionStorage.setItem("tyt-mock-core", requestedCount);
+  const coreCount = import.meta.env.DEV ? Number(sessionStorage.getItem("tyt-mock-core") || 1) : 1;
+  const query = params.get("mockDrop");
+  const valid = ["upcoming", "live", "sold_out", "closed"];
+  if (query && valid.includes(query)) {
+    if (sessionStorage.getItem("tyt-mock-state") !== query) sessionStorage.removeItem("tyt-mock-db");
+    sessionStorage.setItem("tyt-mock-state", query);
+  }
+  const state = (sessionStorage.getItem("tyt-mock-state") || "upcoming") as DropState;
+  let database;
+  try {
+    database = JSON.parse(sessionStorage.getItem("tyt-mock-db") || "null") ?? undefined;
+  } catch {
+    sessionStorage.removeItem("tyt-mock-db");
+  }
+  const failure = params.get("mockPayment");
+  configureMocks({
+    state,
+    coreCount,
+    database,
+    paymentFailures: failure === "same_key" || failure === "new_checkout" ? [failure] : [],
+    save: (db) => sessionStorage.setItem("tyt-mock-db", JSON.stringify(db)),
+  });
+  const worker = setupWorker(...handlers);
+  await worker.start({ onUnhandledRequest: "bypass", quiet: true });
+}
