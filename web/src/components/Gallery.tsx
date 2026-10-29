@@ -28,7 +28,7 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
             aria-label={`View image ${i + 1} of ${name}`}
             onClick={() => setViewer(i)}
           >
-            <ArtImage art={art} priority={i === 0} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
+            <ArtImage art={art} priority={i === 0} sizes={i === 0 ? "(min-width: 900px) 58vw, calc(100vw - 32px)" : "(min-width: 900px) 28vw, calc(100vw - 32px)"} />
             <span className="gallery-zoom label">EXPLORE IMAGE <Plus aria-hidden="true" /></span>
           </button>
         ))}

@@ -1,9 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Home, Info, Shop } from "./StorePages";
+import { Archive, Home, Info, Shop, Story } from "./StorePages";
 import { catalog, CORE, MAP, dropSummary } from "../mocks/data";
-import type { Storefront } from "../types";
+import type { Drops, Storefront } from "../types";
 
 const products = catalog("upcoming", { [CORE]: 40, [MAP]: 100 });
 const storefront: Storefront = {
@@ -11,9 +11,10 @@ const storefront: Storefront = {
   core_products: [products[0]],
   server_time: "2026-10-29T00:00:00Z",
 };
-function show(path: string, data = storefront) {
+function show(path: string, data = storefront, drops?: Drops) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(["storefront"], data);
+  if (drops) client.setQueryData(["drops"], drops);
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
@@ -21,6 +22,8 @@ function show(path: string, data = storefront) {
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/info/:topic" element={<Info />} />
+          <Route path="/archive" element={<Archive />} />
+          <Route path="/story" element={<Story />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -35,6 +38,45 @@ it("explains the featured art and links to the first buyable core puzzle at its 
   expect(screen.getByText("Drop 001 · Releases Sat, Dec 5 · 10:00 AM ChST")).toBeVisible();
   expect(screen.getByRole("link", { name: "Shop Available puzzle — $41.75" })).toHaveAttribute("href", "/products/available-puzzle");
   expect(screen.getByRole("link", { name: "NOTIFY ME" })).toHaveAttribute("href", "/drop#notify");
+});
+
+it("previews the API's upcoming drop when the archive is empty, without a hardcoded release", () => {
+  const upcoming = { ...dropSummary("upcoming"), number: 8, name: "Next island puzzle", slug: "drop-008", release_at: "2027-01-09T00:00:00Z", product: products[1] };
+  show("/archive", storefront, { current: null, upcoming: [upcoming], archive: [], server_time: storefront.server_time });
+  expect(screen.getByRole("heading", { name: upcoming.name })).toBeVisible();
+  expect(screen.getByText("Drop 008 · Upcoming")).toBeVisible();
+  expect(screen.getByText("Sat, Jan 9, 10:00 AM ChST")).toHaveAttribute("dateTime", upcoming.release_at);
+  expect(screen.getByRole("link", { name: "Meet Drop 008" })).toHaveAttribute("href", "/drops/drop-008");
+});
+
+it("keeps past drops in the archive grid instead of showing the upcoming preview", () => {
+  const closed = { ...dropSummary("closed"), product: products[1] };
+  const { container } = show("/archive", storefront, { current: null, upcoming: [{ ...dropSummary("upcoming"), product: products[1] }], archive: [closed], server_time: storefront.server_time });
+  expect(container.querySelector(".product-grid .archive-card")).toBeInTheDocument();
+  expect(screen.getByText("CLOSED")).toBeVisible();
+  expect(screen.queryByText(/Upcoming/)).not.toBeInTheDocument();
+});
+
+it("does not invent a first-drop announcement when no upcoming drop exists", () => {
+  show("/archive", storefront, { current: null, upcoming: [], archive: [], server_time: storefront.server_time });
+  expect(screen.getByText("No past drops yet.")).toBeVisible();
+  expect(screen.queryByRole("link", { name: /Meet Drop/ })).not.toBeInTheDocument();
+});
+
+it("keeps a live first drop visible when it has not entered the archive yet", () => {
+  const current = { ...dropSummary("live"), product: products[1] };
+  show("/archive", storefront, { current, upcoming: [], archive: [], server_time: storefront.server_time });
+  expect(screen.getByText("Drop 001 · Available now")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Meet Drop 001" })).toHaveAttribute("href", `/drops/${current.slug}`);
+});
+
+it("keeps the approved Story copy and places its collection action with the puzzle content", () => {
+  const { container } = show("/story");
+  expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  expect(screen.getByText(/We start with puzzles of Guåhan/)).toBeVisible();
+  const section = container.querySelector(".story-puzzles")!;
+  expect(section.querySelector("a")).toHaveAttribute("href", "/shop");
+  expect(section.querySelector("img")).toHaveAttribute("src", expect.stringContaining("finished-flat"));
 });
 it("omits a buyable core link when every core puzzle is unavailable", () => {
   show("/", { ...storefront, core_products: [] });
