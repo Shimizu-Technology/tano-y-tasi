@@ -84,20 +84,21 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <Modal label="Your cart" onClose={onClose} className="cart-dialog">
+    <Modal label="Your cart" onClose={onClose} className="cart-dialog" swipeToDismiss>
+      {(close) => (
       <div className="drawer-content">
         <div className="drawer-header">
           <h2>
             YOUR CART <span className="muted">({cart.items.reduce((s, i) => s + i.quantity, 0)})</span>
           </h2>
-          <button className="text-button" onClick={onClose}>
+          <button className="text-button" onClick={close}>
             CLOSE
           </button>
         </div>
         {cart.items.length === 0 ? (
           <div className="empty-cart">
             <p>A piece of home is waiting.</p>
-            <Link to="/shop" onClick={onClose} className="button">
+            <Link to="/shop" onClick={close} className="button">
               EXPLORE THE COLLECTION
             </Link>
           </div>
@@ -116,7 +117,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                   <div className="cart-line" key={item.product_slug}>
                     {p && <ArtImage art={p.image} sizes="96px" />}
                     <div className="cart-line-info">
-                      <Link onClick={onClose} to={`/products/${item.product_slug}`}>
+                      <Link onClick={close} to={`/products/${item.product_slug}`}>
                         {p?.name ?? (query.isPending ? "Loading puzzle…" : item.product_slug)}
                       </Link>
                       {p && <p className="price">{money(p.price_cents)}</p>}
@@ -252,6 +253,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
+      )}
     </Modal>
   );
 }

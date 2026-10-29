@@ -1,3 +1,4 @@
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -36,6 +37,11 @@ function MapDetails() {
     </div>
   );
 }
+function HeroCaption({ children }: { children: ReactNode }) {
+  const [enter] = useState(() => sessionStorage.getItem("tyt-hero-seen") !== "true");
+  useEffect(() => { sessionStorage.setItem("tyt-hero-seen", "true"); }, []);
+  return <div className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
+}
 export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
@@ -60,7 +66,7 @@ export function Home() {
         aria-label={d ? "Guåhan Sunset Map puzzle" : "Puzzles of Guåhan"}
       >
         <ArtImage art={hero} sizes="(min-width: 900px) 60vw, 100vw" priority />
-        <div className="hero-caption">
+        <HeroCaption>
           <h1>
             {d ? (
               "GUÅHAN"
@@ -86,7 +92,7 @@ export function Home() {
               <span>Shop {core.name} — {money(core.price_cents)}</span><ArrowRight aria-hidden="true" />
             </Link>
           )}
-        </div>
+        </HeroCaption>
       </section>
       <section className="section collection">
         <div className="section-heading">

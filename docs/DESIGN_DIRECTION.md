@@ -103,7 +103,9 @@ Route loading states reserve the hero aspect ratio, collection tiles, or product
 
 ## Motion
 
-Subtle and fast: image fade-in on load (150ms), drawer and sheet slide (220ms ease-out), accordion height, and button state. No parallax, scroll-jacking or Lenis. Everything respects `prefers-reduced-motion`.
+Subtle and fast: image fade-in on load (150ms), drawer and sheet enter (220ms) and faster exit (160ms), progressive native accordion height, and 140ms press feedback. Drawers use `cubic-bezier(0.32, 0.72, 0, 1)`; other motion uses `cubic-bezier(0.23, 1, 0.32, 1)`. Keep overlays interruptible and retain focus and scroll lock until exit finishes. Phone carts dismiss with a rightward swipe; artwork inspection uses anchored transform zoom up to 4×.
+
+The home caption enters once per session with 50ms staggers and at most 8px of movement; adding items briefly ticks the cart count. Reduced motion retains short opacity and colour fades, removes decorative transforms and the live pulse, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
 
 ## Imagery
 

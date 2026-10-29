@@ -125,3 +125,13 @@ it("keeps showing the page when a background refresh fails", async () => {
     vi.unstubAllGlobals();
   }
 });
+
+it("runs the hero entrance once, survives refetch, and skips later session visits", () => {
+  const first = show("/");
+  const caption = first.container.querySelector(".hero-caption")!;
+  expect(caption).toHaveAttribute("data-enter", "once");
+  expect(sessionStorage.getItem("tyt-hero-seen")).toBe("true");
+  first.unmount();
+  const second = show("/");
+  expect(second.container.querySelector(".hero-caption")).not.toHaveAttribute("data-enter");
+});

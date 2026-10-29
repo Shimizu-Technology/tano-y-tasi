@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link, NavLink, Outlet, ScrollRestoration } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
@@ -25,11 +25,28 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const items = useCart((s) => s.items);
   const { data } = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
+  const count = items.reduce((sum, i) => sum + i.quantity, 0);
+  const countRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    let animation: Animation | undefined;
+    // Subscribe after mounting: persisted carts never tick on initial load.
+    const unsubscribe = useCart.subscribe((next, previous) => {
+      const total = (state: typeof next) => state.items.reduce((sum, item) => sum + item.quantity, 0);
+      if (total(next) <= total(previous)) return;
+      animation?.cancel();
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      animation = countRef.current?.animate?.(reduce
+        ? [{ opacity: 0.55 }, { opacity: 1 }]
+        : [{ transform: "scale(1)", opacity: 1 }, { transform: "scale(1.15)", opacity: 0.7, offset: 0.4 }, { transform: "scale(1)", opacity: 1 }],
+      { duration: reduce ? 100 : 240, easing: "cubic-bezier(0.23,1,0.32,1)" });
+    });
+    return () => { unsubscribe(); animation?.cancel(); };
+  }, []);
   const live = data?.featured_drop?.state === "live";
-  const nav = (mobile = false) => (
+  const nav = (mobile = false, close = () => setMenuOpen(false)) => (
     <nav aria-label={mobile ? "Mobile navigation" : "Main navigation"}>
       {links.map(([href, label]) => (
-        <NavLink key={href} to={href} onClick={() => setMenuOpen(false)}>
+        <NavLink key={href} to={href} onClick={close}>
           {label}
           {label === "DROP" && live && <span className="live-dot" aria-label="Live" />}
         </NavLink>
@@ -50,8 +67,8 @@ export function Layout() {
           <button className="text-button menu-trigger" onClick={() => setMenuOpen(true)}>
             MENU
           </button>
-          <button className="text-button" onClick={() => setCartOpen(true)} aria-haspopup="dialog">
-            CART ({items.reduce((sum, i) => sum + i.quantity, 0)})
+          <button className="text-button" onClick={() => setCartOpen(true)} aria-haspopup="dialog" aria-label={`CART (${count})`}>
+            CART (<span className="cart-count" ref={countRef}>{count}</span>)
           </button>
         </div>
       </header>
@@ -62,17 +79,19 @@ export function Layout() {
       {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} />}
       {menuOpen && (
         <Modal label="Menu" className="menu-dialog" onClose={() => setMenuOpen(false)}>
+          {(close) => <>
           <div className="drawer-header">
             <Wordmark />
-            <button className="text-button" onClick={() => setMenuOpen(false)}>
+            <button className="text-button" onClick={close}>
               CLOSE
             </button>
           </div>
-          {nav(true)}
+          {nav(true, close)}
           <p className="label muted menu-signoff">
             GUÅHAN · MARIANA ISLANDS
             <br />A PIECE OF HOME.
           </p>
+          </>}
         </Modal>
       )}
       <ScrollRestoration />

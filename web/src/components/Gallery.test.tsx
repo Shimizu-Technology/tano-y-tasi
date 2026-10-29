@@ -22,3 +22,49 @@ it("stays on a valid image when a refreshed product has fewer images", () => {
     vi.unstubAllGlobals();
   }
 });
+
+function gesture(target: Element, type: string, x: number, y: number, time: number, id = 1) {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperties(event, Object.fromEntries(Object.entries({ pointerId: id, clientX: x, clientY: y, button: 0, timeStamp: time, pointerType: "touch" }).map(([key, value]) => [key, { value }])));
+  fireEvent(target, event);
+}
+it("anchors double-tap and pinch, pans with transforms, caps zoom, and resets on image swap", () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+  HTMLElement.prototype.setPointerCapture = vi.fn();
+  HTMLElement.prototype.hasPointerCapture = () => true;
+  HTMLElement.prototype.releasePointerCapture = vi.fn();
+  const { container } = render(<Gallery images={[{ ...images[0], aspect: "2:3" }, ...images.slice(1)]} name="Puzzle" />);
+  fireEvent.click(screen.getByRole("button", { name: "View image 1 of Puzzle" }));
+  const canvas = container.querySelector<HTMLElement>(".viewer-canvas")!;
+  const art = container.querySelector<HTMLElement>(".viewer-art")!;
+  Object.defineProperties(canvas, { clientWidth: { value: 400 }, clientHeight: { value: 600 } });
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0 } as DOMRect);
+  gesture(canvas, "pointerdown", 100, 200, 0);
+  gesture(canvas, "pointerup", 100, 200, 10);
+  gesture(canvas, "pointerdown", 100, 200, 100);
+  gesture(canvas, "pointerup", 100, 200, 110);
+  expect(art.style.transform).toBe("translate(-150px, -300px) scale(2.5)");
+  expect(art.style.width).toBe("");
+  expect(art.style.height).toBe("");
+  // A browser's compatibility dblclick must not toggle a touch double-tap twice.
+  fireEvent.doubleClick(canvas, { clientX: 100, clientY: 200 });
+  expect(art.style.transform).toContain("scale(2.5)");
+  gesture(canvas, "pointerdown", 100, 200, 400);
+  gesture(canvas, "pointermove", 120, 210, 420);
+  gesture(canvas, "pointerup", 120, 210, 430);
+  expect(art.style.transform).toBe("translate(-130px, -290px) scale(2.5)");
+  gesture(canvas, "pointerdown", 100, 200, 600);
+  gesture(canvas, "pointerdown", 200, 200, 610, 2);
+  gesture(canvas, "pointermove", 400, 200, 620, 2);
+  expect(screen.getByRole("slider")).toHaveValue("4");
+  expect(art.style.transform).toBe("translate(-198px, -584px) scale(4)");
+  gesture(canvas, "pointercancel", 400, 200, 630, 2);
+  gesture(canvas, "pointerup", 100, 200, 640);
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "1" } });
+  expect(art.style.transform).toBe("translate(0px, 0px) scale(1)");
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "3" } });
+  fireEvent.click(screen.getByText("NEXT"));
+  expect(screen.getByRole("slider")).toHaveValue("1");
+  expect(container.querySelector<HTMLElement>(".viewer-art")!.style.transform).toBe("");
+});
