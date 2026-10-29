@@ -19,13 +19,26 @@ async function scan(directory) {
         "Complete your test order.",
         "Pay (test)",
         "dev-only-msw-worker",
+        "tyt-admin-test-auth",
+        "TEST ADMIN SESSION",
       ])
         assert(!text.includes(marker), `Development code (${marker}) emitted in ${path}`);
     }
   }
 }
 await scan("dist");
-for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
+const netlifyConfig = await readFile("../netlify.toml", "utf8");
+for (const forbiddenSource of ["https://*.clerk.accounts.dev", "https://*.clerk.com", "https://api.clerk.com"])
+  assert(!netlifyConfig.includes(forbiddenSource), `Broad Clerk CSP source remains: ${forbiddenSource}`);
+for (const requiredSource of [
+  "https://clerk.tanoytasi.shimizu-technology.com",
+  "https://img.clerk.com",
+  "https://challenges.cloudflare.com",
+  "https://*.protect.clerk.com:*",
+])
+  assert(netlifyConfig.includes(requiredSource), `Required Clerk CSP source is missing: ${requiredSource}`);
+assert(!/script-src[^;]*'unsafe-(?:inline|eval)'/.test(netlifyConfig), "Production script-src is unsafe");
+for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TEST_AUTH"]) {
   // Exercise the Vite build guard itself without overwriting the verified output.
   const result = spawnSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
     env: {
@@ -33,6 +46,7 @@ for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
       NODE_ENV: "production",
       VITE_API_MOCKS: "false",
       VITE_SIMULATED_PAYMENTS: "false",
+      VITE_ADMIN_TEST_AUTH: "false",
       [flag]: "true",
     },
     encoding: "utf8",
@@ -41,5 +55,5 @@ for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
   assert(result.stderr.includes(`${flag} is development-only`), result.stderr || String(result.error));
 }
 console.log(
-  "Production output contains no MSW worker, mock handlers, or simulated payment page; both unsafe flags are rejected."
+  "Production output contains no development-only admin/payment code, unsafe flags are rejected, and Clerk CSP sources are scoped."
 );

@@ -18,6 +18,6 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://localhost:5181",
     reuseExistingServer: false,
-    env: { VITE_API_MOCKS: "true" },
+    env: { VITE_API_MOCKS: "true", VITE_ADMIN_TEST_AUTH: "true" },
   },
 });

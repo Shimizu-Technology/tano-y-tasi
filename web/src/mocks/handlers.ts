@@ -1,4 +1,5 @@
 import { http, HttpResponse } from "msw";
+import { adminHandlers } from "./adminHandlers";
 import { catalog, CORE, MAP, DROP, dropSummary } from "./data";
 import type { CartItem, CheckoutResult, DropState, Order, ProductDetail, Product } from "../types";
 interface StoredOrder {
@@ -116,6 +117,7 @@ function listProduct(p: ProductDetail): Product {
 const now = () => new Date().toISOString();
 const path = (p: string) => `*/api/v1${p}`;
 export const handlers = [
+  ...adminHandlers,
   http.get(path("/storefront"), () => {
     const d = drop();
     return HttpResponse.json({

@@ -5,6 +5,10 @@ import { ProductPage, DropPage } from "./pages/ProductPage";
 import { OrderPage, CancelPage } from "./pages/OrderPages";
 export const router = createBrowserRouter([
   {
+    path: "/admin/*",
+    lazy: async () => ({ Component: (await import("./admin/AdminApp")).AdminApp }),
+  },
+  {
     element: <Layout />,
     children: [
       { path: "/", element: <Home /> },

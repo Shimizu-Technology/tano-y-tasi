@@ -6,7 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   if (command === "build") {
-    for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
+    for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TEST_AUTH"]) {
       if (env[flag] === "true")
         throw new Error(`${flag} is development-only and cannot be enabled in a production build.`);
     }
