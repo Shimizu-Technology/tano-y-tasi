@@ -15,6 +15,20 @@ RSpec.describe "Catalog", type: :request do
     expect(Time.iso8601(json["server_time"])).to be_within(2.seconds).of(Time.current)
   end
 
+  it "includes only summary specs in every product summary" do
+    core.update!(specs: { piece_count: 100, finished_size: "12 × 9 in", material: "Cardboard" })
+    limited.update!(specs: { piece_count: 500, finished_size: "16 × 20 in", material: "Cardboard" })
+    get "/api/v1/storefront"
+    expect(response.parsed_body["core_products"].first["specs"]).to eq("piece_count" => 100, "finished_size" => "12 × 9 in")
+    expect(response.parsed_body.dig("featured_drop", "product", "specs")).to eq("piece_count" => 500, "finished_size" => "16 × 20 in")
+    get "/api/v1/products"
+    expect(response.parsed_body["products"].map { |p| p["specs"].keys }).to all(match_array([ "piece_count", "finished_size" ]))
+    get "/api/v1/drops"
+    expect(response.parsed_body.dig("current", "product", "specs")).to eq("piece_count" => 500, "finished_size" => "16 × 20 in")
+    get "/api/v1/products/#{core.slug}"
+    expect(response.parsed_body.dig("product", "specs", "material")).to eq("Cardboard")
+  end
+
   it "features the next upcoming drop, or null when none is left" do
     limited.drop.update!(release_at: 1.day.from_now)
     get "/api/v1/storefront"

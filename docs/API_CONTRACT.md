@@ -27,11 +27,14 @@ The client builds `srcset` from `${base}-${w}.webp`. Roles are `hero`, `gallery`
   "price_cents": 3500,
   "currency": "USD",
   "summary": "The GUAM sign at Tumon Bay, 100 pieces.",
+  "specs": { "piece_count": 100, "finished_size": "12 × 9 in" },
   "availability": { "state": "available", "purchasable": true, "remaining": null, "low_stock": false },
   "drop": null,
   "image": { "role": "hero", "...": "..." }
 }
 ```
+Summary `specs` contains `piece_count` and `finished_size` when set, across storefront, product lists, and nested drop products. Detail responses include the full specs object.
+
 `availability.state` is one of `available`, `sold_out`, `upcoming` (drop not released), `closed`. `remaining` is returned **only** when `low_stock` is true (20 or fewer left) or the product is sold out (0); otherwise it is null. `drop` is a drop summary (below) for drop products.
 
 ### Product (detail) — list fields plus:

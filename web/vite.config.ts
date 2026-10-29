@@ -25,13 +25,13 @@ export default defineConfig(({ command, mode }) => {
         },
       },
     ],
-    server: { port: 5181, strictPort: true },
+    server: { port: Number(process.env.E2E_PORT || 5181), strictPort: true },
     preview: { port: 4181, strictPort: true },
     test: {
       globals: true,
       environment: "jsdom",
       setupFiles: ["./src/test-setup.ts"],
-      include: ["src/**/*.test.{ts,tsx}"],
+      include: ["src/**/*.test.{ts,tsx}", "netlify/**/*.test.ts"],
       restoreMocks: true,
     },
   };

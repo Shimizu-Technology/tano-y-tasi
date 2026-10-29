@@ -2,6 +2,11 @@
   base = "web"
   command = "npm ci && npm run build && npm run check:dist"
   publish = "dist"
+  edge_functions = "netlify/edge-functions"
+
+# Edge runtime (Functions scope) optionally reads STOREFRONT_API_URL and
+# STOREFRONT_SITE_URL. Defaults are the production API and canonical storefront.
+# Route matching and manual CDN caching are declared in the edge entry point.
 
 [build.environment]
   NODE_VERSION = "22"

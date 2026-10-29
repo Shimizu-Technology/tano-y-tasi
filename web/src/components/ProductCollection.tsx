@@ -1,6 +1,4 @@
 import { Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../api";
 import type { Product } from "../types";
 import { money } from "../utils";
 import { ArtImage } from "./ArtImage";
@@ -16,8 +14,7 @@ export function ProductCollection({ products }: { products: Product[] }) {
 }
 
 function FeaturedProduct({ product }: { product: Product }) {
-  const detail = useQuery({ queryKey: ["product", product.slug], queryFn: () => api.product(product.slug) });
-  const specs = detail.data?.product.specs;
+  const specs = product.specs;
   return (
     <article className="collection-feature core-collection">
       <Link className="feature-art tile" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>

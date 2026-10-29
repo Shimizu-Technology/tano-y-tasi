@@ -2,7 +2,7 @@ class CatalogSerializer
   def self.product(product, detail: false)
     availability = product.availability
     data = product.slice(:slug, :name, :kind, :price_cents, :currency, :summary).symbolize_keys.merge(
-      availability: availability, drop: product.drop && drop(product.drop), image: product.images.first)
+      specs: product.specs.slice("piece_count", "finished_size"), availability: availability, drop: product.drop && drop(product.drop), image: product.images.first)
     if detail
       data.merge!(product.slice(:description, :specs, :includes, :art, :images, :placeholders).symbolize_keys)
       limit = product.drop&.per_customer_limit

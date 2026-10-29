@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+const port = Number(process.env.E2E_PORT || 5181);
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -6,7 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 2,
   reporter: [["list"], ["html", { open: "never" }]],
-  use: { baseURL: "http://localhost:5181", trace: "retain-on-failure", screenshot: "only-on-failure" },
+  use: { baseURL: `http://localhost:${port}`, trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [
     {
       name: "mobile",
@@ -16,7 +17,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
-    url: "http://localhost:5181",
+    url: `http://localhost:${port}`,
     reuseExistingServer: false,
     env: { VITE_API_MOCKS: "true", VITE_ADMIN_TEST_AUTH: "true" },
   },

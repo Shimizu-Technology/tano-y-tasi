@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
 import { router } from "./routes";
+import { restoreInitialData } from "./api";
 import "./styles.css";
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: true } },
@@ -12,6 +13,9 @@ async function main() {
     const { startMocks } = await import("./mocks/browser");
     await startMocks();
   }
+  restoreInitialData(client);
+  // React owns metadata after boot; remove both default and edge-generated tags.
+  document.querySelectorAll("[data-tyt-meta]").forEach((element) => element.remove());
   // The first rendered artwork caption uses the same preloaded variable face as body copy.
   await Promise.allSettled(
     ['400 16px', '600 24px', '800 expanded 40px', '900 expanded 24px'].map((style) =>
