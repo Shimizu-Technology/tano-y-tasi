@@ -22,11 +22,12 @@ export function configureAdminMocks(nextMode = "ok") {
     status: "active",
     position: product.kind === "core" ? 1 : 2,
     stock_quantity: product.kind === "core" ? 40 : 100,
-    specs: product.specs as Record<string, string | number>,
+    specs: product.specs as Record<string, string | number | boolean>,
     drop: product.drop ? { slug: product.drop.slug, name: product.drop.name } : null,
   })) as AdminProduct[];
   const drop = {
     ...dropSummary("upcoming"),
+    release_at: "2026-12-05T00:00:37Z",
     product: { slug: MAP, name: products[1].name, stock_quantity: 100 },
   } as AdminDrop;
   const order: OrderDetail = {
@@ -40,23 +41,40 @@ export function configureAdminMocks(nextMode = "ok") {
     item_count: 1,
     created_at: now,
     paid_at: now,
-    items: [{ product_slug: MAP, name: products[1].name, quantity: 1, unit_price_cents: 4500 }],
-    shipping_address: {
+    subtotal_cents: 4500,
+    items: [
+      {
+        product_slug: MAP,
+        name: products[1].name,
+        quantity: 1,
+        unit_price_cents: 4500,
+        image: products[1].images[0],
+      },
+    ],
+    shipping: {
       name: "Example Buyer",
-      line1: "123 Marine Drive",
-      city: "Hagåtña",
-      state: "GU",
-      postal_code: "96910",
-      country: "US",
+      phone: "+1 671 555 0100",
+      address: {
+        line1: "123 Marine Drive",
+        line2: "Unit 4",
+        city: "Hagåtña",
+        state: "GU",
+        postal_code: "96910",
+        country: "US",
+      },
     },
     provider: "stripe",
     provider_payment_intent_id: "pi_test_123",
+    tracking_number: null,
+    tracking_url: null,
+    fulfilled_at: null,
     notes: "",
     email_deliveries: [
       {
         id: 1,
         kind: "order_confirmation",
         to: "buyer@example.com",
+        subject: "We received your Tåno + Tåsi order",
         status: "sent",
         attempts: 1,
         sent_at: now,
@@ -229,7 +247,12 @@ export const adminHandlers = [
     const product = db.products.find((p) => p.slug === params.slug);
     if (!product) return fail("Product not found.");
     const body = (await request.json()) as Partial<AdminProduct>;
-    if (!body.name?.trim()) return fail("Name is required.", { name: "Name is required." });
+    if (body.name !== undefined && !body.name.trim())
+      return fail("Name is required.", { name: "Name is required." });
+    if (body.summary !== undefined && !body.summary.trim())
+      return fail("Summary is required.", { summary: "Summary is required." });
+    if (body.description !== undefined && !body.description.trim())
+      return fail("Description is required.", { description: "Description is required." });
     if (body.price_cents !== undefined && body.price_cents < 0)
       return fail("Price must be nonnegative.", { price_cents: "Price must be nonnegative." });
     Object.assign(product, body);

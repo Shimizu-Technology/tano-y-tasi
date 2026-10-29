@@ -13,6 +13,7 @@ export type Delivery = {
   id: number | string;
   kind: string;
   to: string;
+  subject?: string;
   status: string;
   attempts: number;
   last_error?: string | null;
@@ -30,9 +31,28 @@ export type OrderSummary = {
   created_at: string;
   paid_at?: string | null;
 };
+export type OrderShipping = {
+  name?: string | null;
+  phone?: string | null;
+  address?: {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  } | null;
+};
 export type OrderDetail = OrderSummary & {
-  items: { product_slug?: string; name: string; quantity: number; unit_price_cents: number }[];
-  shipping_address?: Record<string, string> | null;
+  items: {
+    product_slug?: string;
+    name: string;
+    quantity: number;
+    unit_price_cents: number;
+    image?: unknown;
+  }[];
+  shipping?: OrderShipping | null;
+  subtotal_cents: number;
   provider?: string;
   provider_payment_intent_id?: string | null;
   tracking_number?: string | null;
@@ -49,9 +69,10 @@ export type AdminProduct = {
   price_cents: number;
   status: string;
   position: number;
+  currency: string;
   stock_quantity: number;
   kind: string;
-  specs: Record<string, string | number>;
+  specs: Record<string, string | number | boolean>;
   includes: string[];
   art: { credit: string; story: string };
   placeholders: string[];
@@ -73,7 +94,6 @@ export type AdminErrorBody = {
   code?: string;
   message: string;
   details?: Record<string, unknown>;
-  errors?: Record<string, string[]>;
 };
 export class AdminApiError extends Error {
   constructor(
@@ -138,9 +158,23 @@ export function authState(error: unknown): "expired" | "denied" | "retry" | "oth
 export function fieldErrors(error: unknown): Record<string, string> {
   if (!(error instanceof AdminApiError)) return {};
   const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(error.body.errors ?? {}))
-    result[key] = Array.isArray(value) ? value.join(", ") : String(value);
   for (const [key, value] of Object.entries(error.body.details ?? {}))
-    if (typeof value === "string" && !result[key]) result[key] = value;
+    if (typeof value === "string") result[key] = value;
+    else if (Array.isArray(value) && value.every((item) => typeof item === "string"))
+      result[key] = value.join(", ");
   return result;
+}
+export function formError(error: unknown, fallback = "Could not save changes.") {
+  const fields = fieldErrors(error);
+  return {
+    fields,
+    message:
+      Object.keys(fields).length > 0
+        ? ""
+        : error instanceof AdminApiError
+          ? error.body.message
+          : error instanceof Error
+            ? error.message
+            : fallback,
+  };
 }

@@ -38,10 +38,11 @@ export function datePreview(iso: string | null, zone: string) {
     new Date(iso)
   );
 }
-export function validateProduct(value: { name: string; price: string; summary: string }) {
+export function validateProduct(value: { name: string; price: string; summary: string; description: string }) {
   const errors: Record<string, string> = {};
   if (!value.name.trim()) errors.name = "Name is required.";
   if (!value.summary.trim()) errors.summary = "Summary is required.";
+  if (!value.description.trim()) errors.description = "Description is required.";
   if (dollarsToCents(value.price) === null)
     errors.price = "Enter a valid dollar amount with up to two decimals.";
   return errors;

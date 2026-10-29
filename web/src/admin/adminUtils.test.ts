@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AdminApiError, authState, createAdminClient, fieldErrors } from "./adminApi";
+import { AdminApiError, authState, createAdminClient, fieldErrors, formError } from "./adminApi";
 import {
   centsToDollars,
   dollarsToCents,
@@ -36,6 +36,13 @@ describe("admin access", () => {
     expect(
       fieldErrors(new AdminApiError(422, { message: "Invalid", details: { email: "Already invited" } }))
     ).toEqual({ email: "Already invited" });
+    expect(
+      formError(new AdminApiError(422, { message: "Invalid", details: { email: "Already invited" } }))
+    ).toEqual({ fields: { email: "Already invited" }, message: "" });
+    expect(formError(new AdminApiError(422, { message: "Description can't be blank", details: {} }))).toEqual({
+      fields: {},
+      message: "Description can't be blank",
+    });
   });
 });
 describe("admin inputs", () => {
@@ -59,7 +66,12 @@ describe("admin inputs", () => {
     expect(dollarsToCents("45.05")).toBe(4505);
     expect(dollarsToCents("45.005")).toBeNull();
     expect(centsToDollars(4505)).toBe("45.05");
-    expect(validateProduct({ name: "", summary: "", price: "1.999" })).toHaveProperty("price");
+    expect(validateProduct({ name: "", summary: "", description: "", price: "1.999" })).toMatchObject({
+      name: expect.any(String),
+      summary: expect.any(String),
+      description: expect.any(String),
+      price: expect.any(String),
+    });
     expect(
       validateDrop({
         name: "Drop",

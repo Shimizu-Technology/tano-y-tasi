@@ -27,6 +27,17 @@ async function scan(directory) {
   }
 }
 await scan("dist");
+const netlifyConfig = await readFile("../netlify.toml", "utf8");
+for (const forbiddenSource of ["https://*.clerk.accounts.dev", "https://*.clerk.com", "https://api.clerk.com"])
+  assert(!netlifyConfig.includes(forbiddenSource), `Broad Clerk CSP source remains: ${forbiddenSource}`);
+for (const requiredSource of [
+  "https://clerk.tanoytasi.shimizu-technology.com",
+  "https://img.clerk.com",
+  "https://challenges.cloudflare.com",
+  "https://*.protect.clerk.com:*",
+])
+  assert(netlifyConfig.includes(requiredSource), `Required Clerk CSP source is missing: ${requiredSource}`);
+assert(!/script-src[^;]*'unsafe-(?:inline|eval)'/.test(netlifyConfig), "Production script-src is unsafe");
 for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TEST_AUTH"]) {
   // Exercise the Vite build guard itself without overwriting the verified output.
   const result = spawnSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
@@ -44,5 +55,5 @@ for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TES
   assert(result.stderr.includes(`${flag} is development-only`), result.stderr || String(result.error));
 }
 console.log(
-  "Production output contains no MSW worker, mock handlers, or simulated payment page; both unsafe flags are rejected."
+  "Production output contains no development-only admin/payment code, unsafe flags are rejected, and Clerk CSP sources are scoped."
 );

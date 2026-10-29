@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from "@clerk/clerk-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClerkProvider, SignIn, SignUp, useAuth, useClerk, useUser } from "@clerk/clerk-react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
   Archive,
@@ -50,18 +50,26 @@ const appearance = {
   },
 };
 
-type Identity = { loaded: boolean; signedIn: boolean; getToken: TokenGetter; signOut: () => Promise<void> };
+type Identity = {
+  loaded: boolean;
+  signedIn: boolean;
+  email?: string | null;
+  getToken: TokenGetter;
+  signOut: (options?: { redirectUrl?: string }) => Promise<void>;
+};
 function ClerkIdentity() {
   const auth = useAuth();
   const clerk = useClerk();
+  const { isLoaded: userLoaded, user } = useUser();
   return (
     <AdminGate
       identity={{
-        loaded: auth.isLoaded,
+        loaded: auth.isLoaded && userLoaded,
         signedIn: !!auth.isSignedIn,
+        email: user?.primaryEmailAddress?.emailAddress ?? user?.fullName,
         getToken: auth.getToken,
-        signOut: async () => {
-          await clerk.signOut();
+        signOut: async (options) => {
+          await clerk.signOut(options);
         },
       }}
     />
@@ -88,7 +96,12 @@ function AuthPage({ signup = false }: { signup?: boolean }) {
         TÅNO + TÅSI
       </Link>
       <p className="admin-eyebrow">Merchant admin</p>
-      {signup ? (
+      {import.meta.env.DEV && import.meta.env.VITE_ADMIN_TEST_AUTH === "true" ? (
+        <div className="admin-auth-message" data-testid={signup ? "test-sign-up" : "test-sign-in"}>
+          <h1>{signup ? "Create your admin account" : "Sign in to admin"}</h1>
+          <p>{signup && invited ? "Invitation ticket received." : "Test authentication screen."}</p>
+        </div>
+      ) : signup ? (
         invited ? (
           <SignUp
             routing="path"
@@ -107,6 +120,35 @@ function AuthPage({ signup = false }: { signup?: boolean }) {
       ) : (
         <SignIn routing="path" path="/admin/sign-in" forceRedirectUrl={destination} appearance={appearance} />
       )}
+    </main>
+  );
+}
+function InvitationSessionNotice({ identity, redirectUrl }: { identity: Identity; redirectUrl: string }) {
+  const [busy, setBusy] = useState(false);
+  const accept = async () => {
+    setBusy(true);
+    try {
+      await identity.signOut({ redirectUrl });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <main className="admin-auth">
+      <Link to="/" className="admin-wordmark">
+        TÅNO + TÅSI
+      </Link>
+      <p className="admin-eyebrow">Merchant admin invitation</p>
+      <div className="admin-auth-message">
+        <h1>Sign out to accept this invitation</h1>
+        <p>
+          You’re signed in as <strong>{identity.email || "another account"}</strong>. Sign out, then create the
+          invited account.
+        </p>
+        <button className="admin-button" disabled={busy} onClick={() => void accept()}>
+          {busy ? "Signing out…" : "Sign out and continue"}
+        </button>
+      </div>
     </main>
   );
 }
@@ -147,6 +189,10 @@ function AdminGate({ identity }: { identity: Identity }) {
   const location = useLocation();
   const navigate = useNavigate();
   const authRoute = /^\/admin\/sign-(?:in|up)(?:\/|$)/.test(location.pathname);
+  const invitationTicket = location.pathname.startsWith("/admin/sign-up")
+    ? new URLSearchParams(location.search).get("__clerk_ticket")
+    : null;
+  const invitationUrl = `${location.pathname}${location.search}${location.hash}`;
   const [attempt, setAttempt] = useState(0);
   const [user, setUser] = useState<AdminUser | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -168,7 +214,7 @@ function AdminGate({ identity }: { identity: Identity }) {
     [client]
   );
   useEffect(() => {
-    if (!identity.loaded || !identity.signedIn) return;
+    if (!identity.loaded || !identity.signedIn || invitationTicket) return;
     let live = true;
     client<{ user: AdminUser }>("/me")
       .then((result) => {
@@ -188,9 +234,9 @@ function AdminGate({ identity }: { identity: Identity }) {
     return () => {
       live = false;
     };
-  }, [identity.loaded, identity.signedIn, client, attempt]);
+  }, [identity.loaded, identity.signedIn, invitationTicket, client, attempt]);
   useEffect(() => {
-    if (user && authRoute) {
+    if (user && authRoute && !invitationTicket) {
       const returnTo = safeReturnPath(
         new URLSearchParams(location.search).get("returnTo") || sessionStorage.getItem("tyt-admin-return")
       );
@@ -198,7 +244,7 @@ function AdminGate({ identity }: { identity: Identity }) {
       sessionStorage.removeItem("tyt-admin-invitation-progress");
       navigate(returnTo === location.pathname ? "/admin" : returnTo, { replace: true });
     }
-  }, [user, authRoute, location.pathname, location.search, navigate]);
+  }, [user, authRoute, invitationTicket, location.pathname, location.search, navigate]);
   const signOut = async () => {
     await identity.signOut();
     setUser(null);
@@ -210,6 +256,8 @@ function AdminGate({ identity }: { identity: Identity }) {
         Loading admin session…
       </main>
     );
+  if (identity.signedIn && invitationTicket)
+    return <InvitationSessionNotice identity={identity} redirectUrl={invitationUrl} />;
   if (!identity.signedIn) {
     if (new URLSearchParams(location.search).has("__clerk_ticket") && !authRoute)
       return <InvitationRedirect />;
@@ -304,12 +352,29 @@ const nav = [
   { label: "Subscribers", path: "/admin/subscribers", icon: Mail },
   { label: "Admins", path: "/admin/admins", icon: Shield },
 ];
+function NavLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
+  return (
+    <>
+      <span className="admin-nav-label">{label}</span>
+      {collapsed && (
+        <span className="admin-nav-tooltip" role="tooltip">
+          {label}
+        </span>
+      )}
+    </>
+  );
+}
 function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise<void> }) {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("tyt-admin-sidebar") === "collapsed");
   const [drawer, setDrawer] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const closeDrawer = useCallback(() => {
+    if (!drawer) return;
+    setDrawer(false);
+    window.requestAnimationFrame(() => menuRef.current?.focus());
+  }, [drawer]);
   useEffect(() => {
     if (!drawer) return;
     const previous = document.body.style.overflow;
@@ -317,8 +382,7 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
     closeRef.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setDrawer(false);
-        menuRef.current?.focus();
+        closeDrawer();
       }
       if (event.key !== "Tab") return;
       const panel = document.querySelector<HTMLElement>(".admin-sidebar.open");
@@ -341,7 +405,7 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
       document.body.style.overflow = previous;
       window.removeEventListener("keydown", handleKey);
     };
-  }, [drawer]);
+  }, [drawer, closeDrawer]);
   const section = location.pathname.split("/")[2];
   const title = nav.find((item) => item.path === `/admin/${section}`)?.label ?? "Dashboard";
   let page = <DashboardPage />;
@@ -352,20 +416,28 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
   if (section === "admins") page = <AdminsPage currentUser={user} />;
   return (
     <div className={`admin-app ${collapsed ? "collapsed" : ""}`}>
-      {drawer && <button className="admin-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />}
+      {drawer && <button className="admin-scrim" aria-label="Close menu" onClick={closeDrawer} />}
       <aside
+        id="admin-navigation-drawer"
         className={`admin-sidebar ${drawer ? "open" : ""}`}
         aria-label="Admin navigation"
         role={drawer ? "dialog" : undefined}
         aria-modal={drawer || undefined}
       >
         <div className="admin-sidebar-top">
-          <Link to="/admin" className="admin-wordmark">
+          <Link
+            to="/admin"
+            className="admin-wordmark"
+            aria-label="Tåno + Tåsi admin home"
+            onClick={closeDrawer}
+          >
             {collapsed ? "T+T" : "TÅNO + TÅSI"}
           </Link>
           <button
             className="admin-collapse"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            aria-controls="admin-sidebar-navigation"
             onClick={() => {
               const value = !collapsed;
               setCollapsed(value);
@@ -378,22 +450,23 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
             ref={closeRef}
             className="admin-close"
             aria-label="Close menu"
-            onClick={() => setDrawer(false)}
+            onClick={closeDrawer}
           >
             <X />
           </button>
         </div>
         <p className="admin-sidebar-label">{!collapsed && "MERCHANT ADMIN"}</p>
-        <nav onClick={() => setDrawer(false)}>
+        <nav id="admin-sidebar-navigation" onClick={closeDrawer}>
           {nav.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               className={`admin-nav-link ${location.pathname === item.path || (item.path !== "/admin" && location.pathname.startsWith(`${item.path}/`)) ? "active" : ""}`}
               aria-current={location.pathname === item.path ? "page" : undefined}
+              aria-label={collapsed ? item.label : undefined}
             >
-              <item.icon size={19} strokeWidth={1.8} />
-              <span>{item.label}</span>
+              <item.icon size={19} strokeWidth={1.8} aria-hidden="true" />
+              <NavLabel label={item.label} collapsed={collapsed} />
             </Link>
           ))}
         </nav>
@@ -402,19 +475,34 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
             <Users size={17} />
             <span title={user.email}>{user.email}</span>
           </div>
-          <Link to="/" className="admin-nav-link">
-            <Store size={19} />
-            <span>View store</span>
+          <Link
+            to="/"
+            className="admin-nav-link"
+            aria-label={collapsed ? "View store" : undefined}
+            onClick={closeDrawer}
+          >
+            <Store size={19} aria-hidden="true" />
+            <NavLabel label="View store" collapsed={collapsed} />
           </Link>
-          <button className="admin-nav-link" onClick={() => void signOut()}>
-            <LogOut size={19} />
-            <span>Sign out</span>
+          <button
+            className="admin-nav-link"
+            aria-label={collapsed ? "Sign out" : undefined}
+            onClick={() => void signOut()}
+          >
+            <LogOut size={19} aria-hidden="true" />
+            <NavLabel label="Sign out" collapsed={collapsed} />
           </button>
         </div>
       </aside>
       <div className="admin-main-wrap">
         <header className="admin-mobile-header">
-          <button ref={menuRef} aria-label="Open menu" onClick={() => setDrawer(true)}>
+          <button
+            ref={menuRef}
+            aria-label="Open menu"
+            aria-expanded={drawer}
+            aria-controls="admin-navigation-drawer"
+            onClick={() => setDrawer(true)}
+          >
             <Menu />
           </button>
           <span>TÅNO + TÅSI</span>

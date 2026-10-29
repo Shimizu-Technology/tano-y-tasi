@@ -3,12 +3,14 @@ import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "rea
 import { Check, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import {
   fieldErrors,
+  formError,
   useAdminApi,
   type AdminDrop,
   type AdminProduct,
   type AdminUser,
   type Delivery,
   type OrderDetail,
+  type OrderShipping,
   type OrderSummary,
   type Page,
 } from "./adminApi";
@@ -157,12 +159,14 @@ function TextArea({
   value,
   onChange,
   error,
+  required = false,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  required?: boolean;
 }) {
   return (
     <label className="admin-field">
@@ -174,6 +178,7 @@ function TextArea({
         aria-invalid={!!error}
         aria-describedby={error ? `${name}-error` : undefined}
         rows={4}
+        required={required}
       />
       {error && <small id={`${name}-error`}>{error}</small>}
     </label>
@@ -205,6 +210,127 @@ function issue(error: unknown, fallback = "Could not save changes.") {
 function backPath(search: string, section: string) {
   const value = new URLSearchParams(search).get("from");
   return value?.startsWith(`/admin/${section}`) && !value.startsWith("//") ? value : `/admin/${section}`;
+}
+
+type SpecRow = {
+  key: string;
+  value: string;
+  originalType: "string" | "number" | "boolean";
+};
+type ProductForm = {
+  name: string;
+  summary: string;
+  description: string;
+  price: string;
+  status: string;
+  position: number;
+  specs: SpecRow[];
+  includes: string;
+  credit: string;
+  story: string;
+  placeholders: string;
+};
+function productForm(product: AdminProduct): ProductForm {
+  return {
+    name: product.name,
+    summary: product.summary,
+    description: product.description,
+    price: centsToDollars(product.price_cents),
+    status: product.status,
+    position: product.position,
+    specs: Object.entries(product.specs ?? {}).map(([key, value]) => ({
+      key,
+      value: String(value),
+      originalType: typeof value as SpecRow["originalType"],
+    })),
+    includes: (product.includes ?? []).join("\n"),
+    credit: product.art?.credit ?? "",
+    story: product.art?.story ?? "",
+    placeholders: (product.placeholders ?? []).join("\n"),
+  };
+}
+function lineList(value: string) {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+function specsObject(rows: SpecRow[]) {
+  return Object.fromEntries(
+    rows
+      .filter((row) => row.key.trim())
+      .map((row) => {
+        let value: string | number | boolean = row.value;
+        if (row.originalType === "number") value = Number(row.value);
+        if (row.originalType === "boolean") value = row.value === "true";
+        return [row.key.trim(), value];
+      })
+  );
+}
+function productPatch(form: ProductForm, initial: ProductForm) {
+  const patch: Record<string, unknown> = {};
+  const add = (key: string, value: unknown, baseline: unknown) => {
+    if (JSON.stringify(value) !== JSON.stringify(baseline)) patch[key] = value;
+  };
+  add("name", form.name.trim(), initial.name.trim());
+  add("summary", form.summary.trim(), initial.summary.trim());
+  add("description", form.description.trim(), initial.description.trim());
+  add("price_cents", dollarsToCents(form.price), dollarsToCents(initial.price));
+  add("status", form.status, initial.status);
+  add("position", Number(form.position), Number(initial.position));
+  add("specs", specsObject(form.specs), specsObject(initial.specs));
+  add("includes", lineList(form.includes), lineList(initial.includes));
+  add(
+    "art",
+    { credit: form.credit, story: form.story },
+    { credit: initial.credit, story: initial.story }
+  );
+  add("placeholders", lineList(form.placeholders), lineList(initial.placeholders));
+  return patch;
+}
+type DropForm = {
+  name: string;
+  release: string;
+  closes: string;
+  limit: number;
+  quantity: number;
+};
+function dropForm(drop: AdminDrop): DropForm {
+  return {
+    name: drop.name,
+    release: guamInput(drop.release_at),
+    closes: guamInput(drop.closes_at),
+    limit: drop.per_customer_limit,
+    quantity: drop.quantity,
+  };
+}
+function dropPatch(form: DropForm, initial: DropForm) {
+  const patch: Record<string, unknown> = {};
+  if (form.name.trim() !== initial.name.trim()) patch.name = form.name.trim();
+  if (form.release !== initial.release) patch.release_at = guamToIso(form.release);
+  if (form.closes !== initial.closes) patch.closes_at = form.closes ? guamToIso(form.closes) : null;
+  if (Number(form.limit) !== Number(initial.limit)) patch.per_customer_limit = Number(form.limit);
+  if (Number(form.quantity) !== Number(initial.quantity)) patch.quantity = Number(form.quantity);
+  return patch;
+}
+
+export function ShippingAddress({ shipping }: { shipping?: OrderShipping | null }) {
+  const address = shipping?.address;
+  const locality = [address?.city, address?.state, address?.postal_code].filter(Boolean).join(", ");
+  const lines = [address?.line1, address?.line2, locality, address?.country].filter(
+    (value): value is string => !!value
+  );
+  if (!shipping?.name && !shipping?.phone && lines.length === 0)
+    return <p>No shipping address recorded.</p>;
+  return (
+    <address className="admin-shipping-address">
+      {shipping?.name && <strong>{shipping.name}</strong>}
+      {lines.map((line, index) => (
+        <span key={`${line}-${index}`}>{line}</span>
+      ))}
+      {shipping?.phone && <span>{shipping.phone}</span>}
+    </address>
+  );
 }
 
 export function DashboardPage() {
@@ -572,11 +698,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
           </p>
           <h2 className="admin-subheading">Customer and shipping</h2>
           <p>{order.email}</p>
-          {order.shipping_address ? (
-            <address>{Object.values(order.shipping_address).filter(Boolean).join(", ")}</address>
-          ) : (
-            <p>No shipping address recorded.</p>
-          )}
+          <ShippingAddress shipping={order.shipping} />
           <h2 className="admin-subheading">Payment</h2>
           <dl className="admin-meta">
             <dt>Provider</dt>
@@ -810,19 +932,7 @@ export function ProductPage() {
 }
 function ProductEditor({ product, reload }: { product: AdminProduct; reload: () => void }) {
   const api = useAdminApi();
-  const [form, setForm] = useState({
-    name: product.name,
-    summary: product.summary,
-    description: product.description,
-    price: centsToDollars(product.price_cents),
-    status: product.status,
-    position: product.position,
-    specs: Object.entries(product.specs ?? {}).map(([key, value]) => ({ key, value: String(value) })),
-    includes: (product.includes ?? []).join("\n"),
-    credit: product.art?.credit ?? "",
-    story: product.art?.story ?? "",
-    placeholders: (product.placeholders ?? []).join("\n"),
-  });
+  const [form, setForm] = useState<ProductForm>(() => productForm(product));
   const [delta, setDelta] = useState(""),
     [reason, setReason] = useState("");
   const [movements, setMovements] = useState<
@@ -830,10 +940,11 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
   >([]);
   const [saving, setSaving] = useState(false),
     [message, setMessage] = useState(""),
-    [failure, setFailure] = useState(""),
+    [formFailure, setFormFailure] = useState(""),
+    [stockFailure, setStockFailure] = useState(""),
     [errors, setErrors] = useState<Record<string, string>>({});
-  const [initial, setInitial] = useState(() => JSON.stringify(form));
-  const dirty = JSON.stringify(form) !== initial;
+  const [initial, setInitial] = useState<ProductForm>(form);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   useUnsaved((dirty || !!delta.trim() || !!reason.trim()) && !saving);
   useEffect(() => {
     api<{ inventory_movements: typeof movements }>(`/products/${product.slug}/inventory_movements`)
@@ -845,43 +956,29 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
   }
   async function save() {
     const invalid = validateProduct(form);
+    const invalidNumber = form.specs.find(
+      (row) => row.originalType === "number" && (row.value.trim() === "" || !Number.isFinite(Number(row.value)))
+    );
+    if (invalidNumber) invalid.specs = `Enter a numeric value for ${invalidNumber.key || "this specification"}.`;
     if (Object.keys(invalid).length) {
       setErrors(invalid);
       return;
     }
     setSaving(true);
-    setFailure("");
+    setFormFailure("");
     setErrors({});
     try {
       await api(`/products/${product.slug}`, {
         method: "PATCH",
-        body: {
-          name: form.name.trim(),
-          summary: form.summary.trim(),
-          description: form.description,
-          price_cents: dollarsToCents(form.price),
-          status: form.status,
-          position: Number(form.position),
-          specs: Object.fromEntries(
-            form.specs.filter((row) => row.key.trim()).map((row) => [row.key.trim(), row.value])
-          ),
-          includes: form.includes
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          art: { credit: form.credit, story: form.story },
-          placeholders: form.placeholders
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-        },
+        body: productPatch(form, initial),
       });
-      setInitial(JSON.stringify(form));
+      setInitial(form);
       setMessage("Product saved.");
       reload();
     } catch (cause) {
-      setFailure(issue(cause));
-      setErrors(fieldErrors(cause));
+      const mapped = formError(cause);
+      setFormFailure(mapped.message);
+      setErrors(mapped.fields);
     } finally {
       setSaving(false);
     }
@@ -897,7 +994,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
       return;
     }
     setSaving(true);
-    setFailure("");
+    setStockFailure("");
     setErrors({});
     try {
       await api(`/products/${product.slug}/stock_adjustments`, {
@@ -913,8 +1010,9 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
       );
       setMovements(result.inventory_movements);
     } catch (cause) {
-      setFailure(issue(cause));
-      setErrors(fieldErrors(cause));
+      const mapped = formError(cause);
+      setStockFailure(mapped.message);
+      setErrors(mapped.fields);
     } finally {
       setSaving(false);
     }
@@ -923,7 +1021,6 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
     <>
       <Heading eyebrow="PRODUCT EDITOR" title={product.name} action={<Chip value={product.status} />} />
       <Notice text={message} />
-      <Notice text={failure} kind="error" />
       <div className="admin-detail-grid">
         <section className="admin-panel">
           <h2>Product details</h2>
@@ -952,6 +1049,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             value={form.summary}
             onChange={(value) => update("summary", value)}
             error={errors.summary}
+            required
           />
           <TextArea
             label="Description"
@@ -959,6 +1057,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             value={form.description}
             onChange={(value) => update("description", value)}
             error={errors.description}
+            required
           />
           <div className="admin-form-grid">
             <label className="admin-field">
@@ -996,7 +1095,9 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
               <input
                 aria-label={`Spec value ${index + 1}`}
                 placeholder="Value"
+                type={row.originalType === "number" ? "number" : "text"}
                 value={row.value}
+                hidden={row.originalType === "boolean"}
                 onChange={(event) =>
                   update(
                     "specs",
@@ -1004,6 +1105,21 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
                   )
                 }
               />
+              {row.originalType === "boolean" && (
+                <select
+                  aria-label={`Spec value ${index + 1}`}
+                  value={row.value}
+                  onChange={(event) =>
+                    update(
+                      "specs",
+                      form.specs.map((item, i) => (i === index ? { ...item, value: event.target.value } : item))
+                    )
+                  }
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              )}
               <button
                 type="button"
                 aria-label={`Remove spec ${index + 1}`}
@@ -1020,7 +1136,9 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
           ))}
           <button
             className="admin-text-button"
-            onClick={() => update("specs", [...form.specs, { key: "", value: "" }])}
+            onClick={() =>
+              update("specs", [...form.specs, { key: "", value: "", originalType: "string" }])
+            }
           >
             <Plus size={16} /> Add spec
           </button>
@@ -1050,6 +1168,8 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             value={form.placeholders}
             onChange={(value) => update("placeholders", value)}
           />
+          {errors.specs && <p className="admin-field-error">{errors.specs}</p>}
+          <Notice text={formFailure} kind="error" />
           <button className="admin-button" disabled={saving || !dirty} onClick={() => void save()}>
             {saving ? "Saving…" : "Save product"}
           </button>
@@ -1079,6 +1199,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             />
             <Field label="Reason" name="reason" value={reason} onChange={setReason} error={errors.reason} />
           </div>
+          <Notice text={stockFailure} kind="error" />
           <button className="admin-button secondary" disabled={saving} onClick={() => void adjust()}>
             {saving ? "Saving…" : "Adjust stock"}
           </button>
@@ -1189,19 +1310,13 @@ export function DropPage() {
 }
 function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
   const api = useAdminApi();
-  const [form, setForm] = useState({
-    name: drop.name,
-    release: guamInput(drop.release_at),
-    closes: guamInput(drop.closes_at),
-    limit: drop.per_customer_limit,
-    quantity: drop.quantity,
-  });
+  const [form, setForm] = useState<DropForm>(() => dropForm(drop));
   const [saving, setSaving] = useState(false),
     [message, setMessage] = useState(""),
     [failure, setFailure] = useState(""),
     [errors, setErrors] = useState<Record<string, string>>({});
-  const [initial, setInitial] = useState(() => JSON.stringify(form));
-  const dirty = JSON.stringify(form) !== initial;
+  const [initial, setInitial] = useState<DropForm>(form);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   useUnsaved(dirty && !saving);
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -1230,20 +1345,15 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
     try {
       await api(`/drops/${drop.slug}`, {
         method: "PATCH",
-        body: {
-          name: form.name.trim(),
-          release_at: release,
-          closes_at: closes,
-          per_customer_limit: Number(form.limit),
-          quantity: Number(form.quantity),
-        },
+        body: dropPatch(form, initial),
       });
-      setInitial(JSON.stringify(form));
+      setInitial(form);
       setMessage("Drop saved.");
       reload();
     } catch (cause) {
-      setFailure(issue(cause));
-      setErrors(fieldErrors(cause));
+      const mapped = formError(cause);
+      setFailure(mapped.message);
+      setErrors(mapped.fields);
     } finally {
       setSaving(false);
     }
@@ -1252,7 +1362,6 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
     <>
       <Heading eyebrow="DROP EDITOR" title={drop.name} action={<Chip value={drop.state} />} />
       <Notice text={message} />
-      <Notice text={failure} kind="error" />
       <div className="admin-detail-grid">
         <section className="admin-panel">
           <h2>Release details</h2>
@@ -1272,6 +1381,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
               value={form.release}
               onChange={(value) => update("release", value)}
               error={errors.release_at}
+              required
             />
             <Field
               label="Close · Guam time (ChST, UTC+10)"
@@ -1291,6 +1401,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
               value={form.limit}
               onChange={(value) => update("limit", Number(value))}
               error={errors.per_customer_limit}
+              required
             />
             <Field
               label="Announced quantity"
@@ -1300,11 +1411,13 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
               value={form.quantity}
               onChange={(value) => update("quantity", Number(value))}
               error={errors.quantity}
+              required
             />
           </div>
           <p className="admin-help">
             Quantity is the announced edition size. Adjust product stock separately.
           </p>
+          <Notice text={failure} kind="error" />
           <button className="admin-button" disabled={saving || !dirty} onClick={() => void save()}>
             {saving ? "Saving…" : "Save drop"}
           </button>
@@ -1432,7 +1545,8 @@ export function AdminsPage({ currentUser }: { currentUser: AdminUser }) {
   const [email, setEmail] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [failure, setFailure] = useState("");
+    [failure, setFailure] = useState(""),
+    [inviteFailure, setInviteFailure] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   useUnsaved(!!email.trim() && !busy);
   const invite = async () => {
@@ -1441,7 +1555,7 @@ export function AdminsPage({ currentUser }: { currentUser: AdminUser }) {
       return;
     }
     setBusy(true);
-    setFailure("");
+    setInviteFailure("");
     setErrors({});
     try {
       await api("/invitations", { method: "POST", body: { email: email.trim() } });
@@ -1449,8 +1563,9 @@ export function AdminsPage({ currentUser }: { currentUser: AdminUser }) {
       setMessage("Invitation sent.");
       resource.reload();
     } catch (cause) {
-      setFailure(issue(cause));
-      setErrors(fieldErrors(cause));
+      const mapped = formError(cause);
+      setInviteFailure(mapped.message);
+      setErrors(mapped.fields);
     } finally {
       setBusy(false);
     }
@@ -1498,11 +1613,13 @@ export function AdminsPage({ currentUser }: { currentUser: AdminUser }) {
             value={email}
             onChange={setEmail}
             error={errors.email}
+            required
           />
           <button className="admin-button" disabled={busy} onClick={() => void invite()}>
             {busy ? "Sending…" : "Send invite"}
           </button>
         </div>
+        <Notice text={inviteFailure} kind="error" />
         <p className="admin-help">Invitations are sent through Clerk. Only invited accounts can sign up.</p>
       </section>
       <Result resource={resource}>
