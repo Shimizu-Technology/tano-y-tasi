@@ -11,7 +11,7 @@ RSpec.describe Payments::Gateway do
       expect(options[:expires_at]).to be >= (30.minutes + 1.minute).from_now.to_i - 1
       expect(options[:success_url]).to eq("http://localhost:5181/orders/#{order.token}?from=checkout")
       expect(options[:cancel_url]).to eq("http://localhost:5181/checkout/cancel/#{order.token}")
-      expect(options[:shipping_address_collection][:allowed_countries]).to eq(%w[US GU PR VI AS MP])
+      expect(options[:shipping_address_collection][:allowed_countries]).to eq(%w[US GU PR])
       expect(options[:line_items].first[:price_data][:unit_amount]).to eq(3500)
       expect(request_options).to eq(idempotency_key: "tano-y-tasi-order-#{order.token}")
       Stripe::StripeObject.construct_from(id: "cs_test", url: "https://checkout.stripe.com/test")
