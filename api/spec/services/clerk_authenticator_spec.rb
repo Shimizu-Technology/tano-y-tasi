@@ -85,7 +85,31 @@ RSpec.describe ClerkAuthenticator do
     expect { described_class.verify(session_token("user_admin")) }.to raise_error(ClerkClient::Unavailable)
 
     stub_request(:get, "#{issuer}/.well-known/jwks.json").to_return(body: { keys: [ jwk.export ] }.to_json)
-    expect(described_class.verify(session_token("user_admin"))).to include("sub" => "user_admin")
+    travel 11.seconds do
+      expect(described_class.verify(session_token("user_admin"))).to include("sub" => "user_admin")
+    end
     expect(a_request(:get, "#{issuer}/.well-known/jwks.json")).to have_been_made.twice
+  end
+
+  it "keeps answering 503 for an unknown kid after a failed refresh instead of flipping to 401" do
+    described_class.verify(session_token("user_admin"))
+    unknown_rsa = OpenSSL::PKey::RSA.generate(2048)
+    unknown_jwk = JWT::JWK.new(unknown_rsa)
+    unknown_token = JWT.encode({ sub: "rotated", iss: issuer, exp: 1.hour.from_now.to_i }, unknown_rsa, "RS256", kid: unknown_jwk.kid)
+    stub_request(:get, "#{issuer}/.well-known/jwks.json").to_return(status: 503)
+
+    2.times { expect { described_class.verify(unknown_token) }.to raise_error(ClerkClient::Unavailable) }
+    expect(a_request(:get, "#{issuer}/.well-known/jwks.json")).to have_been_made.twice
+
+    stub_request(:get, "#{issuer}/.well-known/jwks.json").to_return(body: { keys: [ jwk.export, unknown_jwk.export ] }.to_json)
+    travel 11.seconds do
+      expect(described_class.verify(unknown_token)).to include("sub" => "rotated")
+    end
+  end
+
+  it "coalesces fetches during an outage with no cached keys" do
+    stub_request(:get, "#{issuer}/.well-known/jwks.json").to_timeout
+    3.times { expect { described_class.verify(session_token("user_admin")) }.to raise_error(ClerkClient::Unavailable) }
+    expect(a_request(:get, "#{issuer}/.well-known/jwks.json")).to have_been_made.once
   end
 end

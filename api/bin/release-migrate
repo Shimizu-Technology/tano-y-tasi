@@ -7,13 +7,20 @@ if ENV["RAILS_ENV"] == "production"
   expected_name = ENV["EXPECTED_DATABASE_NAME"].to_s
   abort "DATABASE_MIGRATION_URL is required in production" if migration_url.empty?
   abort "EXPECTED_DATABASE_NAME is required in production" if expected_name.empty?
-  abort "DATABASE_MIGRATION_URL must differ from DATABASE_URL" if migration_url == ENV["DATABASE_URL"].to_s
-
-  begin
-    migration_host = URI.parse(migration_url).host.to_s.downcase
-  rescue URI::InvalidURIError
-    abort "DATABASE_MIGRATION_URL is invalid"
+  # Compare connection identity, not raw text: postgres:// vs postgresql://,
+  # explicit default ports, and query order must not hide the same endpoint.
+  identity = lambda do |url|
+    uri = URI.parse(url)
+    [ uri.host.to_s.downcase, uri.port || 5432, uri.path.to_s.delete_prefix("/"), uri.user.to_s ]
   end
+  begin
+    migration_identity = identity.call(migration_url)
+    runtime_identity = ENV["DATABASE_URL"].to_s.empty? ? nil : identity.call(ENV["DATABASE_URL"].to_s)
+  rescue URI::InvalidURIError
+    abort "DATABASE_MIGRATION_URL or DATABASE_URL is invalid"
+  end
+  abort "DATABASE_MIGRATION_URL must differ from DATABASE_URL" if migration_identity == runtime_identity
+  migration_host = migration_identity.first
   abort "DATABASE_MIGRATION_URL must use a direct, non-pooler host" if migration_host.empty? || migration_host.include?("-pooler")
   ENV["DATABASE_URL"] = migration_url
 elsif ENV["DATABASE_MIGRATION_URL"].to_s != ""

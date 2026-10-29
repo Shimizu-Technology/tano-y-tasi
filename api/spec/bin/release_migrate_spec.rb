@@ -22,6 +22,9 @@ RSpec.describe "bin/release-migrate" do
     "DATABASE_MIGRATION_URL is required" => { "DATABASE_MIGRATION_URL" => nil },
     "EXPECTED_DATABASE_NAME is required" => { "EXPECTED_DATABASE_NAME" => nil },
     "must differ from DATABASE_URL" => { "DATABASE_URL" => :direct },
+    "must differ from DATABASE_URL (equivalent spelling)" => {
+      "DATABASE_URL" => "postgres://user:other@127.0.0.1:1/tano_y_tasi_production?sslmode=require"
+    },
     "must use a direct, non-pooler host" => { "DATABASE_MIGRATION_URL" => "postgresql://user:password@ep-example-pooler.invalid/tano_y_tasi_production" }
   }.each do |message, overrides|
     it "aborts before connecting when #{message}" do
@@ -30,7 +33,7 @@ RSpec.describe "bin/release-migrate" do
       stdout, stderr, status = run_script
 
       expect(status).not_to be_success
-      expect("#{stdout}\n#{stderr}").to include(message)
+      expect("#{stdout}\n#{stderr}").to include(message.sub(/ \(.*\)\z/, ""))
       expect("#{stdout}\n#{stderr}").not_to match(/connection refused|could not translate host|ActiveRecord::Connection/i)
     end
   end

@@ -5,6 +5,9 @@ require "base64"
 class ClerkAuthenticator
   JWKS_CACHE_TTL = 1.hour
   UNKNOWN_KID_REFRESH_INTERVAL = 1.minute
+  # After a failed JWKS fetch, keep answering 503 (retryable) without refetching,
+  # so an outage or a burst of unknown kids cannot become a refresh storm.
+  JWKS_FAILURE_BACKOFF = 10.seconds
 
   class << self
     def verify(token)
@@ -110,20 +113,36 @@ class ClerkAuthenticator
         now = Time.current
         recently_refreshed = @unknown_kid_refresh_url == jwks_url && @unknown_kid_refreshed_at.present? &&
           (now - @unknown_kid_refreshed_at) < UNKNOWN_KID_REFRESH_INTERVAL
+        # Only a successful refresh that still lacks the kid proves the token is
+        # unknown (401). A failed refresh keeps raising 503 through the backoff.
         return current if recently_refreshed
 
+        jwks = fetch_and_cache_jwks
         @unknown_kid_refresh_url = jwks_url
         @unknown_kid_refreshed_at = now
-        fetch_and_cache_jwks
+        jwks
       end
     end
 
     def fetch_and_cache_jwks
-      validated = validate_jwks(fetch_jwks_from_clerk)
+      raise ClerkClient::Unavailable, "Clerk JWKS unavailable; retrying shortly" if jwks_failure_recent?
+
+      begin
+        validated = validate_jwks(fetch_jwks_from_clerk)
+      rescue ClerkClient::Unavailable
+        @jwks_failed_url = jwks_url
+        @jwks_failed_at = Time.current
+        raise
+      end
+      @jwks_failed_at = nil
       @cached_jwks = validated
       @cached_url = jwks_url
       @cached_at = Time.current
       @cached_jwks
+    end
+
+    def jwks_failure_recent?
+      @jwks_failed_url == jwks_url && @jwks_failed_at.present? && (Time.current - @jwks_failed_at) < JWKS_FAILURE_BACKOFF
     end
 
     def validate_jwks(response)
