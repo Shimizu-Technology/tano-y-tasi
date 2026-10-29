@@ -72,7 +72,7 @@ export type AdminProduct = {
   currency: string;
   stock_quantity: number;
   kind: string;
-  specs: Record<string, string | number | boolean>;
+  specs: Record<string, unknown>;
   includes: string[];
   art: { credit: string; story: string };
   placeholders: string[];

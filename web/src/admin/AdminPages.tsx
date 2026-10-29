@@ -215,8 +215,21 @@ function backPath(search: string, section: string) {
 type SpecRow = {
   key: string;
   value: string;
-  originalType: "string" | "number" | "boolean";
+  // "json" covers objects, arrays and null: edited as JSON text so structured
+  // values round-trip instead of becoming "[object Object]".
+  originalType: "string" | "number" | "boolean" | "json";
 };
+export function specType(value: unknown): SpecRow["originalType"] {
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") return typeof value as SpecRow["originalType"];
+  return "json";
+}
+export function parseJsonSpec(text: string): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false };
+  }
+}
 type ProductForm = {
   name: string;
   summary: string;
@@ -230,7 +243,7 @@ type ProductForm = {
   story: string;
   placeholders: string;
 };
-function productForm(product: AdminProduct): ProductForm {
+export function productForm(product: AdminProduct): ProductForm {
   return {
     name: product.name,
     summary: product.summary,
@@ -240,8 +253,8 @@ function productForm(product: AdminProduct): ProductForm {
     position: product.position,
     specs: Object.entries(product.specs ?? {}).map(([key, value]) => ({
       key,
-      value: String(value),
-      originalType: typeof value as SpecRow["originalType"],
+      value: specType(value) === "json" ? JSON.stringify(value) : String(value),
+      originalType: specType(value),
     })),
     includes: (product.includes ?? []).join("\n"),
     credit: product.art?.credit ?? "",
@@ -255,19 +268,23 @@ function lineList(value: string) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-function specsObject(rows: SpecRow[]) {
+export function specsObject(rows: SpecRow[]) {
   return Object.fromEntries(
     rows
       .filter((row) => row.key.trim())
       .map((row) => {
-        let value: string | number | boolean = row.value;
+        let value: unknown = row.value;
         if (row.originalType === "number") value = Number(row.value);
         if (row.originalType === "boolean") value = row.value === "true";
+        if (row.originalType === "json") {
+          const parsed = parseJsonSpec(row.value);
+          value = parsed.ok ? parsed.value : row.value;
+        }
         return [row.key.trim(), value];
       })
   );
 }
-function productPatch(form: ProductForm, initial: ProductForm) {
+export function productPatch(form: ProductForm, initial: ProductForm) {
   const patch: Record<string, unknown> = {};
   const add = (key: string, value: unknown, baseline: unknown) => {
     if (JSON.stringify(value) !== JSON.stringify(baseline)) patch[key] = value;
@@ -960,6 +977,8 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
       (row) => row.originalType === "number" && (row.value.trim() === "" || !Number.isFinite(Number(row.value)))
     );
     if (invalidNumber) invalid.specs = `Enter a numeric value for ${invalidNumber.key || "this specification"}.`;
+    const invalidJson = form.specs.find((row) => row.originalType === "json" && !parseJsonSpec(row.value).ok);
+    if (invalidJson) invalid.specs = `Enter valid JSON for ${invalidJson.key || "this specification"}.`;
     if (Object.keys(invalid).length) {
       setErrors(invalid);
       return;
