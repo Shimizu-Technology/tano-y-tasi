@@ -9,7 +9,7 @@ import type {
   Product,
   Storefront,
 } from "./types";
-export const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3031").replace(/\/$/, "");
+export const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://tano-y-tasi-api.onrender.com" : "http://localhost:3031")).replace(/\/$/, "");
 export class ApiError extends Error {
   body: ErrorBody;
   status: number;

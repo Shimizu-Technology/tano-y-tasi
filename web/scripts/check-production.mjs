@@ -19,13 +19,15 @@ async function scan(directory) {
         "Complete your test order.",
         "Pay (test)",
         "dev-only-msw-worker",
+        "tyt-admin-test-auth",
+        "TEST ADMIN SESSION",
       ])
         assert(!text.includes(marker), `Development code (${marker}) emitted in ${path}`);
     }
   }
 }
 await scan("dist");
-for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
+for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TEST_AUTH"]) {
   // Exercise the Vite build guard itself without overwriting the verified output.
   const result = spawnSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
     env: {
@@ -33,6 +35,7 @@ for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS"]) {
       NODE_ENV: "production",
       VITE_API_MOCKS: "false",
       VITE_SIMULATED_PAYMENTS: "false",
+      VITE_ADMIN_TEST_AUTH: "false",
       [flag]: "true",
     },
     encoding: "utf8",
