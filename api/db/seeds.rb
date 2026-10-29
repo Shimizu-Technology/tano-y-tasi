@@ -17,11 +17,9 @@ core = Product.find_or_create_by!(slug: core_slug) do |record|
     art: { credit: "Photo: Christian Tenorio (to confirm)", story: "Håfa Adai from the shore of Tumon Bay, Guåhan." },
     placeholders: [ "price_cents", "stock_quantity", "specs.box_size", "specs.material", "specs.cut", "specs.made_in", "includes", "art.credit" ],
     images: [
-      image.call(core_slug, "finished-tabletop", [ 640, 1280, 2000 ], "3:4", "hero", "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay."),
-      image.call(core_slug, "finished-square", [ 640, 1280, 2000 ], "1:1", "gallery", "The completed Tumon Bay puzzle, with the GUAM sign, palms, and blue water."),
-      image.call(core_slug, "box-front", [ 640, 952 ], "952:800", "box", "Front of the Håfa Adai from Tumon Bay puzzle box."),
+      image.call(core_slug, "finished-flat", [ 640, 1280, 2000 ], "12:7", "hero", "Finished puzzle of the colorful GUAM sign at Tumon Bay, with blue water and open sky."),
       image.call(core_slug, "piece-detail", [ 640, 1071 ], "4:3", "detail", "Close view of interlocking pieces in the Tumon Bay puzzle."),
-      image.call(core_slug, "finished-landscape", [ 1280, 2000, 2800 ], "4:3", "lifestyle", "The finished Tumon Bay puzzle laid out in a wide view.") ])
+      image.call(core_slug, "finished-tabletop", [ 640, 1280, 2000 ], "3:4", "lifestyle", "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay.") ])
 end
 
 map_slug = "guahan-sunset-map"
