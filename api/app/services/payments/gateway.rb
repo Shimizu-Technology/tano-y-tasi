@@ -25,7 +25,9 @@ module Payments
         metadata: { order_token: order.token },
         success_url: "#{web_url}/orders/#{order.token}?from=checkout",
         cancel_url: "#{web_url}/checkout/cancel/#{order.token}",
-        shipping_address_collection: { allowed_countries: %w[US GU PR VI AS MP] },
+        # Stripe Checkout accepts US, GU and PR here; USVI, American Samoa and the
+        # CNMI are not separate options in its allowed_countries list.
+        shipping_address_collection: { allowed_countries: %w[US GU PR] },
         line_items: order.order_items.order(:id).map do |item|
           { quantity: item.quantity, price_data: { currency: order.currency.downcase,
             unit_amount: item.unit_price_cents, product_data: { name: item.name } } }
