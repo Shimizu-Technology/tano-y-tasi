@@ -97,7 +97,7 @@ export async function enhanceResponse(request: Request, original: Response, opti
     };
     // Race the entire fetch + body-read sequence, including the featured-drop lookup.
     const data = await Promise.race([load(), new Promise<never>((_, reject) => {
-      timer = setTimeout(() => { controller.abort(); reject(new Error("Catalog timeout")); }, options.timeoutMs ?? 800);
+      timer = setTimeout(() => { controller.abort(); reject(new Error("Catalog timeout")); }, options.timeoutMs ?? 1200);
     })]);
     const html = await original.clone().text();
     const transformed = transformHtml(html, data, options.siteUrl);
