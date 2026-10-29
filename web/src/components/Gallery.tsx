@@ -6,11 +6,14 @@ import { Modal } from "./Modal";
 export function Gallery({ images, name }: { images: Art[]; name: string }) {
   const [index, setIndex] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
+  if (images.length === 0) return null;
+  // A refreshed product can have fewer images than the remembered position.
+  const current = Math.min(index, images.length - 1);
   return (
     <div className="gallery">
       <div
         className="gallery-track"
-        style={{ "--gallery-aspect": images[index].aspect.replace(":", "/") } as CSSProperties}
+        style={{ "--gallery-aspect": images[current].aspect.replace(":", "/") } as CSSProperties}
         onScroll={(e) => {
           if (matchMedia("(max-width: 899px)").matches) {
             const el = e.currentTarget;
@@ -32,16 +35,19 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
       </div>
       <div className="gallery-counter label">
         <span>
-          {index + 1} / {images.length}
+          {current + 1} / {images.length}
         </span>
         {images.length > 1 && <span className="gallery-swipe">SWIPE TO EXPLORE</span>}
       </div>
-      {viewer !== null && <ImageViewer images={images} initial={viewer} onClose={() => setViewer(null)} />}
+      {viewer !== null && (
+        <ImageViewer images={images} initial={Math.min(viewer, images.length - 1)} onClose={() => setViewer(null)} />
+      )}
     </div>
   );
 }
 function ImageViewer({ images, initial, onClose }: { images: Art[]; initial: number; onClose: () => void }) {
-  const [index, setIndex] = useState(initial);
+  const [rawIndex, setIndex] = useState(initial);
+  const index = Math.min(rawIndex, images.length - 1);
   const [zoom, setZoom] = useState(1);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);

@@ -62,3 +62,20 @@ it("shows a spec only after its placeholder flag is cleared, and hides an empty 
     vi.unstubAllGlobals();
   }
 });
+
+it("hides what's in the box while the catalog marks it unconfirmed", () => {
+  vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  const product = catalog("upcoming", { [CORE]: 40, [MAP]: 100 })[0];
+  client.setQueryData(["product", CORE], { product: { ...product, placeholders: ["includes"] }, server_time: "2026-10-29T00:00:00Z" });
+  try {
+    render(
+      <QueryClientProvider client={client}><MemoryRouter initialEntries={[`/products/${CORE}`]}>
+        <Routes><Route path="/products/:slug" element={<ProductPage />} /></Routes>
+      </MemoryRouter></QueryClientProvider>
+    );
+    expect(screen.queryByText("What’s in the box")).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

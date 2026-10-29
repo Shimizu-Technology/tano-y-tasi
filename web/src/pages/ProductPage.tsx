@@ -193,14 +193,16 @@ function ProductView({
                   </dl>
                 </details>
               )}
-              <details>
-                <summary>What’s in the box<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
-                <ul>
-                  {p.includes.map((i) => (
-                    <li key={i}>{i}</li>
-                  ))}
-                </ul>
-              </details>
+              {p.includes.length > 0 && !p.placeholders.includes("includes") && (
+                <details>
+                  <summary>What’s in the box<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
+                  <ul>
+                    {p.includes.map((i) => (
+                      <li key={i}>{i}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               <details>
                 <summary>The art<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>{p.art.story}</p>
