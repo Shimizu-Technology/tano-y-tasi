@@ -1,10 +1,10 @@
 name: API
 on:
   pull_request:
-    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md"]
+    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md", "docs/ADMIN_API_CONTRACT.md", "render.yaml"]
   push:
     branches: [main]
-    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md"]
+    paths: ["api/**", ".github/workflows/api.yml", "docs/API_CONTRACT.md", "docs/ADMIN_API_CONTRACT.md", "render.yaml"]
 permissions:
   contents: read
 jobs:

@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+# Render pre-deploy only: use Neon's direct URL for migration advisory locks.
+ENV["DATABASE_URL"] = ENV["DATABASE_MIGRATION_URL"] if ENV["DATABASE_MIGRATION_URL"].to_s != ""
+require_relative "../config/environment"
+require "rake"
+Rails.application.load_tasks
+name = ActiveRecord::Base.connection.current_database
+expected = ENV["EXPECTED_DATABASE_NAME"].presence
+allowed = if Rails.env.production?
+  expected ? name == expected : name.start_with?("tano_y_tasi")
+else
+  name == { "development" => "tano_y_tasi_development", "test" => "tano_y_tasi_test" }.fetch(Rails.env)
+end
+abort "Unsafe release database" unless allowed
+puts "Release database: #{name}"
+Rake::Task["db:migrate"].invoke
+# Confirm the connection again before the separate seed command.
+abort "Release database changed" unless ActiveRecord::Base.connection.current_database == name
+Rake::Task["db:seed"].invoke
