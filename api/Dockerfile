@@ -9,7 +9,7 @@ COPY . .
 FROM ruby:3.3.4-slim
 WORKDIR /app
 ENV RAILS_ENV="production" BUNDLE_WITHOUT="development:test" BUNDLE_DEPLOYMENT="1"
-RUN apt-get update -qq && apt-get install --no-install-recommends -y libpq5 ca-certificates && rm -rf /var/lib/apt/lists/* && groupadd --gid 1000 rails && useradd --uid 1000 --gid 1000 --create-home rails
+RUN apt-get update -qq && apt-get install --no-install-recommends -y libpq5 postgresql-client ca-certificates && rm -rf /var/lib/apt/lists/* && groupadd --gid 1000 rails && useradd --uid 1000 --gid 1000 --create-home rails
 COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY --from=build --chown=rails:rails /app /app
 USER rails
