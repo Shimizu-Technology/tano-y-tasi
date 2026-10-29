@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Art } from "../types";
 import { ArtImage } from "./ArtImage";
 import { Modal } from "./Modal";
@@ -100,6 +100,18 @@ function ZoomableArtwork({ art, index, count, onIndex }: { art: Art; index: numb
     image.current!.style.transform = `translate(${value.x}px, ${value.y}px) scale(${value.zoom})`;
     setZoom(value.zoom);
   }
+  // Rotation or a resized window changes the canvas; re-bound the current view so the
+  // zoomed artwork can't be left outside the visible area.
+  useEffect(() => {
+    const el = canvas.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    // At 1× the artwork is centred by layout; only a zoomed view needs re-bounding.
+    const observer = new ResizeObserver(() => { if (view.current.zoom > 1) paint(view.current); });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // paint reads the current art; re-subscribe when the artwork changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [art.aspect]);
   function zoomAt(value: number, point = anchor.current ?? { x: canvas.current!.clientWidth / 2, y: canvas.current!.clientHeight / 2 }) {
     const previous = view.current;
     const scale = Math.min(4, Math.max(1, value));

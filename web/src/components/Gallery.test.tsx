@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Gallery } from "./Gallery";
 import { catalog, CORE, MAP } from "../mocks/data";
 
@@ -67,4 +67,51 @@ it("anchors double-tap and pinch, pans with transforms, caps zoom, and resets on
   fireEvent.click(screen.getByText("NEXT"));
   expect(screen.getByRole("slider")).toHaveValue("1");
   expect(container.querySelector<HTMLElement>(".viewer-art")!.style.transform).toBe("");
+});
+
+it("keeps zoomed artwork on screen when the viewer is resized (phone rotation)", () => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+  HTMLElement.prototype.setPointerCapture = vi.fn();
+  HTMLElement.prototype.hasPointerCapture = () => true;
+  HTMLElement.prototype.releasePointerCapture = vi.fn();
+  let resized: () => void = () => {};
+  const disconnect = vi.fn();
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {}
+    disconnect = disconnect;
+  });
+  try {
+    const { container, unmount } = render(<Gallery images={[{ ...images[0], aspect: "2:3" }, ...images.slice(1)]} name="Puzzle" />);
+    fireEvent.click(screen.getByRole("button", { name: "View image 1 of Puzzle" }));
+    const canvas = container.querySelector<HTMLElement>(".viewer-canvas")!;
+    const art = container.querySelector<HTMLElement>(".viewer-art")!;
+    let size = { width: 400, height: 600 };
+    Object.defineProperties(canvas, {
+      clientWidth: { get: () => size.width, configurable: true },
+      clientHeight: { get: () => size.height, configurable: true },
+    });
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0 } as DOMRect);
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "4" } });
+    gesture(canvas, "pointerdown", 100, 200, 0);
+    gesture(canvas, "pointermove", 0, 0, 20);
+    gesture(canvas, "pointerup", 0, 0, 30);
+    const before = art.style.transform;
+    // Portrait 400×600 → landscape 844×390: a 2:3 image fits 260×390, so at 4× its
+    // left edge may sit between −1364px and −1168px for the art to cover the canvas.
+    size = { width: 844, height: 390 };
+    act(() => resized());
+    const [x, y] = art.style.transform.match(/-?[\d.]+(?=px)/g)!.map(Number);
+    expect(art.style.transform).not.toBe(before);
+    expect(art.style.transform).toContain("scale(4)");
+    expect(x).toBeGreaterThanOrEqual(-1364);
+    expect(x).toBeLessThanOrEqual(-1168);
+    expect(y).toBeGreaterThanOrEqual(-1170);
+    expect(y).toBeLessThanOrEqual(0);
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

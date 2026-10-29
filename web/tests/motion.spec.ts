@@ -161,17 +161,30 @@ test.describe("motion recordings", () => {
       trigger.focus();
       trigger.click();
       const enter = await sample(300);
+      const dialog = document.querySelector<HTMLDialogElement>(".cart-dialog")!;
+      const enterDuration = getComputedStyle(dialog).transitionDuration;
+      // Read the closing transition the moment the closing state is applied, independent of frame timing.
+      const closing = new Promise<string>((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (dialog.dataset.state !== "closing") return;
+          observer.disconnect();
+          resolve(getComputedStyle(dialog).transitionDuration);
+        });
+        observer.observe(dialog, { attributes: true, attributeFilter: ["data-state"] });
+      });
       document.querySelector<HTMLButtonElement>(".cart-dialog .drawer-header button")!.click();
+      const exitDuration = await closing;
       const exit = await sample(230);
-      return { enter, exit };
+      return { enter, exit, enterDuration, exitDuration };
     });
     const path = info.outputPath("cart-animation-frames.json");
     await writeFile(path, JSON.stringify(frames, null, 2));
     await info.attach("cart-animation-frames", { path, contentType: "application/json" });
-    expect(frames.enter.some((f) => f.x !== null && f.x > 1 && f.x < 389)).toBe(true);
+    // The sampled frames are evidence only; a busy CI renderer may skip every intermediate frame.
+    expect(frames.enterDuration.split(", ")).toContain("0.22s");
+    expect(frames.exitDuration.split(", ").every((duration) => duration === "0.16s")).toBe(true);
     expect(frames.enter.at(-1)?.x).toBe(0);
-    expect(frames.exit.some((f) => f.duration?.split(", ").every((duration) => duration === "0.16s"))).toBe(true);
-    expect(frames.exit.at(-1)?.present).toBe(false);
+    await expect(page.locator(".cart-dialog")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "CART (0)" })).toBeFocused();
     await page.waitForTimeout(200);
   });

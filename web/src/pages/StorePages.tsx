@@ -38,8 +38,15 @@ function MapDetails() {
   );
 }
 function HeroCaption({ children }: { children: ReactNode }) {
-  const [enter] = useState(() => sessionStorage.getItem("tyt-hero-seen") !== "true");
-  useEffect(() => { sessionStorage.setItem("tyt-hero-seen", "true"); }, []);
+  const [enter, setEnter] = useState(() => sessionStorage.getItem("tyt-hero-seen") !== "true");
+  useEffect(() => {
+    sessionStorage.setItem("tyt-hero-seen", "true");
+    if (!enter) return;
+    // Drop the marker once the ~300 ms entrance has played, so content that arrives
+    // later (a fresh response replacing the edge snapshot) appears without animating.
+    const timer = setTimeout(() => setEnter(false), 400);
+    return () => clearTimeout(timer);
+  }, [enter]);
   return <div className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
 }
 export function Home() {

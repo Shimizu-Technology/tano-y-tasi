@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Archive, Home, Info, Shop, Story } from "./StorePages";
@@ -134,4 +134,18 @@ it("runs the hero entrance once, survives refetch, and skips later session visit
   first.unmount();
   const second = show("/");
   expect(second.container.querySelector(".hero-caption")).not.toHaveAttribute("data-enter");
+});
+
+it("drops the entrance marker after it plays, so later content doesn't animate", () => {
+  sessionStorage.removeItem("tyt-hero-seen");
+  vi.useFakeTimers();
+  try {
+    const view = show("/");
+    const caption = view.container.querySelector(".hero-caption")!;
+    expect(caption).toHaveAttribute("data-enter", "once");
+    act(() => vi.advanceTimersByTime(400));
+    expect(caption).not.toHaveAttribute("data-enter");
+  } finally {
+    vi.useRealTimers();
+  }
 });
