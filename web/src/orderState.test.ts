@@ -74,3 +74,37 @@ it("preserves a newer cart persisted by another tab", () => {
   reconcileOrder(order);
   expect(useCart.getState().items).toEqual([{ product_slug: "core", quantity: 2 }]);
 });
+
+it("does not merge a canceled older order into a newer cart with a different quantity", () => {
+  useCart.getState().add("core", 2, 10);
+  const first = attempt();
+  saveAttempt(first);
+  rememberCheckout(order.token, first);
+  useCart.getState().remove("core");
+  useCart.getState().add("core", 1, 10);
+  const second = { ...attempt(), orderToken: "order-b" };
+  saveAttempt(second);
+  const revision = useCart.getState().revision;
+  reconcileOrder({ ...order, status: "canceled", items: [{ product_slug: "core", quantity: 2 }] } as Order);
+  expect(useCart.getState().items).toEqual([{ product_slug: "core", quantity: 1 }]);
+  expect(useCart.getState().revision).toBe(revision);
+  expect(readAttempt()).toEqual(second);
+});
+
+it("leaves an unchanged cart alone when its own checkout is canceled", () => {
+  useCart.getState().add("core", 2, 10);
+  rememberCheckout(order.token, attempt());
+  const revision = useCart.getState().revision;
+  reconcileOrder({ ...order, status: "expired", items: [{ product_slug: "core", quantity: 2 }] } as Order);
+  expect(useCart.getState().items).toEqual([{ product_slug: "core", quantity: 2 }]);
+  expect(useCart.getState().revision).toBe(revision);
+});
+
+it("preserves a newer cart written by another tab when an older order is canceled", () => {
+  useCart.getState().add("core", 2, 10);
+  rememberCheckout(order.token, attempt());
+  localStorage.setItem("tyt-cart-v1", JSON.stringify({ state: { items: [{ product_slug: "map", quantity: 1 }], revision: "other-tab" }, version: 0 }));
+  reconcileOrder({ ...order, status: "canceled", items: [{ product_slug: "core", quantity: 2 }] } as Order);
+  expect(useCart.getState().items).toEqual([{ product_slug: "map", quantity: 1 }]);
+});
+

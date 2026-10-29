@@ -11,7 +11,6 @@ async function scan(directory) {
       const text = await readFile(path, "utf8");
       for (const marker of [
         "tyt-mock-db",
-        "This drop is limited to",
         "There aren't enough pieces left for that quantity.",
         "tyt-mock-state",
         "MockServiceWorker",

@@ -24,7 +24,11 @@ export function reconcileOrder(order: Order) {
     localStorage.setItem(key, "paid");
   } else if (["canceled", "expired"].includes(order.status)) {
     if (previous) return;
-    useCart.getState().restore(order.items);
+    void useCart.persist.rehydrate();
+    // Bring the items back only into an empty cart. An unchanged cart still holds
+    // them, and a changed cart belongs to a newer checkout that must not be
+    // altered (doing so would orphan that checkout's reservation and key).
+    if (useCart.getState().items.length === 0) useCart.getState().restore(order.items);
     localStorage.setItem(key, order.status);
   } else return;
   localStorage.removeItem(`tyt-order-cart-${order.token}`);
