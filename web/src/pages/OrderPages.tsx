@@ -90,7 +90,7 @@ export function OrderPage() {
         {recover ? "RETURN TO SHOP" : "CONTINUE EXPLORING"}
       </Link>
       <p className="muted small">
-        Keep this private order link to check your order. Email delivery is not enabled in this preview.
+        A confirmation is on its way to your email. Keep this private link to check your order anytime.
       </p>
     </div>
   );
