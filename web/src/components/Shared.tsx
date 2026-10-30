@@ -1,3 +1,4 @@
+import { useLook } from "../looks/look";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -25,6 +26,8 @@ export function Meta({
   );
 }
 export function Wordmark() {
+  const look = useLook();
+  if (look === "1" || look === "2") return <img className="look-wordmark" src="/images/brand/wordmark-ink-360.webp" srcSet="/images/brand/wordmark-ink-360.webp 360w, /images/brand/wordmark-ink-720.webp 720w" sizes="(min-width: 900px) 136px, 132px" width="360" height="116" alt="TÅNO + TÅSI — Island Supply Co." />;
   return <span className="wordmark">TÅNO + TÅSI</span>;
 }
 export function Loading({ layout = "page" }: { layout?: "home" | "collection" | "product" | "drop" | "archive" | "page" }) {

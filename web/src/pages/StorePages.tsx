@@ -1,3 +1,5 @@
+import { useLook } from "../looks/look";
+import { LookHome } from "../looks/LookHome";
 import { useEffect, useState, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
@@ -58,11 +60,13 @@ function HeroCaption({ children }: { children: ReactNode }) {
   return <div ref={caption} className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
 }
 export function Home() {
+  const look = useLook();
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
   // A failed background refresh keeps showing the data already on screen.
   if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
   const data = q.data;
+  if (look) return <LookHome look={look} data={data} story={story} />;
   const d = data.featured_drop;
   const live = d?.state === "live";
   const core = data.core_products.find((product) => product.availability.purchasable);
