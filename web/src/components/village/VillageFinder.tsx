@@ -21,7 +21,7 @@ export function VillageFinder() {
   const caption = selected ? `${selected.name} on the Guåhan map.` : "The whole island of Guåhan.";
 
   return (
-    <section className="village-finder" aria-labelledby={`${id}-heading`}>
+    <section id="find-your-village" className="village-finder" aria-labelledby={`${id}-heading`}>
       <div className="village-finder-intro">
         <h2 id={`${id}-heading`}>Find your village</h2>
         <p>Every village on Guåhan is on this map.</p>

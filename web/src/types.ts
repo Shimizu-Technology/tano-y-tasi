@@ -33,6 +33,7 @@ export interface Product {
   };
   drop: DropSummary | null;
   image: Art;
+  alt_image: Art | null;
 }
 export interface ProductDetail extends Product {
   description: string;

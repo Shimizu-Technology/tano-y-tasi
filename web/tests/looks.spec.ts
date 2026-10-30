@@ -17,7 +17,7 @@ async function shot(page: Page, name: string, fullPage = true) {
   await mkdir(output, { recursive: true });
   await page.screenshot({ path: join(output, `${name}.png`), fullPage, animations: "disabled" });
 }
-for (const look of ["off", "1", "2", "3", "4"]) {
+for (const look of ["off", "1", "2", "3", "4", "5"]) {
   test(`look ${look}: browse, cart, menu, persistence, and unchanged metadata`, async ({ page }, info) => {
     const prefix = `${info.project.name}-${look === "off" ? "default" : `look-${look}`}`;
     await page.goto(`/?look=${look}`);
@@ -104,7 +104,7 @@ test("admin is unaffected even with a saved look and preview parameter", async (
   await expect(page.getByRole("navigation", { name: "Design preview" })).toHaveCount(0);
   expect(await page.evaluate(() => sessionStorage.getItem("tyt-preview-look"))).toBe("1");
 });
-for (const look of ["1", "2", "3", "4"]) {
+for (const look of ["1", "2", "3", "4", "5"]) {
   test(`look ${look}: story, archive, signup, and simulated paid checkout retain the look`, async ({ page }) => {
     await page.goto(`/?look=${look}`);
     await ready(page);

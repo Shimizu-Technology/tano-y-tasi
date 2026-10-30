@@ -113,6 +113,7 @@ function listProduct(p: ProductDetail): Product {
     availability: p.availability,
     drop: p.drop,
     image: p.image,
+    alt_image: p.alt_image,
   };
 }
 const now = () => new Date().toISOString();

@@ -6,6 +6,7 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { ArtImage } from "../components/ArtImage";
+import { ProductArt } from "../components/ProductArt";
 import { Failure, Loading, Meta, Signup } from "../components/Shared";
 import { dropNumber, releaseTimes, releaseDate, money, heroReleaseTime } from "../utils";
 import { ProductCollection } from "../components/ProductCollection";
@@ -190,7 +191,7 @@ export function Archive() {
             <div key={d.slug}>
               <Link to={`/drops/${d.slug}`} className="archive-card">
                 <div className="tile">
-                  <ArtImage art={d.product.image} />
+                  <ProductArt product={d.product} />
                 </div>
                 <p>{d.name}</p>
                 <p className="label muted">
@@ -204,7 +205,7 @@ export function Archive() {
       ) : next ? (
         <article className="archive-preview">
           <Link to={`/drops/${next.slug}`} aria-label={`Explore Drop ${dropNumber(next.number)} — ${next.name}`}>
-            <ArtImage art={next.product.image} sizes="(min-width: 900px) 50vw, 100vw" priority />
+            <ProductArt product={next.product} sizes="(min-width: 900px) 50vw, 100vw" priority />
           </Link>
           <div>
             <p className="label">Drop {dropNumber(next.number)} · {next.state === "upcoming" ? "Upcoming" : "Available now"}</p>

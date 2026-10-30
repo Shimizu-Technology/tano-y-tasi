@@ -1,3 +1,5 @@
+import { HeroEntrance } from "./HeroEntrance";
+import { VillageTeaser } from "./VillageTeaser";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowRight } from "lucide-react";
@@ -66,19 +68,20 @@ function SunHillHero({ art, actions, coreSummary }: HeroProps & { coreSummary?: 
 }
 // Look 4: Look 2's hero (rounded logo, photo) with Look 1's hero copy and serif headline.
 // Centred: the hero is the page's one centred moment; the product description lives in the drop section.
-function SunHillSerifHero({ art, actions, release }: HeroProps) {
+function SunHillSerifHero({ art, actions, release, motion = false }: HeroProps & { motion?: boolean }) {
+  const Identity = motion ? HeroEntrance : "div";
   return (
     <section className="sunhill-hero sunhill-serif-hero">
       <div className="sunhill-art">
         <ArtImage art={art} priority sizes="(min-width: 900px) 52vw, 100vw" />
       </div>
-      <div className="sunhill-identity">
+      <Identity className="sunhill-identity">
         <RoundedLogo />
         <h1>A piece of home.</h1>
         <p className="look-mission">Keeping us connected to where we come from.</p>
         {actions}
         {release}
-      </div>
+      </Identity>
     </section>
   );
 }
@@ -101,19 +104,20 @@ export function LookHome({ look, data, story }: { look: Look; data: Storefront; 
   const drop = data.featured_drop;
   const live = drop?.state === "live";
   const core = data.core_products.find((product) => product.availability.purchasable);
-  const sunHill = look === "2" || look === "4";
+  const sunHill = look === "2" || look === "4" || look === "5";
   const art = sunHill || !drop ? tabletop : drop.product.image;
   const actions = <div className="look-hero-actions"><Link className="button" to="/shop">SHOP THE COLLECTION <ArrowRight aria-hidden="true" /></Link>{drop && <Link className="text-link label" to={live ? "/drop" : "/drop#notify"}>{live ? "SHOP THE DROP" : "NOTIFY ME"}<ArrowRight aria-hidden="true" /></Link>}</div>;
   const release = drop && <p className="look-release">Drop {dropNumber(drop.number)} · {live ? `Available now · ${drop.quantity} made` : drop.state === "upcoming" ? `Releases ${heroReleaseTime(drop.release_at)}` : drop.state === "sold_out" ? "Sold out" : "Closed"}</p>;
   const heroProps = { art, actions, release, summary: drop?.product.summary ?? core?.summary };
   return <div className={`look-home look-home-${look}`}>
     <Meta title="A Piece of Home." />
-    {look === "1" ? <SupplyHero {...heroProps} /> : look === "2" ? <SunHillHero {...heroProps} coreSummary={core?.summary} /> : look === "4" ? <SunHillSerifHero {...heroProps} /> : <RefinedHero {...heroProps} />}
+    {look === "1" ? <SupplyHero {...heroProps} /> : look === "2" ? <SunHillHero {...heroProps} coreSummary={core?.summary} /> : look === "4" || look === "5" ? <SunHillSerifHero {...heroProps} motion={look === "5"} /> : <RefinedHero {...heroProps} />}
     {look !== "1" && <MissionBand moving={sunHill} />}
     <section className="look-collection look-section">
       <div className="section-heading"><h2>The core collection</h2><Link className="text-link label" to="/shop">Shop all <ArrowRight aria-hidden="true" /></Link></div>
       <ProductCollection products={data.core_products} />
     </section>
+    {look === "5" && <VillageTeaser />}
     {sunHill && drop && <section className="look-drop-feature look-section"><ArtImage art={drop.product.image} sizes="(min-width: 900px) 45vw, 100vw" /><div><p className="label">DROP {dropNumber(drop.number)}</p><h2>{drop.name}</h2><p>{drop.product.summary}</p><p>{money(drop.product.price_cents)}</p>{release}<Link className="button" to="/drop">VIEW THE DROP <ArrowRight aria-hidden="true" /></Link></div></section>}
     <section className="look-story look-section"><ArtImage art={look === "1" ? tabletop : detail} sizes="(min-width: 900px) 45vw, 100vw" /><div><SunHillMark /><h2>Tåno is land.<br />Tåsi is sea.</h2><p>{story}</p><Link className="text-link label" to="/story">Our story <ArrowRight aria-hidden="true" /></Link></div></section>
     <div className="look-signup look-section"><Signup /></div>
