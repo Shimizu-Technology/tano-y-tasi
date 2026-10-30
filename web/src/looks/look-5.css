@@ -9,13 +9,6 @@
   [data-look="5"] :is(.product-card, .feature-art, .archive-card, .archive-preview > a):is(:hover, :focus-visible) .product-second-view[data-ready] .second-view-alt { opacity: 1; }
   [data-look="5"] :is(.product-card, .feature-art, .archive-card, .archive-preview > a):is(:hover, :focus-visible) .product-second-view[data-ready] .second-view-main { opacity: 0; }
 }
-[data-look="5"] .village-teaser { display: grid; gap: 32px; padding-top: 0; }
-[data-look="5"] .village-teaser h2 { font-size: 32px; letter-spacing: -.03em; margin-bottom: 16px; }
-[data-look="5"] .village-teaser .text-link { margin-top: 16px; }
-[data-look="5"] .village-teaser-crops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-[data-look="5"] .village-teaser-crops figure { margin: 0; min-width: 0; }
-[data-look="5"] .village-teaser-crops img { width: 100%; height: auto; aspect-ratio: 4/3; object-fit: cover; }
-[data-look="5"] .village-teaser-crops figcaption { margin-top: 8px; font-size: 13px; }
 [data-look="5"] #find-your-village { scroll-margin-top: 80px; }
 [data-look="5"] .look5-entrance[data-enter="once"] > [data-enter-item] { animation: look5-settle 200ms cubic-bezier(.23, 1, .32, 1) both; }
 [data-look="5"] .look5-entrance[data-enter="once"] > [data-enter-item]:nth-child(2) { animation-delay: 45ms; }
@@ -23,20 +16,25 @@
 [data-look="5"] .look5-entrance[data-enter="once"] > [data-enter-item]:nth-child(4) { animation-delay: 135ms; }
 @keyframes look5-settle { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes look5-fade { from { opacity: 0; } to { opacity: 1; } }
-@media (min-width: 900px) {
-  [data-look="5"] .village-teaser { grid-template-columns: 1fr 1.5fr; gap: 64px; align-items: center; }
-  [data-look="5"] .village-teaser h2 { font-size: 40px; }
-  [data-look="5"] .village-teaser-crops { gap: 20px; }
-}
 @media (prefers-reduced-motion: reduce) {
   [data-look="5"] .product-second-view img { transition-duration: 100ms !important; }
   [data-look="5"] .look5-entrance[data-enter="once"] > [data-enter-item] { animation: look5-fade 100ms cubic-bezier(.23, 1, .32, 1) both; }
 }
-[data-look="5"] .village-teaser .text-link { transition: opacity 180ms cubic-bezier(.23, 1, .32, 1); }
-@media (hover: hover) and (pointer: fine) {
-  [data-look="5"] .village-teaser .text-link:hover { opacity: .7; }
+
+/* Map-led hero: the live village map replaces Look 4's photo. Undo Look 2's
+   photo sizing for the finder's own images. */
+[data-look="5"] .look5-map-hero .sunhill-art .village-finder-map { aspect-ratio: auto; object-fit: fill; object-position: 50% 50%; }
+[data-look="5"] .look5-map-hero .sunhill-art .village-finder-crop { aspect-ratio: auto; object-fit: cover; object-position: 50% 50%; }
+[data-look="5"] .look5-map-hero .village-finder-intro { text-align: left; }
+@media (min-width: 900px) {
+  [data-look="5"] .look5-map-hero { align-items: center; }
 }
-[data-look="5"] .village-teaser .text-link:active { opacity: .7; }
-@media (prefers-reduced-motion: reduce) {
-  [data-look="5"] .village-teaser .text-link { transition-duration: 100ms; }
+/* Phones: a compact identity so the live map shows on the first screen. */
+@media (max-width: 899px) {
+  [data-look="5"] .look5-map-hero .sunhill-identity { padding-top: 20px; padding-bottom: 20px; }
+  [data-look="5"] .look5-map-hero .look-emblem { width: min(42vw, 176px); margin-bottom: 4px; }
+  [data-look="5"] .look5-map-hero h1 { margin: 12px 0 8px; }
+  [data-look="5"] .look5-map-hero .look-mission { font-size: 17px; }
+  [data-look="5"] .look5-map-hero .look-hero-actions { margin-top: 16px; gap: 12px 20px; }
+  [data-look="5"] .look5-map-hero .look-release { margin-top: 12px; }
 }

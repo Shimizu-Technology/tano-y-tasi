@@ -3,24 +3,21 @@ async function home(page: Page) {
   await page.goto("/?look=5");
   await expect(page.locator(".sunhill-identity h1")).toHaveText("A piece of home.");
 }
-test("Look 5 teaser reaches finder, selects a village, resets and reloads", async ({ page }) => {
+test("Look 5 hero leads with the live village map: select, reset and reload", async ({ page }) => {
   await home(page);
-  const teaser = page.locator(".village-teaser");
-  await expect(teaser.getByText("Every village on Guåhan is on the map.")).toBeVisible();
-  await expect(teaser.locator('img[loading="lazy"]')).toHaveCount(3);
-  expect(await teaser.evaluate((el) => el.previousElementSibling?.classList.contains("look-collection") && el.nextElementSibling?.classList.contains("look-drop-feature"))).toBe(true);
-  await teaser.getByRole("link", { name: "Find yours" }).click();
-  await expect(page).toHaveURL(/\/drops\/drop-001-guahan-sunset-map#find-your-village$/);
-  const finder = page.locator("#find-your-village");
-  await expect(finder.getByRole("heading")).toBeInViewport();
-  expect(await finder.evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(56);
-  await page.getByLabel("Choose a village").selectOption("yigo");
+  const hero = page.locator(".look5-map-hero");
+  const finder = hero.locator("#find-your-village");
+  // The map replaces Look 4's photo and loads eagerly as hero content.
+  await expect(hero.locator(".village-finder-map")).toHaveAttribute("loading", "eager");
+  await expect(hero.locator(".sunhill-art > img")).toHaveCount(0);
+  await expect(page.locator(".village-teaser")).toHaveCount(0);
+  await hero.getByLabel("Choose a village").selectOption("yigo");
   await expect(finder.locator('[data-village="yigo"]')).toHaveAttribute("data-ready", "true");
   await expect(finder.getByRole("status")).toHaveText("Yigo on the Guåhan map.");
   await finder.getByRole("button", { name: "Whole island", exact: true }).click();
   await expect(finder.getByRole("status")).toHaveText("The whole island of Guåhan.");
   await page.reload();
-  await expect(finder.getByRole("heading")).toBeInViewport();
+  await expect(page.locator(".look5-map-hero .village-finder-viewport")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-look", "5");
 });
 for (const surface of ["featured", "card", "grid"]) {
