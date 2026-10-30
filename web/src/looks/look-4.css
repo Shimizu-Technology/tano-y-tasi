@@ -1,0 +1,18 @@
+@import "@fontsource-variable/fraunces/full.css";
+/* Look 4: Look 2 (look-2.css applies to both) with Look 1's serif headings and hero copy. */
+[data-look="4"] :is(h1, h2, h3, .menu-dialog nav a) { font-family: "Fraunces Variable", Georgia, serif; font-variation-settings: "SOFT" 65, "WONK" 1, "opsz" 72; font-weight: 550; font-stretch: normal; }
+[data-look="4"] .sunhill-serif-hero .sunhill-identity { text-align: left; }
+[data-look="4"] .sunhill-serif-hero .look-emblem { margin-inline: 0; }
+[data-look="4"] .sunhill-serif-hero h1 { font-size: clamp(64px, 11vw, 112px); font-weight: 550; line-height: .98; letter-spacing: -.055em; margin: 8px 0 24px; }
+[data-look="4"] .sunhill-serif-hero .look-mission { margin: 0; font-size: 20px; }
+[data-look="4"] .sunhill-serif-hero .look-product-summary { margin: 16px 0 0; }
+[data-look="4"] .sunhill-serif-hero .look-hero-actions { justify-content: flex-start; }
+[data-look="4"] .page-heading h1, [data-look="4"] .story-intro h1 { font-size: 48px; }
+[data-look="4"] .product-info h1 { font-size: 28px; }
+@media (min-width: 900px) {
+  /* Keep the logo, headline and actions inside a 900px-tall first screen. */
+  [data-look="4"] .sunhill-serif-hero .look-emblem { width: min(22vw, 300px); margin-bottom: 8px; }
+  [data-look="4"] .sunhill-serif-hero h1 { font-size: clamp(64px, 5.6vw, 88px); margin-bottom: 20px; }
+  [data-look="4"] .sunhill-serif-hero .look-hero-actions { margin-top: 20px; }
+  [data-look="4"] .look-story h2, [data-look="4"] .look-drop-feature h2 { font-size: 52px; }
+}

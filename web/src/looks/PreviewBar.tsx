@@ -12,7 +12,7 @@ export function PreviewBar() {
   };
   return <nav className="look-preview-bar" aria-label="Design preview">
     <span>Preview</span>
-    {(["1", "2", "3"] as const).map((value) => <Link key={value} to={href(value)} aria-current={look === value ? "true" : undefined}>Look {value} <span>{lookNames[value]}</span></Link>)}
+    {(["1", "2", "3", "4"] as const).map((value) => <Link key={value} to={href(value)} aria-current={look === value ? "true" : undefined}>Look {value} <span>{lookNames[value]}</span></Link>)}
     <Link to={href("off")}>Exit</Link>
   </nav>;
 }

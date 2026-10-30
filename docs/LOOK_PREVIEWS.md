@@ -8,7 +8,7 @@ Sources: [Product brief](PRODUCT_BRIEF.md), [design direction](DESIGN_DIRECTION.
 
 ## Try a look
 
-Add `?look=1`, `?look=2`, or `?look=3` to any storefront URL. The choice lasts in sessionStorage for that tab's session. The preview bar preserves the path, other query parameters, and anchor. Exit (`?look=off`) clears the choice. An invalid parameter does not select a look. No parameter and no saved choice retains the existing storefront, with no `data-look` attribute or preview bar.
+Add `?look=1`, `?look=2`, `?look=3`, or `?look=4` to any storefront URL. Look 4 is Look 2 with Look 1's serif hero copy and headings (requested after a family review on Oct 30). The choice lasts in sessionStorage for that tab's session. The preview bar preserves the path, other query parameters, and anchor. Exit (`?look=off`) clears the choice. An invalid parameter does not select a look. No parameter and no saved choice retains the existing storefront, with no `data-look` attribute or preview bar.
 
 1. **Island Supply:** cream, brown ink, soft Fraunces display headings, distressed wordmark, teal collection/signup/footer bands, and a photo with the brand story.
 2. **Sun & Hill:** warm sand, a large rounded logo beside the tabletop artwork, matching product tiles, and a slow mission strip separated by sun-and-hill marks. Hover or keyboard focus pauses it; reduced motion displays all three lines statically.
