@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Art } from "../types";
 import { ArtImage } from "./ArtImage";
 import { Modal } from "./Modal";
@@ -13,7 +13,6 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
     <div className="gallery">
       <div
         className="gallery-track"
-        style={{ "--gallery-aspect": images[current].aspect.replace(":", "/") } as CSSProperties}
         onScroll={(e) => {
           if (matchMedia("(max-width: 899px)").matches) {
             const el = e.currentTarget;

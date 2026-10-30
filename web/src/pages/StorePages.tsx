@@ -287,6 +287,10 @@ function FAQ() {
       <Meta title="FAQ" />
       <h1>FAQ</h1>
       <div className="faq-answers">
+        <section><h2>Do drops restock?</h2><p>No. Drops are one-time releases and never restock.</p></section>
+        <section><h2>Where do you ship?</h2><p>We ship to the United States, Guam and Puerto Rico. Shipping is calculated at checkout.</p></section>
+        <section><h2>How long is my checkout held?</h2><p>Your puzzles are held for about 30 minutes at checkout.</p></section>
+        {/* Answers that depend on catalog data come last, so they never push the static answers when they load. */}
         <section>
           <h2>When does the next drop release?</h2>
           {times ? <p>Drop {dropNumber(drop!.number)} {drop!.state === "upcoming" ? "releases" : "released"} {times.guam} · {times.pacific} · {times.hawaii}.</p>
@@ -295,9 +299,6 @@ function FAQ() {
                 : <p>The next release has not been announced.</p>}
         </section>
         {drop && <section><h2>How many can I buy?</h2><p>Drop {dropNumber(drop.number)} is limited to {drop.per_customer_limit} per customer.</p></section>}
-        <section><h2>Do drops restock?</h2><p>No. Drops are one-time releases and never restock.</p></section>
-        <section><h2>Where do you ship?</h2><p>We ship to the United States, Guam and Puerto Rico. Shipping is calculated at checkout.</p></section>
-        <section><h2>How long is my checkout held?</h2><p>Your puzzles are held for about 30 minutes at checkout.</p></section>
       </div>
       <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
     </div>

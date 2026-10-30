@@ -342,16 +342,23 @@ test("mobile hero separates art and caption; desktop gives art 60% with visible 
   }
 });
 
-test("gallery artwork fills the mobile content width and still swipes", async ({ page }, info) => {
+test("gallery keeps one fixed frame on phones and still swipes", async ({ page }, info) => {
   for (const route of ["/drop", "/products/hafa-adai-from-tumon-bay"]) {
     await go(page, route);
     const image = page.locator(".gallery-image img").first();
     const dimensions = await image.boundingBox();
     if (info.project.name === "mobile") {
+      // One fixed square frame on phones: swiping must never resize the gallery or move the page.
       expect(dimensions!.width).toBe(358);
-      if (route === "/drop") expect(dimensions!.height).toBeGreaterThan(dimensions!.width);
+      expect(dimensions!.height).toBe(358);
+      const titleTop = () => page.locator(".product-info h1").evaluate((el) => Math.round(el.getBoundingClientRect().top + scrollY));
+      const before = await titleTop();
       await page.locator(".gallery-track").evaluate((el) => el.scrollTo({ left: el.clientWidth, behavior: "instant" }));
       await expect(page.locator(".gallery-counter")).toContainText("2 /");
+      const last = await page.locator(".gallery-image").count();
+      await page.locator(".gallery-track").evaluate((el, n) => el.scrollTo({ left: el.clientWidth * (n - 1), behavior: "instant" }), last);
+      await expect(page.locator(".gallery-counter")).toContainText(`${last} /`);
+      expect(await titleTop()).toBe(before);
       await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeVisible();
     } else {
       await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeHidden();
