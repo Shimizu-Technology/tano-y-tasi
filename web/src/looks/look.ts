@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from "react";
 
-export type Look = "1" | "2" | "3";
+export type Look = "1" | "2" | "3" | "4";
 export const LOOK_STORAGE_KEY = "tyt-preview-look";
-export const lookNames: Record<Look, string> = { "1": "Island Supply", "2": "Sun & Hill", "3": "Refined" };
-const validLook = (value: string | null): value is Look => value === "1" || value === "2" || value === "3";
+export const lookNames: Record<Look, string> = { "1": "Island Supply", "2": "Sun & Hill", "3": "Refined", "4": "Sun & Hill, serif hero" };
+const validLook = (value: string | null): value is Look => value === "1" || value === "2" || value === "3" || value === "4";
 const listeners = new Set<() => void>();
 let active: Look | null = null;
 

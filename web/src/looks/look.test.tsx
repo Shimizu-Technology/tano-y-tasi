@@ -7,7 +7,7 @@ import { MissionBand } from "./LookHome";
 
 beforeEach(() => { sessionStorage.clear(); initializeLook({ pathname: "/", search: "?look=off" }); });
 afterEach(() => { act(() => { initializeLook({ pathname: "/", search: "?look=off" }); }); });
-it.each(["1", "2", "3"])("sets and persists look %s before rendering, then restores it on other URLs", (look) => {
+it.each(["1", "2", "3", "4"])("sets and persists look %s before rendering, then restores it on other URLs", (look) => {
   initializeLook({ pathname: "/products/example", search: `?look=${look}` });
   expect(document.documentElement).toHaveAttribute("data-look", look);
   expect(sessionStorage.getItem(LOOK_STORAGE_KEY)).toBe(look);
@@ -22,7 +22,7 @@ it("off clears the session and removes the attribute", () => {
   initializeLook({ pathname: "/", search: "" });
   expect(document.documentElement).not.toHaveAttribute("data-look");
 });
-it.each(["", "?look=0", "?look=4", "?look=01", "?look=banana"])("keeps the default unchanged for %s with no saved look", (search) => {
+it.each(["", "?look=0", "?look=5", "?look=01", "?look=banana"])("keeps the default unchanged for %s with no saved look", (search) => {
   initializeLook({ pathname: "/", search });
   render(<MemoryRouter><PreviewBar /><Wordmark /></MemoryRouter>);
   expect(document.documentElement).not.toHaveAttribute("data-look");
