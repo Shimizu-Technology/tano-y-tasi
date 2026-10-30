@@ -110,7 +110,7 @@ for (const look of ["1", "2", "3", "4", "5"]) {
     await ready(page);
     await page.getByLabel("Email for drop alerts").fill(`look-${look}@example.com`);
     await page.getByRole("button", { name: "SIGN UP", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");
+    await expect(page.locator(".signup").getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");
     await page.getByRole("link", { name: "Our story", exact: true }).click();
     await ready(page);
     await expect(page.getByRole("heading", { name: "Tåno. Tåsi." })).toBeVisible();

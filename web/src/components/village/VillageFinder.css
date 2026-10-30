@@ -101,3 +101,25 @@
     transition: opacity 100ms ease !important;
   }
 }
+
+/* Hero variant (Look 5 home): the map leads, the picker sits under it. */
+.village-finder-hero {
+  margin-top: 0;
+  gap: 20px;
+}
+.village-finder-hero .village-finder-figure {
+  order: -1;
+}
+.village-finder-hero .village-finder-intro h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.village-finder-hero .village-finder-field {
+  margin-top: 16px;
+}
+@media (min-width: 900px) {
+  .village-finder-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
