@@ -4,12 +4,13 @@ import { villages } from "../components/village/villages";
 
 const featured = ["yigo", "hagatna", "malesso"].map((slug) => villages.find((village) => village.slug === slug)!);
 
-export function VillageTeaser() {
+// Only rendered when the featured drop is the map, so the link always reaches the finder.
+export function VillageTeaser({ to }: { to: string }) {
   return <section className="village-teaser look-section" aria-labelledby="village-teaser-heading">
     <div className="village-teaser-copy">
       <h2 id="village-teaser-heading">Find your village</h2>
       <p>Every village on Guåhan is on the map.</p>
-      <Link className="text-link label" to="/drop#find-your-village">Find yours <ArrowRight aria-hidden="true" /></Link>
+      <Link className="text-link label" to={to}>Find yours <ArrowRight aria-hidden="true" /></Link>
     </div>
     <div className="village-teaser-crops">
       {featured.map((village) => <figure key={village.slug}>

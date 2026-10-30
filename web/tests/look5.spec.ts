@@ -10,7 +10,7 @@ test("Look 5 teaser reaches finder, selects a village, resets and reloads", asyn
   await expect(teaser.locator('img[loading="lazy"]')).toHaveCount(3);
   expect(await teaser.evaluate((el) => el.previousElementSibling?.classList.contains("look-collection") && el.nextElementSibling?.classList.contains("look-drop-feature"))).toBe(true);
   await teaser.getByRole("link", { name: "Find yours" }).click();
-  await expect(page).toHaveURL(/\/drop#find-your-village$/);
+  await expect(page).toHaveURL(/\/drops\/drop-001-guahan-sunset-map#find-your-village$/);
   const finder = page.locator("#find-your-village");
   await expect(finder.getByRole("heading")).toBeInViewport();
   expect(await finder.evaluate((el) => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(56);

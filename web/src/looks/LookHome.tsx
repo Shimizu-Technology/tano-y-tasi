@@ -117,7 +117,7 @@ export function LookHome({ look, data, story }: { look: Look; data: Storefront; 
       <div className="section-heading"><h2>The core collection</h2><Link className="text-link label" to="/shop">Shop all <ArrowRight aria-hidden="true" /></Link></div>
       <ProductCollection products={data.core_products} />
     </section>
-    {look === "5" && <VillageTeaser />}
+    {look === "5" && drop?.product.slug === "guahan-sunset-map" && <VillageTeaser to={`/drops/${drop.slug}#find-your-village`} />}
     {sunHill && drop && <section className="look-drop-feature look-section"><ArtImage art={drop.product.image} sizes="(min-width: 900px) 45vw, 100vw" /><div><p className="label">DROP {dropNumber(drop.number)}</p><h2>{drop.name}</h2><p>{drop.product.summary}</p><p>{money(drop.product.price_cents)}</p>{release}<Link className="button" to="/drop">VIEW THE DROP <ArrowRight aria-hidden="true" /></Link></div></section>}
     <section className="look-story look-section"><ArtImage art={look === "1" ? tabletop : detail} sizes="(min-width: 900px) 45vw, 100vw" /><div><SunHillMark /><h2>Tåno is land.<br />Tåsi is sea.</h2><p>{story}</p><Link className="text-link label" to="/story">Our story <ArrowRight aria-hidden="true" /></Link></div></section>
     <div className="look-signup look-section"><Signup /></div>
