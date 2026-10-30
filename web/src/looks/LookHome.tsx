@@ -86,11 +86,11 @@ function SunHillSerifHero({ art, actions, release, motion = false }: HeroProps &
   );
 }
 // Look 5: Look 4's centred identity beside the live village map, which replaces the photo.
-function MapHero({ actions, release }: Pick<HeroProps, "actions" | "release">) {
+function MapHero({ actions, release, art }: Pick<HeroProps, "actions" | "release" | "art">) {
   return (
     <section className="sunhill-hero sunhill-serif-hero look5-map-hero">
       <div className="sunhill-art">
-        <VillageFinder variant="hero" />
+        <VillageFinder variant="hero" heroArt={art} />
       </div>
       <HeroEntrance className="sunhill-identity">
         <RoundedLogo />
@@ -130,7 +130,7 @@ export function LookHome({ look, data, story }: { look: Look; data: Storefront; 
   const heroProps = { art, actions, release, summary: drop?.product.summary ?? core?.summary };
   return <div className={`look-home look-home-${look}`}>
     <Meta title="A Piece of Home." />
-    {look === "1" ? <SupplyHero {...heroProps} /> : look === "2" ? <SunHillHero {...heroProps} coreSummary={core?.summary} /> : look === "5" && mapDrop ? <MapHero actions={actions} release={release} /> : look === "4" || look === "5" ? <SunHillSerifHero {...heroProps} motion={look === "5"} /> : <RefinedHero {...heroProps} />}
+    {look === "1" ? <SupplyHero {...heroProps} /> : look === "2" ? <SunHillHero {...heroProps} coreSummary={core?.summary} /> : look === "5" && mapDrop ? <MapHero actions={actions} release={release} art={drop!.product.image} /> : look === "4" || look === "5" ? <SunHillSerifHero {...heroProps} motion={look === "5"} /> : <RefinedHero {...heroProps} />}
     {look !== "1" && <MissionBand moving={sunHill} />}
     <section className="look-collection look-section">
       <div className="section-heading"><h2>The core collection</h2><Link className="text-link label" to="/shop">Shop all <ArrowRight aria-hidden="true" /></Link></div>

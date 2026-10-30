@@ -37,3 +37,16 @@ it("Look 4 keeps its photo hero and has no village map", () => {
   expect(container.querySelector(".look5-map-hero")).toBeNull();
   expect(container.querySelector(".village-finder")).toBeNull();
 });
+
+it("Look 5's hero map uses the same srcset and sizes as the edge preload, so the preload is reused", async () => {
+  const { transformHtml } = await import("../../netlify/lib/storefront");
+  const html = transformHtml(
+    "<html><head><!-- tyt:meta:start --><!-- tyt:meta:end --></head><body></body></html>",
+    { snapshotTime: 0, pathname: "/", storefront: withMapDrop }
+  );
+  const preload = new DOMParser().parseFromString(html, "text/html").querySelector("link[data-tyt-preload]")!;
+  const { container } = show("5", withMapDrop);
+  const map = container.querySelector(".look5-map-hero .village-finder-map")!;
+  expect(map.getAttribute("srcset")).toBe(preload.getAttribute("imagesrcset"));
+  expect(map.getAttribute("sizes")).toBe(preload.getAttribute("imagesizes"));
+});

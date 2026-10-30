@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { villages, type Village } from "./villages";
+import type { Art } from "../../types";
 import "./VillageFinder.css";
 
 const artwork = "/images/products/guahan-sunset-map/artwork";
@@ -14,7 +15,9 @@ function preload(village?: Village) {
 }
 
 // "hero" puts the interactive map first and loads it eagerly (Look 5's home hero).
-export function VillageFinder({ variant = "page" }: { variant?: "page" | "hero" }) {
+// heroArt is the featured drop's image: the hero describes it exactly like the edge
+// preload (same srcset and sizes) so the browser reuses the preloaded file.
+export function VillageFinder({ variant = "page", heroArt }: { variant?: "page" | "hero"; heroArt?: Art }) {
   const id = useId();
   const [slug, setSlug] = useState("");
   const selected = villages.find((village) => village.slug === slug);
@@ -47,7 +50,7 @@ export function VillageFinder({ variant = "page" }: { variant?: "page" | "hero" 
         </div>
       </div>
       <figure className="village-finder-figure">
-        <VillageMap key={slug} village={selected} priority={variant === "hero"} onRetry={() => select.current?.focus()} />
+        <VillageMap key={slug} village={selected} priority={variant === "hero"} heroArt={variant === "hero" ? heroArt : undefined} onRetry={() => select.current?.focus()} />
         <figcaption className="village-finder-caption">
           <span>{caption}</span>
           <button
@@ -65,7 +68,7 @@ export function VillageFinder({ variant = "page" }: { variant?: "page" | "hero" 
   );
 }
 
-function VillageMap({ village, priority = false, onRetry }: { village?: Village; priority?: boolean; onRetry?: () => void }) {
+function VillageMap({ village, priority = false, heroArt, onRetry }: { village?: Village; priority?: boolean; heroArt?: Art; onRetry?: () => void }) {
   const [zoomed, setZoomed] = useState(false);
   const [settled, setSettled] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -96,9 +99,10 @@ function VillageMap({ village, priority = false, onRetry }: { village?: Village;
       <img
         className="village-finder-map"
         src={`${artwork}-1280.webp`}
-        // Descriptors are the files' real widths (the names are their heights).
-        srcSet={`${artwork}-640.webp 509w, ${artwork}-1280.webp 1017w, ${artwork}-2000.webp 1590w`}
-        sizes="(min-width: 900px) 480px, 60vw"
+        // Page: descriptors are the files' real widths (the names are their heights).
+        // Hero: mirror the edge preload (web/netlify/lib/storefront.ts) so it is reused.
+        srcSet={heroArt ? heroArt.widths.map((w) => `${heroArt.base}-${w}.webp ${w}w`).join(", ") : `${artwork}-640.webp 509w, ${artwork}-1280.webp 1017w, ${artwork}-2000.webp 1590w`}
+        sizes={heroArt ? "(min-width: 900px) 60vw, 100vw" : "(min-width: 900px) 480px, 60vw"}
         width="509" height="640" loading={priority ? "eager" : "lazy"} decoding="async" fetchPriority={priority ? "high" : "auto"}
         style={style}
         alt={village ? "" : "The whole island on the illustrated Guåhan map"}
