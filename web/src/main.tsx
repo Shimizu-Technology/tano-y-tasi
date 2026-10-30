@@ -5,6 +5,13 @@ import { RouterProvider } from "react-router";
 import { router } from "./routes";
 import { restoreInitialData } from "./api";
 import "./styles.css";
+import "./looks/shared.css";
+import "./looks/look-1.css";
+import "./looks/look-2.css";
+import "./looks/look-3.css";
+import { initializeLook } from "./looks/look";
+initializeLook();
+router.subscribe(({ location }) => initializeLook(location));
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: true } },
 });
