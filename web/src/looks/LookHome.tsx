@@ -43,7 +43,8 @@ function SupplyHero({ art, actions, release, summary }: HeroProps) {
         {actions}
         {release}
       </div>
-      <ArtImage art={art} priority sizes="(min-width: 900px) 55vw, 100vw" />
+      {/* Matches the edge preload's home sizes so the preloaded candidate is reused. */}
+      <ArtImage art={art} priority sizes="(min-width: 900px) 60vw, 100vw" />
     </section>
   );
 }

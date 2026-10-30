@@ -11,7 +11,8 @@ let active: Look | null = null;
 // Admin never consumes preview parameters or inherits storefront palette tokens.
 export function initializeLook(location: Pick<Location, "pathname" | "search"> = window.location) {
   let next: Look | null = null;
-  if (!/^\/admin(?:\/|$)/.test(location.pathname)) {
+  // React Router matches paths case-insensitively, so /Admin is the admin too.
+  if (!/^\/admin(?:\/|$)/i.test(location.pathname)) {
     const requested = new URLSearchParams(location.search).get("look");
     let saved: string | null = null;
     let storageAvailable = true;

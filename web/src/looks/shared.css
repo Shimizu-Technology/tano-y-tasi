@@ -19,7 +19,7 @@
 [data-look] .look-wordmark { width: 132px; height: auto; }
 [data-look] .look-section { padding: 64px var(--gutter); max-width: 1440px; margin: auto; }
 [data-look] .look-hero-copy { padding: 32px var(--gutter); }
-[data-look] .look-mission { font-size: 20px; max-width: 30ch; line-height: 1.45; }
+[data-look] .look-mission { font-size: 20px; max-width: 30ch; line-height: 1.45; text-wrap: balance; }
 [data-look] .look-release { font-size: 13px; line-height: 1.5; margin-top: 24px; max-width: 38ch; }
 [data-look] .look-hero-actions { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; margin-top: 24px; }
 [data-look] .look-emblem { width: 240px; height: auto; }

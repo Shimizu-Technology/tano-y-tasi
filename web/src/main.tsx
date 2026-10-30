@@ -10,7 +10,7 @@ import "./looks/look-1.css";
 import "./looks/look-2.css";
 import "./looks/look-3.css";
 import { initializeLook } from "./looks/look";
-initializeLook();
+const initialLook = initializeLook();
 router.subscribe(({ location }) => initializeLook(location));
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: true } },
@@ -29,6 +29,10 @@ async function main() {
       document.fonts.load(`${style} "Archivo Variable"`, "GUÅHAN Håfa Adai")
     )
   );
+  // Look 1 headings use Fraunces; load it before the first render so they don't swap from the fallback.
+  if (initialLook === "1") {
+    await Promise.allSettled([document.fonts.load('550 48px "Fraunces Variable"', "A piece of home. Håfa Adai Tåno Tåsi")]);
+  }
   await document.fonts.ready;
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

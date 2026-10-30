@@ -42,7 +42,7 @@ it("marks the active look and keeps path, other params, and anchor in every link
   expect(screen.getByRole("link", { name: "Look 1 Island Supply" })).toHaveAttribute("href", "/drops/drop-001?mockDrop=live&look=1#notify");
   expect(screen.getByRole("link", { name: "Exit" })).toHaveAttribute("href", "/drops/drop-001?mockDrop=live&look=off#notify");
 });
-it.each(["/admin", "/admin/", "/admin/products"])("leaves %s unaffected and restores the preview on returning to the shop", (pathname) => {
+it.each(["/admin", "/admin/", "/admin/products", "/Admin", "/ADMIN/products"])("leaves %s unaffected and restores the preview on returning to the shop", (pathname) => {
   initializeLook({ pathname: "/", search: "?look=1" });
   initializeLook({ pathname, search: "?look=off" });
   render(<MemoryRouter initialEntries={[pathname]}><PreviewBar /><Wordmark /></MemoryRouter>);
