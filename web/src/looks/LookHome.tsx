@@ -74,7 +74,7 @@ function SunHillSerifHero({ art, actions, release }: HeroProps) {
       </div>
       <div className="sunhill-identity">
         <RoundedLogo />
-        <h1>A piece<br />of home.</h1>
+        <h1>A piece of home.</h1>
         <p className="look-mission">Keeping us connected to where we come from.</p>
         {actions}
         {release}
