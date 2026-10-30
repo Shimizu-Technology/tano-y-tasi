@@ -65,7 +65,8 @@ function SunHillHero({ art, actions, coreSummary }: HeroProps & { coreSummary?: 
   );
 }
 // Look 4: Look 2's hero (rounded logo, photo) with Look 1's hero copy and serif headline.
-function SunHillSerifHero({ art, actions, release, summary }: HeroProps) {
+// Centred: the hero is the page's one centred moment; the product description lives in the drop section.
+function SunHillSerifHero({ art, actions, release }: HeroProps) {
   return (
     <section className="sunhill-hero sunhill-serif-hero">
       <div className="sunhill-art">
@@ -75,7 +76,6 @@ function SunHillSerifHero({ art, actions, release, summary }: HeroProps) {
         <RoundedLogo />
         <h1>A piece<br />of home.</h1>
         <p className="look-mission">Keeping us connected to where we come from.</p>
-        <p className="look-product-summary">{summary}</p>
         {actions}
         {release}
       </div>
