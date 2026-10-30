@@ -91,6 +91,7 @@ export function catalog(state: DropState, stock: Record<string, number>): Produc
       },
       drop: kind === "drop" ? dropSummary(state) : null,
       image: images[0],
+      alt_image: images[1] ?? null,
       images,
       specs: {
         piece_count: kind === "core" ? 100 : 500,

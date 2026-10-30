@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { Product } from "../types";
 import { money } from "../utils";
-import { ArtImage } from "./ArtImage";
+import { ProductArt } from "./ProductArt";
 import { ProductCard } from "./Shared";
 
 export function ProductCollection({ products }: { products: Product[] }) {
@@ -18,7 +18,7 @@ function FeaturedProduct({ product }: { product: Product }) {
   return (
     <article className="collection-feature core-collection">
       <Link className="feature-art" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
-        <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
+        <ProductArt product={product} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
       </Link>
       <div className="feature-info">
         {product.availability.state === "sold_out" && <p className="label muted">SOLD OUT</p>}

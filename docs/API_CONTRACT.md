@@ -30,9 +30,12 @@ The client builds `srcset` from `${base}-${w}.webp`. Roles are `hero`, `gallery`
   "specs": { "piece_count": 100, "finished_size": "12 × 9 in" },
   "availability": { "state": "available", "purchasable": true, "remaining": null, "low_stock": false },
   "drop": null,
-  "image": { "role": "hero", "...": "..." }
+  "image": { "role": "hero", "...": "..." },
+  "alt_image": { "role": "detail", "...": "..." }
 }
 ```
+`alt_image` is the second item in the product’s ordered images, or `null` when absent. It uses the same Art shape as `image` and is additive on all public product summaries (storefront, lists, nested drops) and detail responses. Clients may load it on demand for a second view; the primary `image` is unchanged.
+
 Summary `specs` contains `piece_count` and `finished_size` when set, across storefront, product lists, and nested drop products. Detail responses include the full specs object.
 
 `availability.state` is one of `available`, `sold_out`, `upcoming` (drop not released), `closed`. `remaining` is returned **only** when `low_stock` is true (20 or fewer left) or the product is sold out (0); otherwise it is null. `drop` is a drop summary (below) for drop products.

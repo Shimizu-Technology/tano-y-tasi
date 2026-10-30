@@ -1,7 +1,7 @@
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { api } from "../api";
 import { useCart } from "../cart";
 import { useOpenCart } from "../components/Layout";
@@ -82,6 +82,7 @@ function ProductView({
   const items = useCart((s) => s.items);
   const openCart = useOpenCart();
   const d = drop ?? p.drop;
+  const location = useLocation();
   const purchase = purchaseState(p);
   const inCart = items.find((i) => i.product_slug === p.slug)?.quantity ?? 0;
   const max = p.max_per_order;
@@ -99,7 +100,8 @@ function ProductView({
   }, []);
   useEffect(() => {
     if (location.hash === "#notify") document.getElementById("notify")?.scrollIntoView();
-  }, []);
+    if (location.hash === "#find-your-village") document.getElementById("find-your-village")?.scrollIntoView();
+  }, [location.hash]);
   function buy() {
     if (room === 0) {
       openCart();

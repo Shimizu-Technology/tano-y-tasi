@@ -15,6 +15,22 @@ RSpec.describe "Catalog", type: :request do
     expect(Time.iso8601(json["server_time"])).to be_within(2.seconds).of(Time.current)
   end
 
+  it "adds the second ordered image, or null, to public summaries and detail" do
+    alt = core.images.first.merge("base" => "/images/piece-detail", "role" => "detail")
+    core.update!(images: [ core.images.first, alt, alt.merge("base" => "/images/third") ])
+    get "/api/v1/storefront"
+    expect(response.parsed_body["core_products"].first["alt_image"]).to eq(alt)
+    expect(response.parsed_body.dig("featured_drop", "product", "alt_image")).to be_nil
+    expect(response.parsed_body.dig("featured_drop", "product")).to have_key("alt_image")
+    get "/api/v1/products"
+    expect(response.parsed_body["products"].find { |p| p["slug"] == core.slug }["alt_image"]).to eq(alt)
+    get "/api/v1/products/#{core.slug}"
+    expect(response.parsed_body.dig("product", "alt_image")).to eq(alt)
+    limited.update!(images: [ limited.images.first, alt ])
+    get "/api/v1/drops"
+    expect(response.parsed_body.dig("current", "product", "alt_image")).to eq(alt)
+  end
+
   it "omits summary specs the catalog still marks as placeholders" do
     core.update!(specs: { piece_count: 750, finished_size: "22 × 30 in" }, placeholders: [ "specs.finished_size" ])
     get "/api/v1/storefront"

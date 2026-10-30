@@ -10,6 +10,7 @@ import "./looks/look-1.css";
 import "./looks/look-2.css";
 import "./looks/look-3.css";
 import "./looks/look-4.css";
+import "./looks/look-5.css";
 import { initializeLook } from "./looks/look";
 const initialLook = initializeLook();
 router.subscribe(({ location }) => initializeLook(location));
@@ -30,8 +31,8 @@ async function main() {
       document.fonts.load(`${style} "Archivo Variable"`, "GUÅHAN Håfa Adai")
     )
   );
-  // Looks 1 and 4 set headings in Fraunces; load it before the first render so they don't swap from the fallback.
-  if (initialLook === "1" || initialLook === "4") {
+  // Looks 1, 4 and 5 set headings in Fraunces; load it before the first render so they don't swap from the fallback.
+  if (initialLook === "1" || initialLook === "4" || initialLook === "5") {
     await Promise.allSettled([document.fonts.load('550 48px "Fraunces Variable"', "A piece of home. Håfa Adai Tåno Tåsi")]);
   }
   await document.fonts.ready;

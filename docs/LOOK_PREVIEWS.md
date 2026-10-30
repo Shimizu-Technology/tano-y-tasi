@@ -8,13 +8,19 @@ Sources: [Product brief](PRODUCT_BRIEF.md), [design direction](DESIGN_DIRECTION.
 
 ## Try a look
 
-Add `?look=1`, `?look=2`, `?look=3`, or `?look=4` to any storefront URL. Look 4 is Look 2 with Look 1's serif hero copy and headings (requested after a family review on Oct 30). The choice lasts in sessionStorage for that tab's session. The preview bar preserves the path, other query parameters, and anchor. Exit (`?look=off`) clears the choice. An invalid parameter does not select a look. No parameter and no saved choice retains the existing storefront, with no `data-look` attribute or preview bar.
+Add `?look=1`, `?look=2`, `?look=3`, `?look=4`, or `?look=5` to any storefront URL. Look 4 is Look 2 with Look 1's serif hero copy and headings (requested after a family review on Oct 30). The choice lasts in sessionStorage for that tab's session. The preview bar preserves the path, other query parameters, and anchor. Exit (`?look=off`) clears the choice. An invalid parameter does not select a look. No parameter and no saved choice retains the existing storefront, with no `data-look` attribute or preview bar.
 
 1. **Island Supply:** cream, brown ink, soft Fraunces display headings, distressed wordmark, teal collection/signup/footer bands, and a photo with the brand story.
 2. **Sun & Hill:** warm sand, a large rounded logo beside the tabletop artwork, matching product tiles, and a slow mission strip separated by sun-and-hill marks. Hover or keyboard focus pauses it; reduced motion displays all three lines statically.
 3. **Refined:** the existing Archivo and artwork-led layout, with a larger emblem, a clear hero mission, a static mission band, and restrained green ink.
 
-The external `main.tsx` module sets the attribute before rendering and updates it on router navigation. Admin routes remove the attribute and ignore preview parameters without clearing the saved storefront choice. No inline script, API contract, edge snapshot, canonical metadata, payment, or database change is needed.
+4. **Serif hero:** Look 2’s palette, rounded logo and tabletop artwork with Fraunces headings and the centred one-line “A piece of home.” headline.
+5. **Motion:** Look 4 plus on-demand second product views for fine pointers, a three-crop village teaser linking to `/drop#find-your-village`, and one four-step hero entrance per tab session. Hover/focus crossfades use 180 ms opacity; the entrance uses 200 ms opacity and 8 px Y, staggered by 45 ms. Reduced motion uses 100 ms opacity and no entrance movement. Touch keeps the existing product gallery. The 55-second mission marquee is unchanged.
+
+The external `main.tsx` module sets the attribute before rendering and updates it on router navigation. Admin routes remove the attribute and ignore preview parameters without clearing the saved storefront choice. Look 5 adds the additive `alt_image` product field documented in `API_CONTRACT.md`. No inline script, edge snapshot, canonical metadata, payment, or database change is needed.
+
+
+The fifth preview control wraps with the existing links and retains 44px targets. The bar keeps its existing height at the required phone and desktop sizes, preserving page offsets. The default storefront and Looks 1–4 retain their content, styling and behavior; their preview bar gains the fifth control.
 
 ## Assets
 
@@ -37,8 +43,11 @@ Agent-executed affected-flow QA uses isolated browser/MSW fixtures (`VITE_API_MO
 | P06 | Enter admin with a saved look and parameter; no preview attribute/bar, original admin works | Both sizes |
 | P07 | Text bands pass AA; preview links have 44px targets and visible focus; no horizontal overflow | Both sizes |
 | P08 | Home, product, drop, cart and mobile menu are captured and visually inspected; each look gets a refinement pass | 36 final captures |
-| P09 | Signup succeeds, Story and Archive remain reachable, and simulated checkout stays paid after reload | Both sizes, all three previews |
+| P09 | Signup succeeds, Story and Archive remain reachable, and simulated checkout stays paid after reload | Both sizes, all five previews |
 
 The first pass added a product description to Look 1, reduced the mobile logo height in Look 2, and shortened Look 3's mobile artwork so its mission appears sooner. A contrast pass replaced orange focus rings on light preview grounds with green; dark bands use cream. Initial and final captures, contrast measurements, gate logs, and the comparison sheet live in the requested external `looks/` evidence folder. Gate counts and final acceptance results are recorded there in `QA.md`.
 
 Impeccable's Fraunces warning is an intentional choice required by this brief, not a functional blocker. Product prices, release dates, quantities, and specifications remain the existing mock/production data; their commercial approval is unchanged.
+
+
+Look 5’s implementation evidence is in the requested external `look5/` folder under the 2026-10-29 design audit. It includes static Look 4/5 parity captures before motion, base/final home pixel comparisons for default and Looks 1–4 at both sizes, Look 5 fold/full/hover/teaser/finder captures, sampled hero and crossfade frames, and gate logs. Pixel comparison excludes the preview bar for Looks 1–4 because it gains the requested fifth control; their page offsets and all content below it are unchanged. The default comparison includes the whole page.
