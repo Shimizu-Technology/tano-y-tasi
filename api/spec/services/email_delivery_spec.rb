@@ -100,6 +100,38 @@ RSpec.describe "Transactional email delivery", type: :request do
     expect(Resend::Emails).to have_received(:send).once
   end
 
+  it "keeps an alert queued during an older send pending for retry" do
+    complete
+    delivery = confirmation
+    delivery.update_columns(status: "failed", attempts: 1)
+    allow(Resend::Emails).to receive(:send) do
+      EmailDelivery.find(delivery.id).requeue!
+      { id: "older" }
+    end
+    delivery.deliver!
+    expect(delivery.reload).to have_attributes(status: "pending", resend_number: 1, attempts: 0, provider_message_id: nil)
+    expect(EmailDelivery.retryable).to include(delivery)
+  end
+
+  it "sends with the key of the generation it started, even if a requeue lands first" do
+    complete
+    delivery = confirmation
+    delivery.update_columns(status: "failed", attempts: 1, outbound_payload: {})
+    allow(Emails::Template).to receive(:payload).and_wrap_original do |original, row|
+      EmailDelivery.find(row.id).requeue!
+      original.call(row)
+    end
+    keys = []
+    allow(Resend::Emails).to receive(:send) do |_payload, options|
+      keys << options[:options][:idempotency_key]
+      { id: "older" }
+    end
+    original = delivery.idempotency_key
+    delivery.deliver!
+    expect(keys).to eq([ original ])
+    expect(delivery.reload).to have_attributes(status: "pending", resend_number: 1)
+  end
+
   it "uses a new persistent key when an admin resends via the scoped endpoint" do
     complete
     original = confirmation.idempotency_key
@@ -107,7 +139,7 @@ RSpec.describe "Transactional email delivery", type: :request do
     post "/api/v1/admin/orders/#{@order.number}/email_deliveries/#{confirmation.id}/resend", headers: headers
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.dig("email_delivery", "status")).to eq("sent")
-    expect(confirmation.idempotency_key).to eq("#{original}-resend-2")
+    expect(confirmation.idempotency_key).to eq("#{original}-resend-1")
     expect(confirmation.attempts).to eq(2)
     expect(Resend::Emails).to have_received(:send).twice
   end

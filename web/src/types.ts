@@ -82,6 +82,7 @@ export interface Order {
   items: (CartItem & { name: string; unit_price_cents: number; image: Art })[];
   subtotal_cents: number;
   total_cents: number;
+  refunded_cents?: number;
   currency: "USD";
   created_at: string;
   paid_at: string | null;

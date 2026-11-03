@@ -68,7 +68,7 @@ export function OrderPage() {
             : o.status === "pending_payment"
               ? "We’re waiting for your payment confirmation. This page will update automatically."
               : o.status === "refunded"
-                ? "Your payment has been refunded."
+                ? "Your payment has been refunded. It can take 5 to 10 business days to appear."
                 : "Your payment needs a closer look. Keep this order link for reference."}
       </p>
       <OrderSummary order={o} />
@@ -90,7 +90,7 @@ export function OrderPage() {
         {recover ? "RETURN TO SHOP" : "CONTINUE EXPLORING"}
       </Link>
       <p className="muted small">
-        A confirmation is on its way to your email. Keep this private link to check your order anytime.
+        {o.status === "paid" && "A confirmation is on its way to your email. "}Keep this private link to check your order anytime.
       </p>
     </div>
   );

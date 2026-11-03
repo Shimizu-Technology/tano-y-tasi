@@ -8,6 +8,43 @@ RSpec.describe "Drop limits across delayed payments" do
       items: [ { product_slug: product.slug, quantity: 2 } ]).order
   end
 
+  it "flags a payment for a drop moved back to Coming soon and releases its hold once" do
+    order = checkout
+    product.drop.update!(release_at: nil)
+    Payments::Complete.call(order, payment_intent_id: "pi_withdrawn")
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "drop_withdrawn")
+    expect(product.reload.stock_quantity).to eq(10)
+    Payments::Complete.call(order, payment_intent_id: "pi_withdrawn")
+    expect(InventoryMovement.where(order: order, reason: "release").count).to eq(1)
+  end
+
+  it "does not re-reserve a late payment for a drop moved back to Coming soon" do
+    order = checkout
+    Orders::Release.call(order, status: "expired")
+    product.drop.update!(release_at: nil)
+    Payments::Complete.call(order, payment_intent_id: "pi_late")
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "drop_withdrawn")
+    expect(product.reload.stock_quantity).to eq(10)
+  end
+
+  it "counts an order written without a customer key during a deploy" do
+    first = checkout
+    first.update_columns(customer_key: nil, status: "paid")
+    expect { checkout }.to raise_error(ApiError) { |error| expect(error.code).to eq("limit_exceeded") }
+  end
+
+  it "treats Gmail dots and +tags as the same customer" do
+    first = checkout
+    Payments::Complete.call(first)
+    gmail = lambda do |email|
+      Orders::Checkout.call(email: email, idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ])
+    end
+    gmail.call("buyer.one@gmail.com")
+    [ "buyerone+drop@gmail.com", "b.uyerone@googlemail.com" ].each do |variant|
+      expect { gmail.call(variant) }.to raise_error(ApiError) { |error| expect(error.code).to eq("limit_exceeded") }
+    end
+  end
+
   it "counts an expired-but-payable hold throughout the five-minute grace period" do
     first = checkout
     first.update!(expires_at: 2.minutes.ago)

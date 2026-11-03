@@ -41,6 +41,29 @@ module Api
           render_order
         end
 
+        def refund
+          key = params[:refund_key]
+          raise ApiError.new("malformed", "A refund_key is required.", status: :bad_request) unless key.is_a?(String) && key.match?(/\A[\w-]{8,64}\z/)
+          Payments::IssueRefund.call(@order, amount_cents: params[:amount_cents], key: key)
+          render_order
+        end
+
+        # The merchant reviewed a flagged payment and will ship it after all.
+        def mark_paid
+          Orders::Inventory.with_locked_order(@order) do |products|
+            raise ApiError.new("invalid_order_state", "Only orders that need attention can be marked paid.") unless @order.status == "needs_attention"
+            # A shipped order's stock already left the shelf.
+            items = @order.fulfillment_status == "fulfilled" ? [] : @order.order_items.to_a
+            if items.any? { |item| products.fetch(item.product_id).stock_quantity < item.quantity }
+              raise ApiError.new("insufficient_stock", "There isn't enough stock left to fill this order.")
+            end
+            items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), @order, -item.quantity, "attention_resolved") }
+            @order.update!(status: "paid", attention_reason: nil)
+            products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
+          end
+          render_order
+        end
+
         def resend
           delivery = @order.email_deliveries.find(params[:id])
           delivery.deliver!(resend: true)

@@ -38,6 +38,19 @@ test("orders retain filters through detail and can be fulfilled", async ({ page 
   await page.getByRole("link", { name: "← Orders" }).click();
   await expect(page).toHaveURL(/status=paid/);
 });
+test("a partial refund updates the order and the field resets to the balance", async ({ page }) => {
+  await openSection(page, "Orders");
+  await page.getByRole("link", { name: /TYT-/ }).first().click();
+  page.on("dialog", (dialog) => void dialog.accept());
+  const field = page.getByLabel(/Refund amount/);
+  await field.fill("999999");
+  await page.getByRole("button", { name: "Refund", exact: true }).click();
+  await expect(page.getByText(/Enter a refund between/)).toBeVisible();
+  await field.fill("5.00");
+  await page.getByRole("button", { name: "Refund", exact: true }).click();
+  await expect(page.getByText("Changes saved.")).toBeVisible();
+  await expect(page.locator(".admin-meta")).toContainText("$5");
+});
 test("product editing and stock adjustments persist in the mock session", async ({ page }, testInfo) => {
   await openSection(page, "Products");
   await capture(page, "products", testInfo.project.name);

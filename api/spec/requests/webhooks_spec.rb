@@ -92,12 +92,168 @@ RSpec.describe "Stripe webhooks", type: :request do
     expect(order.reload.provider_session_closed_at).to be_present
   end
 
-  it "rejects mismatched amounts and session IDs" do
+  it "records a charged amount that does not match the order for review and releases its stock" do
     send_event(object: session.merge(amount_total: 1))
-    expect(response).to have_http_status(:bad_request)
+    expect(response).to have_http_status(:ok)
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "amount_mismatch", provider_payment_intent_id: "pi_test")
+    expect(order.paid_at).to be_present
+    expect(order.paid_cents).to eq(1)
+    expect(product.reload.stock_quantity).to eq(50)
+  end
+
+  it "records a payment from a different session for review" do
     send_event(object: session.merge(id: "cs_wrong"))
-    expect(response).to have_http_status(:bad_request)
+    expect(response).to have_http_status(:ok)
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "session_mismatch")
+  end
+
+  it "ignores an expiry from a different session" do
+    send_event("checkout.session.expired", object: session.merge(id: "cs_wrong"))
+    expect(response).to have_http_status(:ok)
     expect(order.reload.status).to eq("pending_payment")
+    expect(product.reload.stock_quantity).to eq(49)
+  end
+
+  it "acknowledges events for sessions that are not ours" do
+    send_event(object: session.merge(metadata: { order_token: "someone-else" }))
+    expect(response).to have_http_status(:ok)
+    send_event(id: "evt_no_metadata", object: session.except(:metadata))
+    expect(response).to have_http_status(:ok)
+    expect(order.reload.status).to eq("pending_payment")
+  end
+
+  def stripe_list(*items)
+    Stripe::ListObject.construct_from(object: "list", data: items, has_more: false)
+  end
+
+  def stub_stripe_state(refunds: [], disputes: [])
+    allow(Stripe::Refund).to receive(:list).and_return(stripe_list(*refunds))
+    allow(Stripe::Dispute).to receive(:list).and_return(stripe_list(*disputes))
+  end
+
+  it "keeps a refund that arrives before its payment and applies it once the payment lands" do
+    stub_stripe_state(refunds: [ { id: "re_1", object: "refund", amount: 3500, status: "succeeded" } ])
+    order
+    send_event("charge.refunded", id: "evt_early", object: { id: "ch_test", payment_intent: "pi_test" })
+    expect(response).to have_http_status(:ok)
+    expect(PaymentEvent.unresolved.pluck(:event_id)).to eq([ "evt_early" ])
+    send_event
+    expect(order.reload).to have_attributes(status: "refunded", refunded_cents: 3500)
+    expect(product.reload.stock_quantity).to eq(50)
+    expect(PaymentEvent.unresolved).not_to exist
+  end
+
+  it "lets hourly maintenance finish an early event if Stripe is down at payment time" do
+    stub_stripe_state(refunds: [ { id: "re_1", object: "refund", amount: 3500, status: "succeeded" } ])
+    order
+    send_event("charge.refunded", id: "evt_early", object: { id: "ch_test", payment_intent: "pi_test" })
+    allow(Stripe::Refund).to receive(:list).and_raise(Stripe::APIConnectionError.new("offline"))
+    send_event
+    expect(response).to have_http_status(:ok)
+    expect(order.reload.status).to eq("paid")
+    stub_stripe_state(refunds: [ { id: "re_1", object: "refund", amount: 3500, status: "succeeded" } ])
+    Rails.application.load_tasks unless Rake::Task.task_defined?("maintenance:run")
+    Rake::Task["maintenance:run"].reenable
+    Rake::Task["maintenance:run"].invoke
+    expect(order.reload.status).to eq("refunded")
+    expect(PaymentEvent.unresolved).not_to exist
+  end
+
+  it "asks Stripe to retry when it can't read the current state" do
+    send_event
+    allow(Stripe::Refund).to receive(:list).and_raise(Stripe::APIConnectionError.new("offline"))
+    send_event("charge.refunded", id: "evt_retry", object: { id: "ch_test", payment_intent: "pi_test" })
+    expect(response).to have_http_status(:service_unavailable)
+    expect(PaymentEvent.where(event_id: "evt_retry")).not_to exist
+  end
+
+  it "asks Stripe to retry while another read of this order is running" do
+    send_event
+    ProviderLease.create!(key: "payment-state-#{order.id}", holder: "other", expires_at: 1.minute.from_now)
+    stub_const("ProviderLease::WAIT", 0.seconds)
+    send_event("charge.refunded", id: "evt_busy", object: { id: "ch_test", payment_intent: "pi_test" })
+    expect(response).to have_http_status(:service_unavailable)
+    expect(PaymentEvent.where(event_id: "evt_busy")).not_to exist
+  end
+
+  it "handles signed events with missing fields without an error" do
+    send_event("checkout.session.completed", id: "evt_bare", object: { id: "cs_bare" })
+    expect(response).to have_http_status(:ok)
+    send_event("charge.refunded", id: "evt_bare_charge", object: { id: "ch_bare" })
+    expect(response).to have_http_status(:ok)
+    send_event("charge.dispute.created", id: "evt_bare_dispute", object: { id: "dp_bare" })
+    expect(response).to have_http_status(:ok)
+  end
+
+  context "after payment" do
+    before { send_event }
+
+    def refund_event(amount, id:, status: "succeeded")
+      stub_stripe_state(refunds: [ { id: "re_1", object: "refund", amount: amount, status: status } ])
+      send_event("charge.refunded", id: id, object: { id: "ch_test", payment_intent: "pi_test" })
+    end
+
+    it "restocks a full refund of an unshipped order exactly once" do
+      2.times { refund_event(3500, id: "evt_refund") }
+      refund_event(3500, id: "evt_refund_again")
+      expect(response).to have_http_status(:ok)
+      expect(order.reload).to have_attributes(status: "refunded", refunded_cents: 3500)
+      expect(order.refunded_at).to be_present
+      expect(product.reload.stock_quantity).to eq(50)
+      expect(InventoryMovement.where(order: order, reason: "refund_restock").count).to eq(1)
+      expect(order.email_deliveries.where(kind: "order_refunded").count).to eq(1)
+    end
+
+    it "keeps stock out for a shipped order" do
+      order.update!(fulfillment_status: "fulfilled", fulfilled_at: Time.current)
+      refund_event(3500, id: "evt_refund")
+      expect(order.reload.status).to eq("refunded")
+      expect(product.reload.stock_quantity).to eq(49)
+    end
+
+    it "tracks a partial refund without changing the order status" do
+      refund_event(1000, id: "evt_partial")
+      expect(order.reload).to have_attributes(status: "paid", refunded_cents: 1000)
+      expect(product.reload.stock_quantity).to eq(49)
+    end
+
+    it "reopens an order whose refund later fails, and alerts admins without touching stock" do
+      User.create!(clerk_id: "admin", email: "admin@example.com")
+      refund_event(3500, id: "evt_refund")
+      expect(product.reload.stock_quantity).to eq(50)
+      refund_event(3500, id: "evt_failed", status: "failed")
+      expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "refund_failed", refunded_cents: 0, refunded_at: nil)
+      expect(product.reload.stock_quantity).to eq(50)
+      expect(order.email_deliveries.where(kind: "admin_attention").count).to eq(1)
+    end
+
+    it "flags a failed partial refund but leaves the order paid" do
+      refund_event(1000, id: "evt_partial")
+      refund_event(1000, id: "evt_failed", status: "failed")
+      expect(order.reload).to have_attributes(status: "paid", attention_reason: "refund_failed", refunded_cents: 0)
+      refund_event(1000, id: "evt_retried")
+      expect(order.reload).to have_attributes(attention_reason: nil, refunded_cents: 1000)
+    end
+
+    it "acknowledges refunds for payments that are not ours" do
+      send_event("charge.refunded", id: "evt_other", object: { id: "ch_other", payment_intent: "pi_other" })
+      expect(response).to have_http_status(:ok)
+      expect(order.reload.refunded_cents).to eq(0)
+    end
+
+    it "records disputes and alerts admins" do
+      User.create!(clerk_id: "admin", email: "admin@example.com")
+      stub_stripe_state(disputes: [ { id: "dp_test", object: "dispute", status: "needs_response", created: 1 } ])
+      send_event("charge.dispute.created", id: "evt_dispute", object: { id: "dp_test", payment_intent: "pi_test", status: "needs_response" })
+      expect(order.reload.dispute_status).to eq("needs_response")
+      expect(order.email_deliveries.where(kind: "admin_attention").count).to eq(1)
+      stub_stripe_state(disputes: [ { id: "dp_test", object: "dispute", status: "won", created: 1 } ])
+      send_event("charge.dispute.closed", id: "evt_won", object: { id: "dp_test", payment_intent: "pi_test", status: "won" })
+      expect(order.reload.dispute_status).to eq("won")
+      # An older event delivered late reads the current state, so it can't reopen the dispute.
+      send_event("charge.dispute.updated", id: "evt_stale", object: { id: "dp_test", payment_intent: "pi_test", status: "needs_response" })
+      expect(order.reload.dispute_status).to eq("won")
+    end
   end
 
   it "does not release stock when an expiry event follows completion" do

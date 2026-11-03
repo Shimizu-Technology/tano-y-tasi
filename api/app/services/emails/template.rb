@@ -10,13 +10,14 @@ module Emails
     end
 
     def self.subject(kind, order)
-      prefix = { "order_confirmation" => "Your order is confirmed", "admin_new_order" => "New paid order", "order_shipped" => "Your order has shipped" }.fetch(kind)
+      prefix = { "order_confirmation" => "Your order is confirmed", "admin_new_order" => "New paid order", "admin_attention" => "Order needs attention", "order_shipped" => "Your order has shipped", "order_refunded" => "Your refund has been issued" }.fetch(kind)
       "Tåno + Tåsi — #{prefix} — #{order.number}"
     end
 
     def self.payload(delivery)
       order = delivery.order
-      link = "#{frontend_url}/orders/#{order.token}"
+      admin = delivery.kind.start_with?("admin_")
+      link = admin ? "#{frontend_url}/admin/orders/#{order.number}" : "#{frontend_url}/orders/#{order.token}"
       title = subject(delivery.kind, order)
       items = order.order_items.order(:id)
       lines = items.map { |item| "#{item.name} × #{item.quantity} — #{money(item.quantity * item.unit_price_cents)}" }
@@ -25,7 +26,8 @@ module Emails
       else
         []
       end
-      text = ([ "TÅNO + TÅSI", title, "Order #{order.number}" ] + lines + [ "Total: #{money(order.total_cents)}", link ] + tracking).join("\n")
+      notes = extra_lines(delivery.kind, order)
+      text = ([ "TÅNO + TÅSI", title, "Order #{order.number}" ] + notes + lines + [ "Total: #{money(order.total_cents)}", link ] + tracking).join("\n")
       rows = lines.map { |line| "<tr><td style=\"padding:12px 0;border-bottom:1px solid #c9c2b6\">#{escape(line)}</td></tr>" }.join
       tracking_html = tracking.map { |line| "<p>#{escape(line)}</p>" }.join
       html = <<~HTML
@@ -33,15 +35,35 @@ module Emails
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F5F0E7;color:#141311"><tr><td align="center" style="padding:32px 16px">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px"><tr><td>
         <p style="font-size:24px;font-weight:bold;letter-spacing:2px">TÅNO + TÅSI</p>
-        <h1 style="font-size:22px">#{escape(title)}</h1><p>Order #{escape(order.number)}</p>
+        <h1 style="font-size:22px">#{escape(title)}</h1><p>Order #{escape(order.number)}</p>#{notes.map { |line| "<p>#{escape(line)}</p>" }.join}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">#{rows}</table>
         <p style="font-weight:bold">Total: #{escape(money(order.total_cents))}</p>
-        <p><a style="color:#141311" href="#{escape(link)}">View your order</a></p>#{tracking_html}
+        <p><a style="color:#141311" href="#{escape(link)}">#{admin ? "Open in admin" : "View your order"}</a></p>#{tracking_html}
         </td></tr></table></td></tr></table></body></html>
       HTML
       data = { from: ENV.fetch("MAILER_FROM_EMAIL"), to: delivery.to, subject: delivery.subject, html: html, text: text }
       data[:reply_to] = ENV["MAILER_REPLY_TO"] if ENV["MAILER_REPLY_TO"].present?
       data
+    end
+
+    ATTENTION_REASONS = {
+      "amount_mismatch" => "Stripe charged an amount that doesn't match this order.",
+      "session_mismatch" => "This payment came from a different Stripe checkout session than the order expected.",
+      "drop_withdrawn" => "This payment arrived after the drop was moved back to Coming soon.",
+      "customer_limit_exceeded" => "This payment would put the customer over the drop's limit.",
+      "stock_unavailable" => "This late payment arrived after the stock was gone.",
+      "refund_failed" => "A refund on this order failed at Stripe, so the customer still hasn't been paid back."
+    }.freeze
+
+    def self.extra_lines(kind, order)
+      case kind
+      when "order_refunded"
+        [ "We refunded #{money(order.refunded_cents)} to your original payment method. It can take 5 to 10 business days to appear." ]
+      when "admin_attention"
+        [ ATTENTION_REASONS[order.attention_reason], order.dispute_status && "Payment dispute status: #{order.dispute_status.tr('_', ' ')}.", "Review this order and refund it or mark it paid." ].compact
+      else
+        []
+      end
     end
 
     def self.escape(value)

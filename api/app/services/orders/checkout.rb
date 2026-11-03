@@ -18,24 +18,20 @@ module Orders
       validate!
       ReleaseExpired.call
       fingerprint = Digest::SHA256.hexdigest({ email: @email, items: @items }.to_json)
-      # Session advisory lock serializes only this key, including provider setup.
-      # It holds no transaction or inventory row locks during network calls.
-      Order.connection_pool.with_connection do |connection|
-        lock_name = connection.quote("checkout:#{@key}")
-        connection.execute("SELECT pg_advisory_lock(hashtextextended(#{lock_name}, 0))")
-        begin
-          existing = Order.find_by(idempotency_key: @key)
-          order = existing || reserve!(fingerprint)
-          conflict! if order.request_fingerprint != fingerprint
-          provision_session!(order) if order.payment_url.nil? && order.status == "pending_payment"
-          if order.payment_url.nil?
-            raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable, details: { retry: "new_checkout" })
-          end
-          Result.new(order: order.reload, created: existing.nil?)
-        ensure
-          connection.execute("SELECT pg_advisory_unlock(hashtextextended(#{lock_name}, 0))")
+      # The lease serializes only this key, including provider setup. It holds no
+      # transaction or inventory row locks during network calls.
+      ProviderLease.with("checkout:#{Digest::SHA256.hexdigest(@key)}") do
+        existing = Order.find_by(idempotency_key: @key)
+        order = existing || reserve!(fingerprint)
+        conflict! if order.request_fingerprint != fingerprint
+        provision_session!(order) if order.payment_url.nil? && order.status == "pending_payment"
+        if order.payment_url.nil?
+          raise ApiError.new("payment_unavailable", "Payment is unavailable for this checkout. Please start a new checkout.", status: :service_unavailable, details: { retry: "new_checkout" })
         end
+        Result.new(order: order.reload, created: existing.nil?)
       end
+    rescue ProviderLease::Busy
+      raise ApiError.new("payment_unavailable", "Payment is temporarily unavailable. Retry the same request with the same idempotency_key.", status: :service_unavailable, details: { retry: "same_key" })
     end
 
     private

@@ -19,6 +19,7 @@ RSpec.describe "Admin API", type: :request do
     [ :get, "/me", {} ], [ :get, "/dashboard", {} ], [ :get, "/orders", {} ],
     [ :get, "/orders/ORDER", {} ], [ :patch, "/orders/ORDER", { notes: "Pack carefully" } ],
     [ :post, "/orders/ORDER/fulfill", { notify: true } ], [ :post, "/orders/ORDER/unfulfill", {} ],
+    [ :post, "/orders/ORDER/refund", { refund_key: "attempt-one" } ],
     [ :post, "/orders/ORDER/email_deliveries/DELIVERY/resend", {} ],
     [ :get, "/products", {} ], [ :get, "/products/PRODUCT", {} ],
     [ :patch, "/products/PRODUCT", { summary: "Updated summary" } ],
@@ -49,6 +50,45 @@ RSpec.describe "Admin API", type: :request do
         expect(response).to have_http_status(verb == :post && path == "/invitations" ? :created : :ok), response.body
       end
     end
+  end
+
+  it "requires sign-in to mark a flagged order paid" do
+    post "/api/v1/admin/orders/#{order.number}/mark_paid", as: :json
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "refunds part of an order and reports it on the order" do
+    post "/api/v1/admin/orders/#{order.number}/refund", params: { amount_cents: 1000, refund_key: "attempt-one" }, headers: headers, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["order"]).to include("status" => "paid", "refunded_cents" => 1000)
+    post "/api/v1/admin/orders/#{order.number}/refund", params: { amount_cents: 1000, refund_key: "attempt-one" }, headers: headers, as: :json
+    expect(response.parsed_body.dig("order", "refunded_cents")).to eq(1000)
+    post "/api/v1/admin/orders/#{order.number}/refund", params: { amount_cents: 9999, refund_key: "attempt-two" }, headers: headers, as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_refund")
+    post "/api/v1/admin/orders/#{order.number}/refund", params: { amount_cents: 100 }, headers: headers, as: :json
+    expect(response).to have_http_status(:bad_request)
+  end
+
+  it "marks a flagged payment paid, taking stock and sending the confirmation once" do
+    order.update_columns(status: "needs_attention", attention_reason: "amount_mismatch")
+    stock = product.reload.stock_quantity
+    post "/api/v1/admin/orders/#{order.number}/mark_paid", headers: headers, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(order.reload).to have_attributes(status: "paid", attention_reason: nil)
+    expect(product.reload.stock_quantity).to eq(stock - 1)
+    expect(order.email_deliveries.where(kind: "order_confirmation").count).to eq(1)
+    post "/api/v1/admin/orders/#{order.number}/mark_paid", headers: headers, as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(product.reload.stock_quantity).to eq(stock - 1)
+  end
+
+  it "refuses to mark a flagged payment paid without enough stock" do
+    order.update_columns(status: "needs_attention")
+    product.update!(stock_quantity: 0)
+    post "/api/v1/admin/orders/#{order.number}/mark_paid", headers: headers, as: :json
+    expect(response.parsed_body.dig("error", "code")).to eq("insufficient_stock")
+    expect(order.reload.status).to eq("needs_attention")
   end
 
   it "paginates, filters, and searches orders without treating wildcard input as SQL" do
