@@ -95,6 +95,17 @@ test("drop editor converts Guam time to UTC", async ({ page }, testInfo) => {
   await expect(page.getByText("Drop saved.")).toBeVisible();
   await capture(page, "drop-detail", testInfo.project.name);
 });
+test("clearing the release date previews and saves Coming soon", async ({ page }) => {
+  await openSection(page, "Drops");
+  await page.getByRole("link", { name: "Guåhan Sunset Map" }).first().click();
+  await page.getByLabel(/Release · Guam time/).fill("");
+  await expect(page.locator(".admin-meta").getByText(/coming.soon/i)).toBeVisible();
+  await expect(page.getByText("Invalid release")).toHaveCount(0);
+  const savedRequest = page.waitForRequest((request) => request.url().endsWith("/api/v1/admin/drops/drop-001-guahan-sunset-map") && request.method() === "PATCH");
+  await page.getByRole("button", { name: "Save drop" }).click();
+  expect((await savedRequest).postDataJSON().release_at).toBeNull();
+  await expect(page.getByText("Drop saved.")).toBeVisible();
+});
 test("a name-only drop edit does not resend a timestamp with truncated seconds", async ({ page }) => {
   await openSection(page, "Drops");
   await page.getByRole("link", { name: "Guåhan Sunset Map" }).first().click();

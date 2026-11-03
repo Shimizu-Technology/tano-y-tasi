@@ -101,7 +101,7 @@ export function Home() {
           <p className="hero-summary">{d?.product.summary ?? core?.summary ?? "Puzzles from the island. For wherever you are."}</p>
           {d && (
             <p className="hero-release">
-              Drop {dropNumber(d.number)} · {live ? `Available now · ${d.quantity} made` : `Releases ${heroReleaseTime(d.release_at)}`}
+              Drop {dropNumber(d.number)} · {live ? `Available now${d.quantity != null ? ` · ${d.quantity} made` : ""}` : d.release_at ? `Releases ${heroReleaseTime(d.release_at)}` : "Coming soon"}
             </p>
           )}
           <Link className="button" to={d ? (live ? "/drop" : "/drop#notify") : "/shop"}>
@@ -163,7 +163,7 @@ export function Shop() {
               <span className="live-dot" /> DROP {dropNumber(d.number)} · AVAILABLE NOW
             </p>
             <h2>{d.name}</h2>
-            <p>{d.quantity} made. One time only.</p>
+            <p>{d.quantity != null && `${d.quantity} made. `}One time only.</p>
             <span className="text-link label">SHOP THE DROP <ArrowRight aria-hidden="true" /></span>
           </div>
         </Link>
@@ -195,7 +195,7 @@ export function Archive() {
                 </div>
                 <p>{d.name}</p>
                 <p className="label muted">
-                  DROP {dropNumber(d.number)} · {releaseDate(d.release_at)} · {d.quantity} MADE
+                  DROP {dropNumber(d.number)}{d.release_at && ` · ${releaseDate(d.release_at)}`}{d.quantity != null && ` · ${d.quantity} MADE`}
                 </p>
                 <p className="label">{d.state === "closed" ? "CLOSED" : "SOLD OUT"}</p>
               </Link>
@@ -208,9 +208,9 @@ export function Archive() {
             <ProductArt product={next.product} sizes="(min-width: 900px) 50vw, 100vw" priority />
           </Link>
           <div>
-            <p className="label">Drop {dropNumber(next.number)} · {next.state === "upcoming" ? "Upcoming" : "Available now"}</p>
+            <p className="label">Drop {dropNumber(next.number)} · {next.state !== "upcoming" ? "Available now" : next.release_at ? "Upcoming" : "Coming soon"}</p>
             <h2>{next.name}</h2>
-            <p><time dateTime={next.release_at}>{releaseTimes(next.release_at).guam}</time></p>
+            {next.release_at ? <p><time dateTime={next.release_at}>{releaseTimes(next.release_at).guam}</time></p> : <p>The release date goes to the list first.</p>}
             <Link className="text-link label" to={`/drops/${next.slug}`}>
               Meet Drop {dropNumber(next.number)} <ArrowRight aria-hidden="true" />
             </Link>
@@ -281,7 +281,7 @@ export function Info() {
 function FAQ() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   const drop = q.data?.featured_drop;
-  const times = drop ? releaseTimes(drop.release_at) : null;
+  const times = drop?.release_at ? releaseTimes(drop.release_at) : null;
   return (
     <div className="page narrow info-page">
       <Meta title="FAQ" />
@@ -296,7 +296,7 @@ function FAQ() {
           {times ? <p>Drop {dropNumber(drop!.number)} {drop!.state === "upcoming" ? "releases" : "released"} {times.guam} · {times.pacific} · {times.hawaii}.</p>
             : q.isPending ? <p role="status">Loading release details…</p>
               : q.isError ? <p>Release details are unavailable. <button className="inline-link" onClick={() => void q.refetch()}>Try again</button></p>
-                : <p>The next release has not been announced.</p>}
+                : <p>The next release date has not been announced. Join the list and you'll hear first.</p>}
         </section>
         {drop && <section><h2>How many can I buy?</h2><p>Drop {dropNumber(drop.number)} is limited to {drop.per_customer_limit} per customer.</p></section>}
       </div>

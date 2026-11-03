@@ -15,9 +15,9 @@ RSpec.describe "Catalog seeds" do
     expect(core.specs).to include("piece_count" => 100, "finished_size" => "12 × 9 in")
     expect(core.images.map { |image| image.fetch("base").split("/").last }).to eq(%w[finished-flat piece-detail finished-tabletop])
     expect(core.images.first).to include("role" => "hero", "aspect" => "12:7")
-    expect(map).to have_attributes(price_cents: 4500, stock_quantity: 100, kind: "drop")
+    expect(map).to have_attributes(price_cents: 4500, stock_quantity: 500, kind: "drop")
     expect(map.images.size).to eq(4)
-    expect(map.drop).to have_attributes(quantity: 100, per_customer_limit: 2, release_at: Time.iso8601("2026-12-05T00:00:00Z"))
+    expect(map.drop).to have_attributes(quantity: 500, per_customer_limit: 2, release_at: nil)
   end
 
   it "preserves every existing product and drop attribute after merchant edits and a second seed" do

@@ -8,7 +8,7 @@ class Product < ApplicationRecord
   validates :stock_quantity, :price_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   def availability(now: Time.current)
-    state = if drop && drop.release_at > now
+    state = if drop && !drop.released?(now: now)
       "upcoming"
     elsif status != "active" || (drop&.closes_at && drop.closes_at <= now)
       "closed"

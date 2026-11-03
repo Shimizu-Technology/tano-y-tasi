@@ -83,7 +83,7 @@ export type AdminDrop = {
   slug: string;
   name: string;
   state: string;
-  release_at: string;
+  release_at: string | null;
   closes_at: string | null;
   per_customer_limit: number;
   quantity: number;

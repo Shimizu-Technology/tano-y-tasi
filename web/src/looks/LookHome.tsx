@@ -126,7 +126,7 @@ export function LookHome({ look, data, story }: { look: Look; data: Storefront; 
   const mapDrop = drop?.product.slug === "guahan-sunset-map";
   const art = sunHill || !drop ? tabletop : drop.product.image;
   const actions = <div className="look-hero-actions"><Link className="button" to="/shop">SHOP THE COLLECTION <ArrowRight aria-hidden="true" /></Link>{drop && <Link className="text-link label" to={live ? "/drop" : "/drop#notify"}>{live ? "SHOP THE DROP" : "NOTIFY ME"}<ArrowRight aria-hidden="true" /></Link>}</div>;
-  const release = drop && <p className="look-release">Drop {dropNumber(drop.number)} · {live ? `Available now · ${drop.quantity} made` : drop.state === "upcoming" ? `Releases ${heroReleaseTime(drop.release_at)}` : drop.state === "sold_out" ? "Sold out" : "Closed"}</p>;
+  const release = drop && <p className="look-release">Drop {dropNumber(drop.number)} · {live ? `Available now${drop.quantity != null ? ` · ${drop.quantity} made` : ""}` : drop.state === "upcoming" ? (drop.release_at ? `Releases ${heroReleaseTime(drop.release_at)}` : "Coming soon") : drop.state === "sold_out" ? "Sold out" : "Closed"}</p>;
   const heroProps = { art, actions, release, summary: drop?.product.summary ?? core?.summary };
   return <div className={`look-home look-home-${look}`}>
     <Meta title="A Piece of Home." />

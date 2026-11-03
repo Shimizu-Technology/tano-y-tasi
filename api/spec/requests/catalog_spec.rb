@@ -15,6 +15,37 @@ RSpec.describe "Catalog", type: :request do
     expect(Time.iso8601(json["server_time"])).to be_within(2.seconds).of(Time.current)
   end
 
+  context "with a coming-soon drop" do
+    before { limited.drop.update!(release_at: nil) }
+
+    it "features it as upcoming, without a date, and blocks purchase" do
+      get "/api/v1/storefront"
+      featured = response.parsed_body["featured_drop"]
+      expect(featured).to include("state" => "upcoming", "release_at" => nil)
+      expect(featured.dig("product", "availability")).to include("state" => "upcoming", "purchasable" => false)
+      get "/api/v1/products/#{limited.slug}"
+      expect(response.parsed_body.dig("product", "max_per_order")).to eq(0)
+    end
+
+    it "lists dated drops ahead of unannounced ones" do
+      dated = create(:drop, release_at: 3.days.from_now)
+      create(:product, :limited, drop: dated)
+      get "/api/v1/drops"
+      expect(response.parsed_body["upcoming"].map { |drop| drop["slug"] }).to eq([ dated.slug, limited.drop.slug ])
+      get "/api/v1/storefront"
+      expect(response.parsed_body.dig("featured_drop", "slug")).to eq(dated.slug)
+    end
+
+    it "keeps the quantity private until it is confirmed" do
+      limited.update!(placeholders: [ "drop.quantity" ])
+      get "/api/v1/drops/#{limited.drop.slug}"
+      expect(response.parsed_body.dig("drop", "quantity")).to be_nil
+      limited.update!(placeholders: [])
+      get "/api/v1/drops/#{limited.drop.slug}"
+      expect(response.parsed_body.dig("drop", "quantity")).to eq(100)
+    end
+  end
+
   it "adds the second ordered image, or null, to public summaries and detail" do
     alt = core.images.first.merge("base" => "/images/piece-detail", "role" => "detail")
     core.update!(images: [ core.images.first, alt, alt.merge("base" => "/images/third") ])

@@ -96,7 +96,7 @@ it("answers FAQ release times and limits from the current payload", () => {
 });
 it("does not invent a release or a customer limit without an announced drop", () => {
   show("/info/faq", { ...storefront, featured_drop: null });
-  expect(screen.getByText("The next release has not been announced.")).toBeVisible();
+  expect(screen.getByText("The next release date has not been announced. Join the list and you'll hear first.")).toBeVisible();
   expect(screen.queryByText(/limited to/)).not.toBeInTheDocument();
 });
 it("publishes only the known shipping calculation and destinations", () => {

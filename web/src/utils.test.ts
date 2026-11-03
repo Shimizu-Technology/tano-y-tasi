@@ -53,3 +53,7 @@ it.each([
 it("keeps the hero release in Guam time across the date line", () => {
   expect(heroReleaseTime("2026-12-05T00:00:00Z")).toBe("Sat, Dec 5 · 10:00 AM ChST");
 });
+it("shows Coming soon, not a date, for a drop with no release date", () => {
+  const product = catalog("upcoming", { [MAP]: 100 }).find((item) => item.slug === MAP)!;
+  expect(purchaseState({ ...product, drop: { ...product.drop!, release_at: null } })).toEqual({ label: "COMING SOON", disabled: true });
+});

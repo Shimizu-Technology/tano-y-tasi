@@ -70,7 +70,7 @@ CREATE TABLE public.drops (
     slug character varying NOT NULL,
     number integer NOT NULL,
     name character varying NOT NULL,
-    release_at timestamp(6) without time zone NOT NULL,
+    release_at timestamp(6) without time zone,
     closes_at timestamp(6) without time zone,
     sold_out_at timestamp(6) without time zone,
     quantity integer NOT NULL,
@@ -860,6 +860,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261104000001'),
 ('20261029000005'),
 ('20261029000004'),
 ('20261029000003'),

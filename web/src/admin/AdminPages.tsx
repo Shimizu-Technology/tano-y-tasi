@@ -324,7 +324,7 @@ function dropForm(drop: AdminDrop): DropForm {
 function dropPatch(form: DropForm, initial: DropForm) {
   const patch: Record<string, unknown> = {};
   if (form.name.trim() !== initial.name.trim()) patch.name = form.name.trim();
-  if (form.release !== initial.release) patch.release_at = guamToIso(form.release);
+  if (form.release !== initial.release) patch.release_at = form.release ? guamToIso(form.release) : null;
   if (form.closes !== initial.closes) patch.closes_at = form.closes ? guamToIso(form.closes) : null;
   if (Number(form.limit) !== Number(initial.limit)) patch.per_customer_limit = Number(form.limit);
   if (Number(form.quantity) !== Number(initial.quantity)) patch.quantity = Number(form.quantity);
@@ -1286,7 +1286,7 @@ export function DropsPage() {
                         <Chip value={drop.state} />
                       </td>
                       <td>
-                        <DateText value={drop.release_at} />
+                        {drop.release_at ? <DateText value={drop.release_at} /> : "Coming soon"}
                       </td>
                       <td>{drop.quantity}</td>
                       <td>{drop.product?.stock_quantity ?? "—"}</td>
@@ -1301,7 +1301,7 @@ export function DropsPage() {
                   <strong>{drop.name}</strong>
                   <Chip value={drop.state} />
                   <p>
-                    <DateText value={drop.release_at} /> ChST
+                    {drop.release_at ? <><DateText value={drop.release_at} /> ChST</> : "Coming soon"}
                   </p>
                 </Link>
               ))}
@@ -1340,18 +1340,20 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
-  const release = guamToIso(form.release),
+  const release = form.release ? guamToIso(form.release) : null,
     closes = form.closes ? guamToIso(form.closes) : null;
   const [currentTime] = useState(() => Date.now());
-  const state = !release
-    ? "Invalid release"
-    : currentTime < Date.parse(release)
-      ? "Upcoming"
-      : closes && currentTime >= Date.parse(closes)
-        ? "Closed"
-        : (drop.product?.stock_quantity ?? 1) < 1
-          ? "Sold out"
-          : "Live";
+  const state = !form.release
+    ? "Coming soon"
+    : !release
+      ? "Invalid release"
+      : currentTime < Date.parse(release)
+        ? "Upcoming"
+        : closes && currentTime >= Date.parse(closes)
+          ? "Closed"
+          : (drop.product?.stock_quantity ?? 1) < 1
+            ? "Sold out"
+            : "Live";
   async function save() {
     const invalid = validateDrop(form);
     if (Object.keys(invalid).length) {
@@ -1394,13 +1396,12 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
           />
           <div className="admin-form-grid">
             <Field
-              label="Release · Guam time (ChST, UTC+10)"
+              label="Release · Guam time (ChST, UTC+10). Leave empty for Coming soon"
               name="release_at"
               type="datetime-local"
               value={form.release}
               onChange={(value) => update("release", value)}
               error={errors.release_at}
-              required
             />
             <Field
               label="Close · Guam time (ChST, UTC+10)"

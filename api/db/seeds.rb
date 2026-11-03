@@ -1,6 +1,6 @@
 # Catalog defaults are create-only: deploys must never undo merchant edits.
 drop = Drop.find_or_create_by!(slug: "drop-001-guahan-sunset-map") do |record|
-  record.assign_attributes(release_at: Time.iso8601("2026-12-05T00:00:00Z"), quantity: 100,
+  record.assign_attributes(release_at: nil, quantity: 500,
     number: 1, name: "Guåhan Sunset Map", per_customer_limit: 2)
 end
 
@@ -24,9 +24,9 @@ end
 
 map_slug = "guahan-sunset-map"
 map = Product.find_or_create_by!(slug: map_slug) do |record|
-  record.assign_attributes(stock_quantity: 100, drop: drop, name: "Guåhan Sunset Map", kind: "drop", status: "active", price_cents: 4500, currency: "USD", position: 2,
+  record.assign_attributes(stock_quantity: 500, drop: drop, name: "Guåhan Sunset Map", kind: "drop", status: "active", price_cents: 4500, currency: "USD", position: 2,
     summary: "An illustrated map of Guåhan, from village streets to the coastline.",
-    description: "Find your way around Guåhan, one piece at a time. This illustrated map brings together the island's villages and landmarks, from Hagåtña to Humåtak, with little details to discover along the way. Drop 001 is a single release of 100 puzzles.",
+    description: "Find your way around Guåhan, one piece at a time. This illustrated map brings together the island's villages and landmarks, from Hagåtña to Humåtak, with little details to discover along the way. Drop 001 is a one-time release.",
     specs: { piece_count: 500, finished_size: "16 × 20 in", box_size: "TBD", material: "TBD", cut: "Classic", made_in: "TBD" },
     includes: [ "500-piece puzzle", "Keepsake box" ],
     art: { credit: "Illustration credit to be confirmed", story: "A sunset-colored portrait of our island, its places, and its ko'ko'." },

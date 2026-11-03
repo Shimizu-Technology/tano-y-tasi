@@ -55,11 +55,12 @@ export function validateDrop(value: {
   quantity: number;
 }) {
   const errors: Record<string, string> = {};
-  const release = guamToIso(value.release),
+  const release = value.release ? guamToIso(value.release) : null,
     closes = value.closes ? guamToIso(value.closes) : null;
   if (!value.name.trim()) errors.name = "Name is required.";
-  if (!release) errors.release_at = "Enter a valid Guam release time.";
+  if (value.release && !release) errors.release_at = "Enter a valid Guam release time.";
   if (value.closes && !closes) errors.closes_at = "Enter a valid Guam close time.";
+  if (closes && !value.release) errors.closes_at = "Set a release time before a close time.";
   if (release && closes && release > closes) errors.closes_at = "Close must follow release.";
   if (!Number.isInteger(value.limit) || value.limit < 1)
     errors.per_customer_limit = "Enter a limit of at least 1.";

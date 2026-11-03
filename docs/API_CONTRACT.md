@@ -69,7 +69,7 @@ Summary `specs` contains `piece_count` and `finished_size` when set, across stor
   "per_customer_limit": 2
 }
 ```
-Drop `state` is `upcoming`, `live`, `sold_out` or `closed`. It is derived server-side from `release_at`, `closes_at`, and stock (counting active reservations).
+Drop `state` is `upcoming`, `live`, `sold_out` or `closed`. It is derived server-side from `release_at`, `closes_at`, and stock (counting active reservations). `release_at` is `null` for a drop that is coming soon: its state is `upcoming`, it is not purchasable, and clients show "Coming soon" instead of a date. `quantity` is `null` until the merchant confirms it (while `drop.quantity` is in the product's placeholders).
 
 ## Endpoints
 
@@ -78,7 +78,7 @@ Home page payload in one request:
 ```json
 { "featured_drop": { "...drop summary...", "product": { "...product list item..." } }, "core_products": [ "…" ], "server_time": "2026-10-29T00:00:00Z" }
 ```
-`featured_drop` is the live drop, else the next upcoming drop, else null. `server_time` lets the client correct clock skew for countdowns.
+`featured_drop` is the live drop, else the next dated upcoming drop, else the first coming-soon drop, else null. `server_time` lets the client correct clock skew for countdowns.
 
 ### `GET /api/v1/products?kind=core|drop`
 `{ "products": [ … ] }`. Excludes drafts.
@@ -104,7 +104,7 @@ Response `201`:
 { "order": { "token": "opaque", "number": "TYT-100001", "status": "pending_payment", "expires_at": "…" }, "payment_url": "https://checkout.stripe.com/… or http://localhost:5181/checkout/simulated/<token>" }
 ```
 - The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
-- `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
+- `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at, null when coming soon), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
 - The per-customer limit counts quantities across this email's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that drop product (case-insensitive email). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
 - Stripe holds last 31 minutes, with the session expiry saved before the provider request; simulated holds last 30 minutes. Retries reuse the saved expiry and item snapshots. Holds are released 5 minutes after expiry, as a grace period for in-flight payments.
 - `503 payment_unavailable` always includes `details.retry`. `"same_key"` means a transient provider failure preserved the hold: retry the **same payload and idempotency key**, even if fresh availability shows no stock (this attempt may hold the last unit). `"new_checkout"` means definitive rejection released the reservation, or the unsessioned hold has ended: clear the saved attempt and **start a new checkout** with a fresh key. Expired holds are cleaned up normally.

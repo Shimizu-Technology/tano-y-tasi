@@ -6,8 +6,8 @@ RSpec.describe "Seed catalog" do
     core = Product.find_by!(slug: "hafa-adai-from-tumon-bay")
     limited = Product.find_by!(slug: "guahan-sunset-map")
     expect(core.stock_quantity).to eq(50)
-    expect(limited.stock_quantity).to eq(100)
-    expect(limited.drop.release_at.iso8601).to eq("2026-12-05T00:00:00Z")
+    expect(limited.stock_quantity).to eq(500)
+    expect(limited.drop.release_at).to be_nil
     expect(limited.drop.per_customer_limit).to eq(2)
     expect(core.price_cents).to eq(3500)
     expect(limited.price_cents).to eq(4500)
