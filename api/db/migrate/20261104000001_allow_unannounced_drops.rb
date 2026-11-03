@@ -9,6 +9,7 @@ class AllowUnannouncedDrops < ActiveRecord::Migration[8.1]
     execute <<~SQL.squish
       UPDATE drops SET release_at = NULL, updated_at = NOW()
       WHERE slug = 'drop-001-guahan-sunset-map' AND release_at = TIMESTAMP '2026-12-05 00:00:00'
+        AND EXISTS (SELECT 1 FROM products p WHERE p.drop_id = drops.id AND p.placeholders ? 'drop.release_at')
         AND NOT EXISTS (SELECT 1 FROM products p JOIN order_items i ON i.product_id = p.id WHERE p.drop_id = drops.id)
     SQL
     execute <<~SQL.squish
@@ -18,7 +19,10 @@ class AllowUnannouncedDrops < ActiveRecord::Migration[8.1]
   end
 
   def down
-    execute "UPDATE drops SET release_at = TIMESTAMP '2026-12-05 00:00:00' WHERE release_at IS NULL"
+    # Inventing a date could make unannounced stock purchasable.
+    if select_value("SELECT 1 FROM drops WHERE release_at IS NULL LIMIT 1")
+      raise ActiveRecord::IrreversibleMigration, "Give every coming-soon drop a release date before rolling back."
+    end
     change_column_null :drops, :release_at, false
   end
 end

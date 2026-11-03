@@ -1340,18 +1340,20 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
-  const release = guamToIso(form.release),
+  const release = form.release ? guamToIso(form.release) : null,
     closes = form.closes ? guamToIso(form.closes) : null;
   const [currentTime] = useState(() => Date.now());
-  const state = !release
-    ? "Invalid release"
-    : currentTime < Date.parse(release)
-      ? "Upcoming"
-      : closes && currentTime >= Date.parse(closes)
-        ? "Closed"
-        : (drop.product?.stock_quantity ?? 1) < 1
-          ? "Sold out"
-          : "Live";
+  const state = !form.release
+    ? "Coming soon"
+    : !release
+      ? "Invalid release"
+      : currentTime < Date.parse(release)
+        ? "Upcoming"
+        : closes && currentTime >= Date.parse(closes)
+          ? "Closed"
+          : (drop.product?.stock_quantity ?? 1) < 1
+            ? "Sold out"
+            : "Live";
   async function save() {
     const invalid = validateDrop(form);
     if (Object.keys(invalid).length) {
