@@ -8,6 +8,25 @@ RSpec.describe "Drop limits across delayed payments" do
       items: [ { product_slug: product.slug, quantity: 2 } ]).order
   end
 
+  it "flags a payment for a drop moved back to Coming soon and releases its hold once" do
+    order = checkout
+    product.drop.update!(release_at: nil)
+    Payments::Complete.call(order, payment_intent_id: "pi_withdrawn")
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "drop_withdrawn")
+    expect(product.reload.stock_quantity).to eq(10)
+    Payments::Complete.call(order, payment_intent_id: "pi_withdrawn")
+    expect(InventoryMovement.where(order: order, reason: "release").count).to eq(1)
+  end
+
+  it "does not re-reserve a late payment for a drop moved back to Coming soon" do
+    order = checkout
+    Orders::Release.call(order, status: "expired")
+    product.drop.update!(release_at: nil)
+    Payments::Complete.call(order, payment_intent_id: "pi_late")
+    expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "drop_withdrawn")
+    expect(product.reload.stock_quantity).to eq(10)
+  end
+
   it "treats Gmail dots and +tags as the same customer" do
     first = checkout
     Payments::Complete.call(first)

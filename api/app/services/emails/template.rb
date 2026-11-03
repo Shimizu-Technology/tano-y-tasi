@@ -49,6 +49,7 @@ module Emails
     ATTENTION_REASONS = {
       "amount_mismatch" => "Stripe charged an amount that doesn't match this order.",
       "session_mismatch" => "This payment came from a different Stripe checkout session than the order expected.",
+      "drop_withdrawn" => "This payment arrived after the drop was moved back to Coming soon.",
       "customer_limit_exceeded" => "This payment would put the customer over the drop's limit.",
       "stock_unavailable" => "This late payment arrived after the stock was gone."
     }.freeze

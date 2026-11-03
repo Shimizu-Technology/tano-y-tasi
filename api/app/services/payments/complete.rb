@@ -7,7 +7,7 @@ module Payments
       Orders::Inventory.with_locked_order(order) do |products|
         next if %w[paid refunded needs_attention].include?(order.status)
         holding = order.status == "pending_payment"
-        reason = problem || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
+        reason = problem || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
         attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping }
         if reason
           if holding
@@ -28,6 +28,11 @@ module Payments
       order.reload
     end
 
+    # The merchant moved the drop back to Coming soon after this checkout started.
+    def self.withdrawn_reason(order, products)
+      "drop_withdrawn" if order.order_items.any? { |item| (drop = products.fetch(item.product_id).drop) && !drop.released? }
+    end
+
     def self.over_limit_reason(order, products)
       over = order.order_items.any? do |item|
         product = products.fetch(item.product_id)
@@ -39,6 +44,6 @@ module Payments
     def self.stock_reason(order, products)
       "stock_unavailable" if order.order_items.any? { |item| products.fetch(item.product_id).stock_quantity < item.quantity }
     end
-    private_class_method :over_limit_reason, :stock_reason
+    private_class_method :withdrawn_reason, :over_limit_reason, :stock_reason
   end
 end
