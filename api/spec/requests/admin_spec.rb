@@ -8,6 +8,7 @@ RSpec.describe "Admin API", type: :request do
   let!(:drop) { create(:drop) }
   let!(:other_admin) { User.create!(clerk_id: "user_other", email: "other@example.com") }
   let!(:invitation) { AdminInvitation.create!(email: "pending@example.com", clerk_invitation_id: "inv_pending") }
+  let!(:page) { Page.create!(slug: "returns", title: "Returns & refunds", body: "Email {{contact_email}}.") }
   let!(:delivery) { EmailDelivery.create!(order: order, kind: "order_confirmation", to: order.email, subject: "Confirmation") }
 
   before do
@@ -26,6 +27,8 @@ RSpec.describe "Admin API", type: :request do
     [ :post, "/products/PRODUCT/stock_adjustments", { delta: 2, reason: "Restock" } ],
     [ :get, "/products/PRODUCT/inventory_movements", {} ],
     [ :get, "/drops", {} ], [ :get, "/drops/DROP", {} ], [ :patch, "/drops/DROP", { name: "Updated drop" } ],
+    [ :get, "/store", {} ], [ :patch, "/store", { tagline: "Home." } ],
+    [ :get, "/pages", {} ], [ :get, "/pages/PAGE", {} ], [ :patch, "/pages/PAGE", { title: "Returns" } ],
     [ :get, "/subscribers", {} ], [ :get, "/subscribers.csv", {} ],
     [ :get, "/users", {} ], [ :patch, "/users/USER", { active: false } ],
     [ :post, "/invitations", { email: "new@example.com" } ], [ :delete, "/invitations/INVITATION", {} ]
@@ -33,7 +36,7 @@ RSpec.describe "Admin API", type: :request do
   endpoints.each do |verb, path, body|
     describe "#{verb.upcase} #{path}" do
       let(:url) do
-        "/api/v1/admin#{path}".sub("ORDER", order.number).sub("PRODUCT", product.slug).sub("DROP", drop.slug).sub("USER", other_admin.id.to_s).sub("INVITATION", invitation.id.to_s).sub("DELIVERY", delivery.id.to_s)
+        "/api/v1/admin#{path}".sub("ORDER", order.number).sub("PRODUCT", product.slug).sub("DROP", drop.slug).sub("USER", other_admin.id.to_s).sub("INVITATION", invitation.id.to_s).sub("DELIVERY", delivery.id.to_s).sub("PAGE", "returns")
       end
       it "returns 401 without a token" do
         public_send(verb, url, params: body, **(verb == :get ? {} : { as: :json }))
@@ -50,6 +53,19 @@ RSpec.describe "Admin API", type: :request do
         expect(response).to have_http_status(verb == :post && path == "/invitations" ? :created : :ok), response.body
       end
     end
+  end
+
+  it "saves store settings and rejects a bad contact email" do
+    patch "/api/v1/admin/store", params: { sales_open: true, contact_email: "hello@example.com", mission_lines: [ "One", "Two" ] }, headers: headers, as: :json
+    expect(response.parsed_body["store"]).to include("sales_open" => true, "contact_email" => "hello@example.com", "mission_lines" => [ "One", "Two" ])
+    patch "/api/v1/admin/store", params: { contact_email: "nope" }, headers: headers, as: :json
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(StoreSetting.current.reload.contact_email).to eq("hello@example.com")
+  end
+
+  it "shows the raw page body to admins, with the placeholder intact" do
+    patch "/api/v1/admin/pages/returns", params: { body: "Write to {{contact_email}} anytime." }, headers: headers, as: :json
+    expect(response.parsed_body.dig("page", "body")).to eq("Write to {{contact_email}} anytime.")
   end
 
   it "requires sign-in to mark a flagged order paid" do

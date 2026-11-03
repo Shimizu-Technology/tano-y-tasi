@@ -7,7 +7,7 @@ module Api
         drops = public_drops.to_a
         featured = drops.find { |drop| drop.state == "live" } || upcoming(drops).first
         render json: { featured_drop: featured && CatalogSerializer.drop(featured, with_product: true),
-          core_products: Product.visible.includes(:drop).where(kind: "core").map { |product| CatalogSerializer.product(product) }, server_time: Time.current.iso8601 }
+          core_products: Product.visible.includes(:drop).where(kind: "core").map { |product| CatalogSerializer.product(product) }, store: CatalogSerializer.store, server_time: Time.current.iso8601 }
       end
 
       def products

@@ -39,10 +39,11 @@ module Emails
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">#{rows}</table>
         <p style="font-weight:bold">Total: #{escape(money(order.total_cents))}</p>
         <p><a style="color:#141311" href="#{escape(link)}">#{admin ? "Open in admin" : "View your order"}</a></p>#{tracking_html}
+        <p style="font-size:14px">Questions? Just reply, or email #{escape(StoreSetting.current.contact_email)}.</p>
         </td></tr></table></td></tr></table></body></html>
       HTML
       data = { from: ENV.fetch("MAILER_FROM_EMAIL"), to: delivery.to, subject: delivery.subject, html: html, text: text }
-      data[:reply_to] = ENV["MAILER_REPLY_TO"] if ENV["MAILER_REPLY_TO"].present?
+      data[:reply_to] = StoreSetting.current.contact_email
       data
     end
 

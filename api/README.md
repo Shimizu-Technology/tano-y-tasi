@@ -114,7 +114,6 @@ Set the following environment variables in Render (also documented in `.env.exam
 | `ADMIN_NOTIFICATION_EMAILS` | Optional comma-separated new-order recipients; absent uses active admins. An explicit empty value disables admin notices. |
 | `RESEND_API_KEY` | Resend secret; required when email delivery is enabled. |
 | `MAILER_FROM_EMAIL` | Explicit verified sender, e.g. `Tåno + Tåsi <orders@shimizu-technology.com>`. |
-| `MAILER_REPLY_TO` | Optional reply address. |
 | `EMAIL_DELIVERY_ENABLED` | Explicit boolean; blueprint defaults to `false` and records `skipped` until enabled. |
 | `RAILS_MAX_THREADS` | `3` on Render; local tests use 20 for concurrency coverage. |
 | `FORCE_SSL` | `true` behind Render; `/up` is excluded from redirect. |

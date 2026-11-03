@@ -45,6 +45,12 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 - `POST /orders/:number/mark_paid`: for a `needs_attention` order the merchant will ship anyway. Takes unshipped items from stock, clears `attention_reason`, and sends the confirmation. `422 invalid_order_state` or `insufficient_stock`.
 - Order detail also returns `attention_reason`, `charged_cents`, `refunded_cents`, `open_refund_cents`, `refunded_at` and `dispute_status`.
 
+### Store settings
+- `GET /store`, `PATCH /store`: `{ sales_open, contact_email, tagline, secondary_tagline, story, mission_lines[] }`. `sales_open` is the master switch for every purchase.
+
+### Pages
+- `GET /pages`, `GET /pages/:slug`, `PATCH /pages/:slug`: `{ title, body }` for `shipping`, `returns`, `privacy` and `terms`. `{{contact_email}}` in a body renders as the current contact email.
+
 ### Products
 - `GET /products`: all statuses, with `stock_quantity` and `drop` summary.
 - `GET /products/:slug`: editable fields: `name, summary, description, price_cents, status (draft|active|archived), position, specs{}, includes[], art{credit, story}, placeholders[]`, plus read-only `images[]`, `kind` and `drop`.

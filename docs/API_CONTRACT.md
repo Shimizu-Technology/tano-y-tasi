@@ -38,7 +38,7 @@ The client builds `srcset` from `${base}-${w}.webp`. Roles are `hero`, `gallery`
 
 Summary `specs` contains `piece_count` and `finished_size` when set, across storefront, product lists, and nested drop products. Detail responses include the full specs object.
 
-`availability.state` is one of `available`, `sold_out`, `upcoming` (drop not released), `closed`. `remaining` is returned **only** when `low_stock` is true (20 or fewer left) or the product is sold out (0); otherwise it is null. `drop` is a drop summary (below) for drop products.
+`availability.state` is one of `available`, `sold_out`, `upcoming` (drop not released), `coming_soon` (the merchant hasn't opened the store), `closed`. `remaining` is returned **only** when `low_stock` is true (20 or fewer left) or the product is sold out (0); otherwise it is null. `drop` is a drop summary (below) for drop products.
 
 ### Product (detail) — list fields plus:
 ```json
@@ -80,6 +80,17 @@ Home page payload in one request:
 ```
 `featured_drop` is the live drop, else the next dated upcoming drop, else the first coming-soon drop, else null. `server_time` lets the client correct clock skew for countdowns.
 
+`store` is the same object as `GET /api/v1/store`.
+
+### `GET /api/v1/store`
+```json
+{ "store": { "sales_open": false, "contact_email": "…", "tagline": "A piece of home.", "secondary_tagline": "…", "story": "…", "mission_lines": ["…"] } }
+```
+While `sales_open` is false nothing is purchasable, a released drop stays `upcoming` with no date, and checkout returns `422 store_closed`.
+
+### `GET /api/v1/pages/:slug`
+`{ "page": { "slug": "returns", "title": "…", "body": "…", "updated_at": "…" } }`. Slugs: `shipping`, `returns`, `privacy`, `terms`. `body` uses a small Markdown subset: `## ` headings, `- ` lists, `**bold**`, `[text](url)`.
+
 ### `GET /api/v1/products?kind=core|drop`
 `{ "products": [ … ] }`. Excludes drafts.
 
@@ -104,7 +115,7 @@ Response `201`:
 { "order": { "token": "opaque", "number": "TYT-100001", "status": "pending_payment", "expires_at": "…" }, "payment_url": "https://checkout.stripe.com/… or http://localhost:5181/checkout/simulated/<token>" }
 ```
 - The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
-- `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at, null when coming soon), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
+- `422` codes: `store_closed`, `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at, null when coming soon), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
 - The per-customer limit treats Gmail dot variants and `+tags` as one customer, and counts quantities across that customer's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that drop product (case-insensitive email). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
 - Stripe holds last 31 minutes, with the session expiry saved before the provider request; simulated holds last 30 minutes. Retries reuse the saved expiry and item snapshots. Holds are released 5 minutes after expiry, as a grace period for in-flight payments.
 - `503 payment_unavailable` always includes `details.retry`. `"same_key"` means a transient provider failure preserved the hold: retry the **same payload and idempotency key**, even if fresh availability shows no stock (this attempt may hold the last unit). `"new_checkout"` means definitive rejection released the reservation, or the unsessioned hold has ended: clear the saved attempt and **start a new checkout** with a fresh key. Expired holds are cleaned up normally.

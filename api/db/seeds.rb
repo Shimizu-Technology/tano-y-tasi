@@ -37,4 +37,10 @@ map = Product.find_or_create_by!(slug: map_slug) do |record|
       image.call(map_slug, "detail-humatak", [ 640, 1280, 2000 ], "4:3", "detail", "Illustrated map detail of Humåtak and its bay."),
       image.call(map_slug, "detail-koko", [ 640, 1280, 2000 ], "4:3", "detail", "A ko'ko' bird among the small illustrations on the Guåhan map.") ])
 end
+StoreSetting.current
+{ "shipping" => "Shipping", "returns" => "Returns & refunds", "privacy" => "Privacy policy", "terms" => "Terms" }.each do |slug, title|
+  Page.find_or_create_by!(slug: slug) do |page|
+    page.assign_attributes(title: title, body: Rails.root.join("db/policies/#{slug}.md").read)
+  end
+end
 puts "Seeded #{core.name} and #{map.name}; existing catalog preserved."

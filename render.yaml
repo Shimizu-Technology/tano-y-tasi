@@ -58,8 +58,6 @@ services:
         sync: false
       - key: MAILER_FROM_EMAIL
         sync: false
-      - key: MAILER_REPLY_TO
-        sync: false
   # Hourly upkeep: expired holds, unclosed Stripe sessions, failed emails, stale
   # leases. Hourly keeps Neon's scale-to-zero useful; it needs the same secrets.
   - type: cron
@@ -99,8 +97,6 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: MAILER_FROM_EMAIL
-        sync: false
-      - key: MAILER_REPLY_TO
         sync: false
       - key: ADMIN_NOTIFICATION_EMAILS
         sync: false

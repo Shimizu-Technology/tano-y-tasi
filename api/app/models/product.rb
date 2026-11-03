@@ -14,10 +14,13 @@ class Product < ApplicationRecord
       "closed"
     elsif stock_quantity.zero?
       "sold_out"
+    elsif !StoreSetting.sales_open?
+      # The merchant hasn't opened the store, so nothing is for sale yet.
+      "coming_soon"
     else
       "available"
     end
-    low = stock_quantity <= 20
+    low = stock_quantity <= 20 && state != "coming_soon"
     { state: state, purchasable: state == "available", remaining: low ? stock_quantity : nil, low_stock: low }
   end
 end

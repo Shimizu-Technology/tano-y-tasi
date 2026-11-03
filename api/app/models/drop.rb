@@ -17,6 +17,11 @@ class Drop < ApplicationRecord
     announced? && release_at <= now
   end
 
+  # A date that passed while the store was closed means nothing to a customer.
+  def public_release_at
+    release_at unless released? && state == "upcoming"
+  end
+
   # Quantity stays private until the merchant confirms it.
   def public_quantity
     quantity unless product && Array(product.placeholders).include?("drop.quantity")
@@ -26,6 +31,8 @@ class Drop < ApplicationRecord
     return "upcoming" unless released?(now: now)
     return "closed" if closes_at && closes_at <= now
     return "sold_out" if product && product.stock_quantity.zero?
+    # A drop can't be live until the merchant opens the store.
+    return "upcoming" unless StoreSetting.sales_open?
     "live"
   end
 end
