@@ -328,6 +328,7 @@ test("a coming-soon drop shows no date or quantity and cannot be bought", async 
   await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
   await expect(page.getByText(/\d+ made/)).toHaveCount(0);
   await expect(page.getByText(/ChST/)).toHaveCount(0);
+  await expect(page.locator(".product-price")).toHaveCount(0);
   await overflow(page);
   await page.goto("/archive");
   await expect(page.getByText("Drop 001 · Coming soon")).toBeVisible();

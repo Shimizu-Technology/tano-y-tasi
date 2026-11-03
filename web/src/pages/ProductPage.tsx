@@ -147,7 +147,8 @@ function ProductView({
               {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {d.state === "live" ? "AVAILABLE NOW" : d.state === "upcoming" && !d.release_at ? "COMING SOON" : d.state.replace("_", " ").toUpperCase()}
             </p>}
             <h1>{p.name}</h1>
-            <p className="product-price">{money(p.price_cents)}</p>
+            {/* The price of an unannounced drop isn't confirmed, as on the home page. */}
+            {!(d?.state === "upcoming" && !d.release_at) && <p className="product-price">{money(p.price_cents)}</p>}
             <p className="product-description">{p.description}</p>
             {d && (
               <div className="drop-facts">
