@@ -32,6 +32,7 @@ class EmailDelivery < ApplicationRecord
       # requeue! can run during a send. Everything recorded from here applies only
       # to this generation, so an older send can't erase a newer alert.
       generation = resend_number
+      provider_key = idempotency_key
       unless ActiveModel::Type::Boolean.new.cast(ENV.fetch("EMAIL_DELIVERY_ENABLED", "false"))
         record(generation, status: "skipped", last_error: nil)
         return self
@@ -42,7 +43,7 @@ class EmailDelivery < ApplicationRecord
         payload = outbound_payload.presence || Emails::Template.payload(self).deep_stringify_keys
         record(generation, outbound_payload: payload)
         Resend.api_key = ENV.fetch("RESEND_API_KEY")
-        response = Resend::Emails.send(payload, options: { idempotency_key: idempotency_key })
+        response = Resend::Emails.send(payload, options: { idempotency_key: provider_key })
         message_id = response[:id] || response["id"]
         raise "Resend did not return a message ID" if message_id.blank?
         record(generation, status: "sent", provider_message_id: message_id, sent_at: Time.current, last_error: nil)

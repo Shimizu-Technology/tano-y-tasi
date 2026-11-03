@@ -670,8 +670,8 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
     } catch (cause) {
       setFailure(issue(cause));
       setErrors(fieldErrors(cause));
-      // Only an unclear result keeps the key: the same attempt must be retried.
-      if (!(cause instanceof AdminApiError && (cause.status === 0 || cause.status >= 500))) setRefundKey(crypto.randomUUID());
+      // Only a clear refusal replaces the key. After anything unclear, the same attempt must be retried.
+      if (cause instanceof AdminApiError && cause.status >= 400 && cause.status < 500) setRefundKey(crypto.randomUUID());
       reload();
     } finally {
       setSaving(false);
