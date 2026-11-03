@@ -100,6 +100,19 @@ RSpec.describe "Transactional email delivery", type: :request do
     expect(Resend::Emails).to have_received(:send).once
   end
 
+  it "keeps an alert queued during an older send pending for retry" do
+    complete
+    delivery = confirmation
+    delivery.update_columns(status: "failed", attempts: 1)
+    allow(Resend::Emails).to receive(:send) do
+      EmailDelivery.find(delivery.id).requeue!
+      { id: "older" }
+    end
+    delivery.deliver!
+    expect(delivery.reload).to have_attributes(status: "pending", resend_number: 1, attempts: 0, provider_message_id: nil)
+    expect(EmailDelivery.retryable).to include(delivery)
+  end
+
   it "uses a new persistent key when an admin resends via the scoped endpoint" do
     complete
     original = confirmation.idempotency_key

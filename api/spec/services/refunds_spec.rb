@@ -108,6 +108,22 @@ RSpec.describe "Issuing refunds" do
       expect(order.refund_requests.last.status).to eq("completed")
     end
 
+    it "repeats nothing when a retry follows a webhook that already closed the request" do
+      allow(Stripe::Refund).to receive(:create, &stripe_accepts(1000))
+      calls = 0
+      allow(Stripe::Refund).to receive(:list) do
+        calls += 1
+        raise Stripe::APIConnectionError.new("offline") if calls == 2
+        list.call
+      end
+      expect { Payments::IssueRefund.call(order, amount_cents: 1000, key: "attempt-1") }.to raise_error(ApiError)
+      Payments::SyncProviderState.call(order)
+      expect(order.refund_requests.last.status).to eq("completed")
+      Payments::IssueRefund.call(order, amount_cents: 1000, key: "attempt-1")
+      expect(Stripe::Refund).to have_received(:create).once
+      expect(order.reload.refunded_cents).to eq(1000)
+    end
+
     it "closes a request the webhook reconciled, and lets a retry finish on a refunded order" do
       request = order.refund_requests.create!(amount_cents: 7000)
       refunds << { id: "re_lost", object: "refund", amount: 7000, status: "succeeded", metadata: { refund_request_id: request.id.to_s } }

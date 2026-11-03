@@ -219,7 +219,8 @@ export const adminHandlers = [
     if (denied) return denied;
     const order = db.orders.find((o) => o.number === params.number);
     if (!order || !["paid", "needs_attention"].includes(order.status)) return fail("Only paid orders can be refunded.");
-    const body = (await request.json()) as { amount_cents?: number };
+    const body = (await request.json()) as { amount_cents?: number; refund_key?: string };
+    if (!body.refund_key) return fail("A refund_key is required.");
     const refunded = order.refunded_cents ?? 0;
     const amount = body.amount_cents ?? order.total_cents - refunded;
     if (amount < 1 || amount > order.total_cents - refunded) return fail("Enter a valid refund.");

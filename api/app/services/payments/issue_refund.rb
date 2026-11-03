@@ -2,14 +2,23 @@ module Payments
   class IssueRefund
     RETRY_MESSAGE = "We couldn't confirm that refund with Stripe. Retry the same amount; it won't refund twice.".freeze
 
-    def self.call(order, amount_cents: nil)
+    # key identifies one refund attempt in the admin's browser. Repeating it after an
+    # unclear response can never start another refund, whatever happened in between.
+    def self.call(order, amount_cents: nil, key: nil)
       ProviderLease.with("refund-#{order.id}") do
         order.reload
+        stored_key = key && "#{order.id}-#{key}"
+        attempt = stored_key && order.refund_requests.find_by(idempotency_key: stored_key)
+        if attempt&.status == "completed"
+          sync(order)
+          next
+        end
+        raise ApiError.new("refund_rejected", "Stripe rejected this refund. Check the amount and try again.") if attempt&.status == "rejected"
         open = order.refund_requests.open.first
         unless open || (%w[paid needs_attention].include?(order.status) && order.paid_at)
           raise ApiError.new("invalid_refund", "Only paid orders can be refunded.")
         end
-        request = open_request(order, open, amount_cents)
+        request = open_request(order, open, amount_cents, stored_key)
         if order.provider == "stripe"
           provider_refund(order, request)
           # The request closes once the order reflects it, so nothing new starts before then.
@@ -22,7 +31,7 @@ module Payments
       order.reload
     end
 
-    def self.open_request(order, open, amount_cents)
+    def self.open_request(order, open, amount_cents, stored_key)
       if open
         return open if amount_cents.nil? || amount_cents == open.amount_cents
         raise ApiError.new("refund_in_progress", "A #{Emails::Template.money(open.amount_cents)} refund hasn't been confirmed yet. Retry that amount first.")
@@ -32,7 +41,7 @@ module Payments
       unless amount.is_a?(Integer) && amount.between?(1, remaining)
         raise ApiError.new("invalid_refund", "Enter a refund between $0.01 and #{Emails::Template.money(remaining)}.")
       end
-      order.refund_requests.create!(amount_cents: amount)
+      order.refund_requests.create!(amount_cents: amount, idempotency_key: stored_key)
     end
 
     def self.provider_refund(order, request)

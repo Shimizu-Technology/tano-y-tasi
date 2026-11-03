@@ -42,7 +42,9 @@ module Api
         end
 
         def refund
-          Payments::IssueRefund.call(@order, amount_cents: params[:amount_cents])
+          key = params[:refund_key]
+          raise ApiError.new("malformed", "A refund_key is required.", status: :bad_request) unless key.is_a?(String) && key.match?(/\A[\w-]{8,64}\z/)
+          Payments::IssueRefund.call(@order, amount_cents: params[:amount_cents], key: key)
           render_order
         end
 

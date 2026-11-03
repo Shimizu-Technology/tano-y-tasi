@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useBeforeUnload, useBlocker, useLocation, useNavigate } from "react-router";
 import { Check, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import {
+  AdminApiError,
   fieldErrors,
   formError,
   useAdminApi,
@@ -654,6 +655,8 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
   const openRefund = order.open_refund_cents ?? null;
   // Empty until edited, so the field follows the balance after each refund.
   const [refundDraft, setRefundDraft] = useState<string | null>(null);
+  // Stays the same across retries of one attempt, so a retry can't refund twice.
+  const [refundKey, setRefundKey] = useState(() => crypto.randomUUID());
   const refund = refundDraft ?? centsToDollars(openRefund ?? refundable);
   async function perform(path: string, method: "POST" | "PATCH", body?: unknown) {
     setSaving(true);
@@ -662,10 +665,14 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
     try {
       await api(path, { method, body });
       setMessage("Changes saved.");
+      setRefundKey(crypto.randomUUID());
       reload();
     } catch (cause) {
       setFailure(issue(cause));
       setErrors(fieldErrors(cause));
+      // Only an unclear result keeps the key: the same attempt must be retried.
+      if (!(cause instanceof AdminApiError && (cause.status === 0 || cause.status >= 500))) setRefundKey(crypto.randomUUID());
+      reload();
     } finally {
       setSaving(false);
     }
@@ -772,7 +779,10 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
                 label={`Refund amount (USD), up to ${centsToDollars(refundable)}`}
                 name="amount_cents"
                 value={refund}
-                onChange={setRefundDraft}
+                onChange={(value) => {
+                  setRefundDraft(value);
+                  setRefundKey(crypto.randomUUID());
+                }}
                 error={errors.amount_cents}
               />
               <button
@@ -785,8 +795,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
                     return;
                   }
                   if (window.confirm(`Refund $${centsToDollars(cents)} to the customer? This can't be undone.`)) {
-                    setRefundDraft(null);
-                    void perform(`${endpoint}/refund`, "POST", { amount_cents: cents });
+                    void perform(`${endpoint}/refund`, "POST", { amount_cents: cents, refund_key: refundKey }).then(() => setRefundDraft(null));
                   }
                 }}
               >
