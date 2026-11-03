@@ -7,8 +7,16 @@ module Emails
       Rails.logger.error("EMAIL_NOTIFICATION_FAILED order_id=#{order.id} error=#{error.class}")
     end
 
+    # A later problem on the same order alerts again through the same row.
     def self.attention(order)
-      admin_emails.each { |email| queue(order, "admin_attention", email) }
+      admin_emails.each do |email|
+        existing = EmailDelivery.find_by(order: order, kind: "admin_attention", to: email)
+        if existing
+          ActiveRecord.after_all_transactions_commit { existing.deliver!(resend: true) }
+        else
+          queue(order, "admin_attention", email)
+        end
+      end
     rescue StandardError => error
       Rails.logger.error("EMAIL_NOTIFICATION_FAILED order_id=#{order.id} error=#{error.class}")
     end

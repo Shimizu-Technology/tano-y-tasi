@@ -650,10 +650,11 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
   );
   const endpoint = `/orders/${encodeURIComponent(order.number)}`;
   const refunded = order.refunded_cents ?? 0;
-  const refundable = ["paid", "needs_attention"].includes(order.status) && order.paid_at ? order.total_cents - refunded : 0;
+  const refundable = ["paid", "needs_attention"].includes(order.status) && order.paid_at ? (order.charged_cents ?? order.total_cents) - refunded : 0;
+  const openRefund = order.open_refund_cents ?? null;
   // Empty until edited, so the field follows the balance after each refund.
   const [refundDraft, setRefundDraft] = useState<string | null>(null);
-  const refund = refundDraft ?? centsToDollars(refundable);
+  const refund = refundDraft ?? centsToDollars(openRefund ?? refundable);
   async function perform(path: string, method: "POST" | "PATCH", body?: unknown) {
     setSaving(true);
     setFailure("");
@@ -723,21 +724,28 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
           <p>{order.email}</p>
           <ShippingAddress shipping={order.shipping} />
           <h2 className="admin-subheading">Payment</h2>
-          {order.status === "needs_attention" && (
+          {(order.status === "needs_attention" || order.attention_reason) && (
             <div className="admin-attention" role="alert">
               <strong>This payment needs your review.</strong>
-              <p>{attentionReasons[order.attention_reason ?? ""] ?? "Check this payment in Stripe."} Refund it, or mark it paid if you'll ship it.</p>
-              <button
-                className="admin-button secondary"
-                disabled={saving}
-                onClick={() => {
-                  if (window.confirm("Mark this order paid? This takes the items out of stock and emails the customer their confirmation."))
-                    void perform(`${endpoint}/mark_paid`, "POST", {});
-                }}
-              >
-                Mark paid
-              </button>
+              <p>{attentionReasons[order.attention_reason ?? ""] ?? "Check this payment in Stripe."} Refund it{order.status === "needs_attention" && ", or mark it paid if you'll ship it"}.</p>
+              {order.status === "needs_attention" && (
+                <button
+                  className="admin-button secondary"
+                  disabled={saving}
+                  onClick={() => {
+                    if (window.confirm("Mark this order paid? Anything not yet shipped comes out of stock, and the customer gets their confirmation."))
+                      void perform(`${endpoint}/mark_paid`, "POST", {});
+                  }}
+                >
+                  Mark paid
+                </button>
+              )}
             </div>
+          )}
+          {openRefund !== null && (
+            <p className="admin-attention" role="alert">
+              <strong>A <Money cents={openRefund} /> refund hasn't been confirmed by Stripe.</strong> Retry it below. It won't refund twice.
+            </p>
           )}
           {order.dispute_status && (
             <p className="admin-attention" role="alert">
@@ -772,7 +780,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
                 disabled={saving}
                 onClick={() => {
                   const cents = dollarsToCents(refund);
-                  if (cents === null || cents < 1 || cents > refundable) {
+                  if (cents === null || cents < 1 || (openRefund === null && cents > refundable)) {
                     setFailure(`Enter a refund between $0.01 and $${centsToDollars(refundable)}.`);
                     return;
                   }

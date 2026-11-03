@@ -50,7 +50,8 @@ module Api
         def mark_paid
           Orders::Inventory.with_locked_order(@order) do |products|
             raise ApiError.new("invalid_order_state", "Only orders that need attention can be marked paid.") unless @order.status == "needs_attention"
-            items = @order.order_items.to_a
+            # A shipped order's stock already left the shelf.
+            items = @order.fulfillment_status == "fulfilled" ? [] : @order.order_items.to_a
             if items.any? { |item| products.fetch(item.product_id).stock_quantity < item.quantity }
               raise ApiError.new("insufficient_stock", "There isn't enough stock left to fill this order.")
             end

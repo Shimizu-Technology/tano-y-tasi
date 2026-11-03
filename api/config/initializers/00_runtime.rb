@@ -26,7 +26,10 @@ if provider == "stripe"
     raise "#{key} is required for Stripe" if ENV[key].blank?
   end
   Stripe.api_key = ENV.fetch("STRIPE_SECRET_KEY")
+  # Three attempts must fit well inside ProviderLease::TTL.
   Stripe.max_network_retries = 2
+  Stripe.open_timeout = 10
+  Stripe.read_timeout = 30
 end
 Rails.application.config.hosts = [ "localhost", "127.0.0.1", "[::1]" ] + ENV.fetch("API_HOSTS", "").split(",").map(&:strip).reject(&:blank?)
 Rails.application.config.hosts << "www.example.com" if Rails.env.test?

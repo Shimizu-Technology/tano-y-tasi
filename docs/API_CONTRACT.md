@@ -124,8 +124,8 @@ Verifies the `Stripe-Signature` header; a bad signature is the only `400`. Every
 
 - `checkout.session.completed` / `async_payment_succeeded`: marks paid and records the payment intent. A charged amount or session that doesn't match the order becomes `needs_attention` with `attention_reason`, releases any held stock, and alerts admins.
 - `checkout.session.expired`: releases stock and marks expired. `checkout.session.async_payment_failed`: releases stock and marks canceled.
-- `charge.refunded`: records the absolute `amount_refunded`. A full refund marks the order `refunded` and restocks it if it hasn't shipped. A partial refund keeps the status.
-- `charge.dispute.created|updated|closed`: records `dispute_status`; a new dispute alerts admins.
+- `charge.refunded`, `refund.created|updated|failed`, `charge.dispute.created|updated|closed`: event order isn't guaranteed, so these trigger a read of the order's current refunds and disputes from Stripe. A full refund marks the order `refunded` and restocks it if it hasn't shipped; a partial refund keeps the status. A refund that later fails lowers `refunded_cents`, sets `attention_reason: refund_failed` and alerts admins (a fully refunded order returns to `needs_attention`). A new dispute alerts admins.
+- If that read fails the endpoint returns `503` and records nothing, so Stripe retries. An event for a payment not yet recorded stays unprocessed and is applied when the payment arrives, or by hourly maintenance.
 - Sessions and payments that aren't ours are acknowledged and ignored.
 
 ### Simulated provider (development/test only)

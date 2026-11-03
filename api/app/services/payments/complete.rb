@@ -2,20 +2,20 @@ module Payments
   class Complete
     # A problem from the provider (for example an amount that does not match the
     # order) flags the payment for review instead of losing it.
-    def self.call(order, payment_intent_id: nil, shipping: {}, problem: nil)
-      flagged = false
+    def self.call(order, payment_intent_id: nil, shipping: {}, problem: nil, charged_cents: nil)
       Orders::Inventory.with_locked_order(order) do |products|
         next if %w[paid refunded needs_attention].include?(order.status)
         holding = order.status == "pending_payment"
         reason = problem || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
-        attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping }
+        attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping, charged_cents: charged_cents }
         if reason
           if holding
             order.order_items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), order, item.quantity, "release") }
           end
           order.update!(attributes.merge(status: "needs_attention", attention_reason: reason))
           Rails.logger.error("PAYMENT_NEEDS_ATTENTION order_id=#{order.id} reason=#{reason} refund_required=true")
-          flagged = true
+          # Recorded in this transaction so a crash can't lose the alert.
+          Emails::Notifications.attention(order)
         else
           unless holding
             order.order_items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), order, -item.quantity, "late_payment_reserve") }
@@ -24,7 +24,6 @@ module Payments
         end
         products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
       end
-      Emails::Notifications.attention(order) if flagged
       order.reload
     end
 

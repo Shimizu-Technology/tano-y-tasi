@@ -261,13 +261,14 @@ CREATE TABLE public.orders (
     fulfilled_at timestamp(6) without time zone,
     notes text,
     attention_reason character varying,
+    charged_cents integer,
     refunded_cents integer DEFAULT 0 NOT NULL,
     refunded_at timestamp(6) without time zone,
     dispute_status character varying,
-    customer_key character varying NOT NULL,
+    customer_key character varying,
     CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
-    CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND (refunded_cents <= total_cents))),
+    CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND ((charged_cents IS NULL) OR (charged_cents >= 0)))),
     CONSTRAINT order_status_valid CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('expired'::character varying)::text, ('canceled'::character varying)::text, ('refunded'::character varying)::text, ('needs_attention'::character varying)::text]))),
     CONSTRAINT order_totals_valid CHECK (((subtotal_cents >= 0) AND (total_cents >= 0) AND ((currency)::text = 'USD'::text)))
 );
@@ -303,7 +304,8 @@ CREATE TABLE public.payment_events (
     event_type character varying NOT NULL,
     processed_at timestamp(6) without time zone,
     created_at timestamp(6) without time zone NOT NULL,
-    updated_at timestamp(6) without time zone NOT NULL
+    updated_at timestamp(6) without time zone NOT NULL,
+    payment_intent_id character varying
 );
 
 
@@ -385,6 +387,42 @@ CREATE TABLE public.provider_leases (
     holder character varying NOT NULL,
     expires_at timestamp(6) without time zone NOT NULL
 );
+
+
+--
+-- Name: refund_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.refund_requests (
+    id bigint NOT NULL,
+    order_id bigint NOT NULL,
+    amount_cents integer NOT NULL,
+    status character varying DEFAULT 'open'::character varying NOT NULL,
+    idempotency_key character varying NOT NULL,
+    provider_refund_id character varying,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT refund_request_valid CHECK (((amount_cents > 0) AND ((status)::text = ANY ((ARRAY['open'::character varying, 'completed'::character varying, 'rejected'::character varying])::text[]))))
+);
+
+
+--
+-- Name: refund_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.refund_requests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: refund_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.refund_requests_id_seq OWNED BY public.refund_requests.id;
 
 
 --
@@ -523,6 +561,13 @@ ALTER TABLE ONLY public.products ALTER COLUMN id SET DEFAULT nextval('public.pro
 
 
 --
+-- Name: refund_requests id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refund_requests ALTER COLUMN id SET DEFAULT nextval('public.refund_requests_id_seq'::regclass);
+
+
+--
 -- Name: subscribers id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -614,6 +659,14 @@ ALTER TABLE ONLY public.products
 
 ALTER TABLE ONLY public.provider_leases
     ADD CONSTRAINT provider_leases_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: refund_requests refund_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refund_requests
+    ADD CONSTRAINT refund_requests_pkey PRIMARY KEY (id);
 
 
 --
@@ -788,10 +841,31 @@ CREATE UNIQUE INDEX index_products_on_slug ON public.products USING btree (slug)
 
 
 --
+-- Name: index_refund_requests_on_idempotency_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_refund_requests_on_idempotency_key ON public.refund_requests USING btree (idempotency_key);
+
+
+--
+-- Name: index_refund_requests_on_order_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_refund_requests_on_order_id ON public.refund_requests USING btree (order_id);
+
+
+--
 -- Name: index_users_on_clerk_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX index_users_on_clerk_id ON public.users USING btree (clerk_id);
+
+
+--
+-- Name: one_open_refund_request; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX one_open_refund_request ON public.refund_requests USING btree (order_id) WHERE ((status)::text = 'open'::text);
 
 
 --
@@ -823,6 +897,13 @@ CREATE UNIQUE INDEX subscribers_email_unique ON public.subscribers USING btree (
 
 
 --
+-- Name: unresolved_payment_events; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX unresolved_payment_events ON public.payment_events USING btree (payment_intent_id) WHERE (processed_at IS NULL);
+
+
+--
 -- Name: users_email_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -851,6 +932,14 @@ ALTER TABLE ONLY public.inventory_movements
 
 ALTER TABLE ONLY public.products
     ADD CONSTRAINT fk_rails_87af88941b FOREIGN KEY (drop_id) REFERENCES public.drops(id);
+
+
+--
+-- Name: refund_requests fk_rails_8b4634219e; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.refund_requests
+    ADD CONSTRAINT fk_rails_8b4634219e FOREIGN KEY (order_id) REFERENCES public.orders(id);
 
 
 --

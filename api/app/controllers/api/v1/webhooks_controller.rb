@@ -2,7 +2,9 @@ module Api
   module V1
     class WebhooksController < ApplicationController
       SESSION_EVENTS = (Payments::ProcessEvent::PAID_EVENTS + %w[checkout.session.expired checkout.session.async_payment_failed]).freeze
-      DISPUTE_EVENTS = %w[charge.dispute.created charge.dispute.updated charge.dispute.closed].freeze
+      # These can arrive out of order, so they trigger a read of the current state.
+      STATE_EVENTS = %w[charge.refunded refund.created refund.updated refund.failed
+        charge.dispute.created charge.dispute.updated charge.dispute.closed].freeze
 
       def stripe
         secret = ENV["STRIPE_WEBHOOK_SECRET"]
@@ -11,49 +13,65 @@ module Api
         object = event.data.object
         details = if SESSION_EVENTS.include?(event.type)
           session_details(event, object)
-        elsif event.type == "charge.refunded"
-          { order: order_for_intent(object.payment_intent), refunded_cents: object.amount_refunded }
-        elsif DISPUTE_EVENTS.include?(event.type)
-          { order: order_for_intent(object.payment_intent), dispute_status: object.status }
+        elsif STATE_EVENTS.include?(event.type)
+          state_details(object)
         else
           {}
         end
         Payments::ProcessEvent.call(provider: "stripe", event_id: event.id, event_type: event.type, **details)
+        resolve_earlier_events(details) if Payments::ProcessEvent::PAID_EVENTS.include?(event.type)
         render json: { received: true }
       rescue Stripe::SignatureVerificationError, JSON::ParserError
         render_error("malformed", "Invalid Stripe webhook signature or payload.", :bad_request)
+      rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+        # Nothing was recorded, so Stripe's retry runs this again.
+        Rails.logger.error("STRIPE_EVENT_RETRY error=#{error.class}")
+        render_error("payment_unavailable", "Stripe is temporarily unavailable.", :service_unavailable)
       end
 
       private
 
-      # Always acknowledge a signed event. Stripe disables endpoints that keep failing,
-      # and a retry can't fix a payment that doesn't match: it is recorded for review.
+      # Acknowledge signed events unless a retry could help. A payment that doesn't
+      # match can't be fixed by a retry, so it's recorded for review instead.
       def session_details(event, session)
-        order = Order.find_by(token: session[:metadata]&.[](:order_token), provider: "stripe")
+        token = session[:metadata] && session[:metadata][:order_token]
+        order = Order.find_by(token: token, provider: "stripe") if token.present?
         unless order
           Rails.logger.warn("STRIPE_EVENT_IGNORED event_id=#{event.id} reason=unknown_session")
           return {}
         end
-        same_session = order.provider_session_id.nil? || order.provider_session_id == session.id
+        same_session = order.provider_session_id.nil? || order.provider_session_id == session[:id]
         unless Payments::ProcessEvent::PAID_EVENTS.include?(event.type)
           return same_session ? { order: order } : {}
         end
-        if session.payment_status != "paid"
+        if session[:payment_status] != "paid"
           order.update!(provider_session_closed_at: order.provider_session_closed_at || Time.current)
           return {}
         end
-        shipping = session.respond_to?(:collected_information) ? session.collected_information&.shipping_details : nil
-        shipping ||= session.respond_to?(:shipping_details) ? session.shipping_details : nil
+        shipping = session[:collected_information] && session[:collected_information][:shipping_details]
+        shipping ||= session[:shipping_details]
         problem = if !same_session
           "session_mismatch"
-        elsif session.amount_total != order.total_cents || session.currency != order.currency.downcase
+        elsif session[:amount_total] != order.total_cents || session[:currency] != order.currency.downcase
           "amount_mismatch"
         end
-        { order: order, payment_intent_id: session.payment_intent, shipping: shipping&.to_h || {}, problem: problem }
+        { order: order, payment_intent_id: session[:payment_intent], shipping: shipping&.to_h || {}, problem: problem, charged_cents: session[:amount_total] }
       end
 
-      def order_for_intent(payment_intent_id)
-        Order.find_by(provider_payment_intent_id: payment_intent_id) if payment_intent_id.present?
+      def state_details(object)
+        payment_intent_id = object[:payment_intent]
+        return {} if payment_intent_id.blank?
+        order = Order.find_by(provider_payment_intent_id: payment_intent_id)
+        return { payment_intent_id: payment_intent_id, unresolved: true } unless order
+        Payments::SyncProviderState.call(order)
+        { payment_intent_id: payment_intent_id }
+      end
+
+      # The payment is safely recorded, so a failure here is left for hourly maintenance.
+      def resolve_earlier_events(details)
+        Payments::SyncProviderState.resolve_events(details[:order].reload) if details[:order]
+      rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+        Rails.logger.warn("STRIPE_EVENT_DEFERRED error=#{error.class}")
       end
     end
   end

@@ -51,7 +51,8 @@ module Emails
       "session_mismatch" => "This payment came from a different Stripe checkout session than the order expected.",
       "drop_withdrawn" => "This payment arrived after the drop was moved back to Coming soon.",
       "customer_limit_exceeded" => "This payment would put the customer over the drop's limit.",
-      "stock_unavailable" => "This late payment arrived after the stock was gone."
+      "stock_unavailable" => "This late payment arrived after the stock was gone.",
+      "refund_failed" => "A refund on this order failed at Stripe, so the customer still hasn't been paid back."
     }.freeze
 
     def self.extra_lines(kind, order)
