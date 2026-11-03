@@ -219,7 +219,7 @@ function ProductView({
               <details>
                 <summary>Shipping<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>
-                  Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.
+                  Shipping is calculated at checkout. We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories.
                 </p>
               </details>
             </div>

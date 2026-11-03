@@ -10,7 +10,7 @@ class AddStoreSettingsAndPages < ActiveRecord::Migration[8.1]
       t.string :tagline, null: false, default: "A piece of home."
       t.string :secondary_tagline, null: false, default: "Grounded by land, guided by sea."
       t.text :story, null: false, default: "Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are."
-      t.jsonb :mission_lines, null: false, default: [ "A piece of home.", "Keeping us connected to where we come from.", "Carrying a piece of home wherever we are." ]
+      t.jsonb :mission_lines, null: false, default: [ "Keeping us connected to where we come from.", "Carrying a piece of home wherever we are." ]
       t.timestamps
     end
     # Exactly one row: every store setting lives here.

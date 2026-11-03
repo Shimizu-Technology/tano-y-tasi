@@ -1,6 +1,11 @@
 class AdminSerializer
   def self.store
-    CatalogSerializer.store
+    CatalogSerializer.store.merge(payment_mode: payment_mode)
+  end
+
+  def self.payment_mode
+    return "simulated" unless Payments::Gateway.provider == "stripe"
+    Stripe.api_key.to_s.start_with?("sk_live_") ? "stripe_live" : "stripe_test"
   end
 
   def self.page(page)

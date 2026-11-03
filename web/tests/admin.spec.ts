@@ -108,6 +108,29 @@ test("drop editor converts Guam time to UTC", async ({ page }, testInfo) => {
   await expect(page.getByText("Drop saved.")).toBeVisible();
   await capture(page, "drop-detail", testInfo.project.name);
 });
+test("store settings save, and the sales switch asks first", async ({ page }) => {
+  await openSection(page, "Store");
+  await expect(page.getByText("Stripe is in test mode")).toBeVisible();
+  await page.getByLabel("Contact email").fill("hello@example.com");
+  await page.getByRole("button", { name: "Save store" }).click();
+  await expect(page.getByText("Store saved.")).toBeVisible();
+  let question = "";
+  page.on("dialog", (dialog) => { question = dialog.message(); void dialog.accept(); });
+  await page.getByRole("button", { name: "Close the store" }).click();
+  await expect(page.getByText("The store is closed.").first()).toBeVisible();
+  expect(question).toContain("Close the store?");
+  await page.getByRole("button", { name: "Open the store" }).click();
+  await expect(page.getByText("The store is open.").first()).toBeVisible();
+  expect(question).toContain("test mode");
+});
+test("policy pages can be edited", async ({ page }) => {
+  await openSection(page, "Store");
+  await page.getByRole("link", { name: "Returns & refunds" }).click();
+  await page.getByLabel("Text").fill("New returns copy.");
+  await page.getByRole("button", { name: "Save page" }).click();
+  await expect(page.getByText("Page saved.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "View on site" })).toHaveAttribute("href", "/info/returns");
+});
 test("clearing the release date previews and saves Coming soon", async ({ page }) => {
   await openSection(page, "Drops");
   await page.getByRole("link", { name: "Guåhan Sunset Map" }).first().click();

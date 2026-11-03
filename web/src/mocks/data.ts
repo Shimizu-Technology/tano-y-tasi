@@ -9,6 +9,11 @@ const art = (slug: string, file: string, widths: number[], aspect: string, alt: 
 export const CORE = "hafa-adai-from-tumon-bay";
 export const MAP = "guahan-sunset-map";
 export const DROP = "drop-001-guahan-sunset-map";
+let salesOpen = true;
+export function setMockSalesOpen(value: boolean) {
+  salesOpen = value;
+}
+export const mockSalesOpen = () => salesOpen;
 let announced = true;
 export function setMockAnnounced(value: boolean) {
   announced = value;
@@ -71,8 +76,9 @@ const mapImages = [
 export function catalog(state: DropState, stock: Record<string, number>): ProductDetail[] {
   const make = (slug: string, name: string, kind: "core" | "drop", price: number, images: Art[]): ProductDetail => {
     const count = stock[slug] ?? 0;
-    const available = kind === "core" ? count > 0 : state === "live" && count > 0;
-    const availabilityState = kind === "drop" && state !== "live" ? state : count === 0 ? "sold_out" : "available";
+    const open = salesOpen && (kind === "core" || state === "live");
+    const available = open && count > 0;
+    const availabilityState = kind === "drop" && state !== "live" ? state : count === 0 ? "sold_out" : salesOpen ? "available" : "coming_soon";
     return {
       slug,
       name,

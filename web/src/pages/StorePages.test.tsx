@@ -83,8 +83,12 @@ it("does not invent a release or a customer limit without an announced drop", ()
   expect(screen.getByText("The next release date has not been announced. Join the list and you'll hear first.")).toBeVisible();
   expect(screen.queryByText(/limited to/)).not.toBeInTheDocument();
 });
-it("publishes only the known shipping calculation and destinations", () => {
+it("publishes the shipping page from the store", async () => {
   show("/info/shipping");
-  expect(screen.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
-  expect(screen.queryByText(/placeholder|returns policy/i)).not.toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Where we ship" })).toBeInTheDocument();
+  expect(screen.queryByText(/placeholder/i)).not.toBeInTheDocument();
+});
+it("states the known shipping calculation and destinations in the FAQ", async () => {
+  show("/info/faq");
+  expect(screen.getByText("We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories. Shipping is calculated at checkout.")).toBeVisible();
 });

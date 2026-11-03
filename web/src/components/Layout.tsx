@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, ScrollRestoration } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useCart } from "../cart";
-import { brand } from "../brand";
+import { useStoreSettings } from "../useStore";
 import { Emblem } from "./Emblem";
 import { Wordmark } from "./Shared";
 import { Modal } from "./Modal";
@@ -21,6 +21,7 @@ function subscribeToScroll(onChange: () => void) {
   return () => window.removeEventListener("scroll", onChange);
 }
 export function Layout() {
+  const { tagline } = useStoreSettings();
   // Recheck after subscribing, including scroll restoration during route mounting.
   const scrolled = useSyncExternalStore(subscribeToScroll, () => window.scrollY > 0, () => false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -91,7 +92,7 @@ export function Layout() {
           {nav(true, close)}
           <p className="label muted menu-signoff">
             GUÅHAN · MARIANA ISLANDS
-            <br />{brand.tagline.toUpperCase()}
+            <br />{tagline.toUpperCase()}
           </p>
           </>}
         </Modal>
@@ -114,7 +115,11 @@ function Footer() {
         </p>
         <div className="footer-links">
           <Link to="/info/shipping">Shipping</Link>
+          <Link to="/info/returns">Returns</Link>
           <Link to="/info/faq">FAQ</Link>
+          <Link to="/info/contact">Contact</Link>
+          <Link to="/info/privacy">Privacy</Link>
+          <Link to="/info/terms">Terms</Link>
         </div>
       </div>
       <div className="footer-bottom">

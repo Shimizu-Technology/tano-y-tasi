@@ -1,5 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { catalog, CORE, MAP, DROP, dropSummary } from "./data";
+import { mockPages, mockStore, updateMockStore } from "./store";
+import type { StoreSettings } from "../types";
 import type { AdminDrop, AdminProduct, OrderDetail, OrderSummary } from "../admin/adminApi";
 
 const prefix = "*/api/v1/admin";
@@ -328,6 +330,39 @@ export const adminHandlers = [
       return fail("Close must follow release.", { closes_at: "Close must follow release." });
     Object.assign(drop, body);
     return HttpResponse.json({ drop });
+  }),
+  http.get(`${prefix}/store`, ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test" } });
+  }),
+  http.patch(`${prefix}/store`, async ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<StoreSettings>;
+    if (body.contact_email !== undefined && !/.+@.+\..+/.test(body.contact_email))
+      return fail("Contact email is invalid.", { contact_email: "Enter a valid email." });
+    updateMockStore(body);
+    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test" } });
+  }),
+  http.get(`${prefix}/pages`, ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    return HttpResponse.json({ pages: mockPages });
+  }),
+  http.get(`${prefix}/pages/:slug`, ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const page = mockPages.find((item) => item.slug === params.slug);
+    return page ? HttpResponse.json({ page }) : fail("Page not found.");
+  }),
+  http.patch(`${prefix}/pages/:slug`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const page = mockPages.find((item) => item.slug === params.slug);
+    if (!page) return fail("Page not found.");
+    Object.assign(page, (await request.json()) as Partial<typeof page>);
+    return HttpResponse.json({ page });
   }),
   http.get(`${prefix}/subscribers`, ({ request }) => {
     const denied = guard(request);

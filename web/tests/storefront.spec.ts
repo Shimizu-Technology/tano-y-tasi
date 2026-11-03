@@ -336,6 +336,32 @@ test("a coming-soon drop shows no date or quantity and cannot be bought", async 
   await expect(page.getByText(/next release date has not been announced/)).toBeVisible();
 });
 
+test("a closed store shows Coming soon everywhere and can't start a checkout", async ({ page }) => {
+  await page.goto("/products/hafa-adai-from-tumon-bay?mockStore=closed");
+  await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
+  await page.goto("/shop");
+  await expect(page.getByText("COMING SOON").first()).toBeVisible();
+  await overflow(page);
+});
+
+test("policy pages render from the store, with the current contact email", async ({ page }) => {
+  await page.goto("/info/returns");
+  await expect(page.getByRole("heading", { level: 1, name: "Returns & refunds" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "shimizutechnology@gmail.com" })).toHaveAttribute("href", "mailto:shimizutechnology@gmail.com");
+  await expect(page.getByText("Last updated")).toBeVisible();
+  await overflow(page);
+  await page.goto("/info/contact");
+  await expect(page.getByRole("link", { name: "shimizutechnology@gmail.com" })).toBeVisible();
+  for (const name of ["Shipping", "Returns", "FAQ", "Contact", "Privacy", "Terms"]) {
+    await expect(page.locator(".footer-links").getByRole("link", { name, exact: true })).toBeVisible();
+  }
+  await page.locator(".footer-links").getByRole("link", { name: "Terms", exact: true }).click();
+  await page.getByRole("link", { name: "returns policy" }).click();
+  await expect(page).toHaveURL(/\/info\/returns$/);
+  await page.goto("/info/nope");
+  await expect(page.getByText(/couldn.t find|not found/i).first()).toBeVisible();
+});
+
 test("gallery keeps one fixed frame on phones and still swipes", async ({ page }, info) => {
   for (const route of ["/drop", "/products/hafa-adai-from-tumon-bay"]) {
     await go(page, route);
@@ -476,17 +502,16 @@ test("shipping, FAQ and product details publish supported facts without preview 
   await expect(page.getByText(/held for about 30 minutes/)).toBeVisible();
   await shot(page, info, "faq");
   const footer = page.locator("footer");
-  await expect(footer.getByRole("link", { name: "Contact", exact: true })).toHaveCount(0);
   await expect(footer.getByText(/coming soon/i)).toHaveCount(0);
   await footer.getByRole("link", { name: "Shipping", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Shipping", exact: true })).toBeVisible();
-  await expect(page.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where we ship" })).toBeVisible();
   await go(page, "/products/hafa-adai-from-tumon-bay");
   await expect(page.getByText("Box size", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Material", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/Preview details/)).toHaveCount(0);
   await page.locator("summary").filter({ hasText: /^Shipping$/ }).click();
-  await expect(page.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
+  await expect(page.getByText("Shipping is calculated at checkout. We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories.")).toBeVisible();
   await overflow(page);
 });
 

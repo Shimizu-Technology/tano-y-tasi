@@ -95,6 +95,16 @@ export type AdminDrop = {
   quantity: number;
   product?: { slug: string; name: string; stock_quantity: number };
 };
+export type StoreSettings = {
+  sales_open: boolean;
+  contact_email: string;
+  tagline: string;
+  secondary_tagline: string;
+  story: string;
+  mission_lines: string[];
+  payment_mode: "stripe_live" | "stripe_test" | "simulated";
+};
+export type AdminPage = { slug: string; title: string; body: string; updated_at: string };
 export type Page<T extends string, V> = { page: number; pages: number; total: number } & Record<T, V[]>;
 export type AdminErrorBody = {
   code?: string;

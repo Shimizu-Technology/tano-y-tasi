@@ -2,7 +2,7 @@ import { ArrowRight } from "lucide-react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { brand } from "../brand";
+import { useStoreSettings } from "../useStore";
 import { HOME_HERO_ART, HOME_HERO_SIZES } from "../homeHero";
 import { ArtImage } from "../components/ArtImage";
 import { Emblem } from "../components/Emblem";
@@ -25,6 +25,7 @@ function dropStatus(drop: Drop) {
 }
 
 function Hero({ drop, coreSummary }: { drop: Drop | null; coreSummary?: string }) {
+  const brand = useStoreSettings();
   return (
     <section className="home-hero" aria-labelledby="home-title">
       <div className="home-hero-copy">
@@ -73,6 +74,7 @@ function DropFeature({ drop }: { drop: Drop }) {
 }
 
 export function Home() {
+  const brand = useStoreSettings();
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
   // A failed background refresh keeps showing the data already on screen.

@@ -2,7 +2,8 @@ import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { brand } from "../brand";
+import { useStoreSettings } from "../useStore";
+import { PageBody } from "../components/PageBody";
 import { ArtImage } from "../components/ArtImage";
 import { Emblem } from "../components/Emblem";
 import { Failure, Loading, Meta } from "../components/Shared";
@@ -111,6 +112,7 @@ export function Archive() {
   );
 }
 export function Story() {
+  const brand = useStoreSettings();
   return (
     <div className="page story-page">
       <Meta title="Our Story" />
@@ -155,18 +157,43 @@ export function NotFound() {
     </div>
   );
 }
+const POLICY_PAGES = ["shipping", "returns", "privacy", "terms"];
+
 export function Info() {
   const { topic } = useParams();
-  return topic === "faq" ? <FAQ /> : topic === "shipping" || topic === "contact" ? (
+  if (topic === "faq") return <FAQ />;
+  if (topic === "contact") return <Contact />;
+  return topic && POLICY_PAGES.includes(topic) ? <Policy slug={topic} key={topic} /> : <NotFound />;
+}
+function Policy({ slug }: { slug: string }) {
+  const q = useQuery({ queryKey: ["page", slug], queryFn: () => api.page(slug) });
+  if (q.isPending) return <Loading />;
+  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
+  const { page } = q.data;
+  return (
     <div className="page narrow info-page">
-      <Meta title={topic === "shipping" ? "Shipping" : "Contact"} />
-      <h1>{topic === "shipping" ? "Shipping" : "Contact"}</h1>
-      <p>{topic === "shipping"
-        ? "Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."
-        : "Contact details are not available yet."}</p>
+      <Meta title={page.title} />
+      <h1>{page.title}</h1>
+      <PageBody body={page.body} />
+      {slug !== "shipping" && <p className="muted small">Last updated {new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(new Date(page.updated_at))}.</p>}
       <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
     </div>
-  ) : <NotFound />;
+  );
+}
+function Contact() {
+  const { contactEmail, isPending } = useStoreSettings();
+  return (
+    <div className="page narrow info-page">
+      <Meta title="Contact" />
+      <h1>Contact</h1>
+      {contactEmail ? (
+        <p>Questions about an order, a drop or anything else? Email <a href={`mailto:${contactEmail}`}>{contactEmail}</a>. Include your order number if you have one.</p>
+      ) : (
+        <p role="status">{isPending ? "Loading contact details…" : "Contact details are unavailable right now. Please try again soon."}</p>
+      )}
+      <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
+    </div>
+  );
 }
 function FAQ() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
@@ -178,8 +205,8 @@ function FAQ() {
       <h1>FAQ</h1>
       <div className="faq-answers">
         <section><h2>Do drops restock?</h2><p>No. Drops are one-time releases and never restock.</p></section>
-        <section><h2>Where do you ship?</h2><p>We ship to the United States, Guam and Puerto Rico. Shipping is calculated at checkout.</p></section>
-        <section><h2>How long is my checkout held?</h2><p>Your puzzles are held for about 30 minutes at checkout.</p></section>
+        <section><h2>Where do you ship?</h2><p>We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories. Shipping is calculated at checkout.</p></section>
+        <section><h2>How long is my checkout held?</h2><p>Your order is held for about 30 minutes at checkout.</p></section>
         {/* Answers that depend on catalog data come last, so they never push the static answers when they load. */}
         <section>
           <h2>When does the next drop release?</h2>

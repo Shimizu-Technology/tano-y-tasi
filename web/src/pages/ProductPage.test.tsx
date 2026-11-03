@@ -24,7 +24,7 @@ it("hides unknown specs while keeping confirmed details and factual shipping ava
     expect(screen.queryByText(/Preview details/)).not.toBeInTheDocument();
     expect(container.querySelector(".product-state")).not.toBeInTheDocument();
     await userEvent.click(screen.getByText("Shipping", { exact: true }));
-    expect(screen.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
+    expect(screen.getByText("Shipping is calculated at checkout. We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories.")).toBeVisible();
     expect(screen.getByRole("button", { name: "ADD TO CART" })).toBeEnabled();
   } finally {
     vi.unstubAllGlobals();

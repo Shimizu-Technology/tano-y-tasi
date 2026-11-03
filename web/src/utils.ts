@@ -33,7 +33,9 @@ export function purchaseState(product: Product) {
   const s = product.availability.state;
   return {
     label:
-      s === "upcoming"
+      s === "coming_soon"
+        ? "COMING SOON"
+        : s === "upcoming"
         ? product.drop?.release_at
           ? `RELEASES ${releaseDate(product.drop.release_at).toUpperCase()}`
           : "COMING SOON"
