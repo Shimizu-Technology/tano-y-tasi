@@ -99,6 +99,19 @@ test("viewer: keyboard zoom, point zoom, pan, and image swap preserve its fixed 
   await expect(viewer).toBeHidden();
   await expect(opener).toBeFocused();
 });
+test("reduced motion shows every mission line without clipping", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const lines = page.locator(".mission-track-copy > span");
+  await expect(lines.first()).toBeVisible();
+  const width = page.viewportSize()!.width;
+  for (const line of await lines.all()) {
+    const box = await line.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+  }
+});
+
 test("reduced motion keeps fades, a static mission strip, working overlays and disclosures", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/?mockDrop=live");

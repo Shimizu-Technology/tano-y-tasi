@@ -23,7 +23,7 @@
 .mission-toggle .lucide { width: 18px; height: 18px; }
 .mission-marquee[data-static] .mission-viewport { padding: 20px var(--gutter); }
 .mission-marquee[data-static] .mission-track { width: auto; animation: none; }
-.mission-marquee[data-static] .mission-track-copy { flex-wrap: wrap; justify-content: center; gap: 12px 20px; }
+.mission-marquee[data-static] .mission-track-copy { width: 100%; min-width: 0; flex-shrink: 1; flex-wrap: wrap; justify-content: center; gap: 12px 20px; }
 .mission-marquee[data-static] .mission-track-copy > span { white-space: normal; padding: 0; gap: 16px; text-align: left; }
 @keyframes mission-scroll { to { transform: translateX(-50%); } }
 .sun-hill-mark { width: 48px; height: 28px; flex-shrink: 0; }
