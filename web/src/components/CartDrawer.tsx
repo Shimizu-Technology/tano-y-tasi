@@ -118,7 +118,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                     {p && <ArtImage art={p.image} sizes="96px" />}
                     <div className="cart-line-info">
                       <Link onClick={close} to={`/products/${item.product_slug}`}>
-                        {p?.name ?? (query.isPending ? "Loading puzzle…" : item.product_slug)}
+                        {p?.name ?? (query.isPending ? "Loading…" : item.product_slug)}
                       </Link>
                       {p && <p className="price">{money(p.price_cents)}</p>}
                       <div className="cart-line-controls">
@@ -126,7 +126,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                           value={item.quantity}
                           max={max}
                           onChange={(n) => change(item.product_slug, n, max)}
-                          label={`Quantity for ${p?.name ?? "puzzle"}`}
+                          label={`Quantity for ${p?.name ?? "item"}`}
                           disabled={busy}
                         />
                         <button
@@ -144,7 +144,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                         <p className="line-error">
                           {p.availability.state === "upcoming"
                             ? "This drop hasn’t released yet."
-                            : "This puzzle is currently unavailable."}{" "}
+                            : "This item is currently unavailable."}{" "}
                           Remove it to continue.
                         </p>
                       )}
@@ -163,7 +163,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                       {query.isError && (
                         <p className="line-error">
                           {query.error instanceof ApiError && query.error.status === 404 ? (
-                            "This puzzle is no longer available. Remove it to continue."
+                            "This item is no longer available. Remove it to continue."
                           ) : (
                             <>
                               <span>Couldn’t check availability. </span>
@@ -248,7 +248,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                       ? "Try again"
                       : "CHECKOUT"}
               </button>
-              <p className="muted small">Your puzzles are held for about 30 minutes at checkout.</p>
+              <p className="muted small">Your order is held for about 30 minutes at checkout.</p>
             </form>
           </>
         )}

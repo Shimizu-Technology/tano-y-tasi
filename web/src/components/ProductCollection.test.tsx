@@ -20,7 +20,7 @@ it("features a single puzzle with price, summary, real specs and a product actio
   expect(screen.getByText("$35")).toBeVisible();
   expect(screen.getByText(product.summary)).toBeVisible();
   expect(await screen.findByText("100 pieces · 12 × 9 in finished")).toBeVisible();
-  expect(screen.getByRole("link", { name: "VIEW PUZZLE" })).toHaveAttribute("href", `/products/${CORE}`);
+  expect(screen.getByRole("link", { name: "VIEW DETAILS" })).toHaveAttribute("href", `/products/${CORE}`);
 });
 it.each([2, 3, 4])("selects the pair/grid layout for %i products", (count) => {
   const { container } = show(count);

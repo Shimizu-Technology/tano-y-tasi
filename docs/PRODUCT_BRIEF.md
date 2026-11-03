@@ -1,10 +1,10 @@
 # Tåno + Tåsi — Product Brief
 
-Last updated: 2026-10-29 · Owner: Leon Shimizu (tech) with Christian Tenorio (founder: product, marketing, sales)
+Last updated: 2026-11-04 · Owner: Leon Shimizu (tech) with Christian Tenorio (founder: product, marketing, sales)
 
 ## What this is
 
-Tåno y Tåsi ("Tåno + Tåsi — Island Supply Co.") is a Guam/Chamorro lifestyle brand. It starts with premium jigsaw puzzles of Guåhan, then adds novelty items (custom board games) and other islands. Tagline: **A Piece of Home.**
+Tåno y Tåsi ("Tåno + Tåsi — Island Supply Co.") is a Guam/Chamorro lifestyle brand. It starts with premium jigsaw puzzles of Guåhan, then adds novelty items (custom board games) and other islands. Tagline: **A Piece of Home.** A secondary line, "Grounded by land, guided by sea.", is used in the story section.
 
 Brand story (Christian's words; use sparingly, never above every buy button):
 
@@ -26,7 +26,7 @@ Brand story (Christian's words; use sparingly, never above every buy button):
 
 ## Experience goal
 
-Premium, minimal and confident, in the spirit of Supreme, BAPE, Noah's Core Collection and Stüssy. Specific island identity comes from Salvage Public and FITTED Hawaiʻi. See `DESIGN_DIRECTION.md`. The product art supplies the color; the site gets out of the way.
+Christian chose "Look 2" from five previews: retro and a little modern, simple, clean, and feeling like the island, with the mission statement front and center. Tone references are Ordinary Habit and Salem Goods. See `DESIGN_DIRECTION.md`. The product art supplies the color; the site gets out of the way. Christian also plans to sell novelty goods and apparel beyond CHamoru puzzles, so navigation and collection language stays neutral.
 
 ## Proof-of-concept scope (this phase)
 
@@ -61,7 +61,7 @@ Guam is ChST, UTC+10, with no daylight saving time. Always show Guam time first,
 ## Open questions (do not block the build)
 
 - Final domain: shoptanoytasi.com vs tanoytasi.com.
-- Primary wordmark: the rounded brown/teal logo vs the black "TÅNO + TÅSI" box wordmark. The PoC uses the box-style text wordmark in the header and the rounded logo as an emblem; make it a single swappable component.
+- Wordmark: decided. The header uses Christian's distressed "TÅNO + TÅSI · Island Supply Co" wordmark image and the rounded brown/green/teal logo is the emblem (home hero, Story, footer). Revisit only if Christian asks.
 - Rights confirmation for the GUAM sign photo and the map illustration's source.
 - Real prices, quantities, piece counts and sizes for the map puzzle.
 

@@ -138,7 +138,7 @@ function ProductView({
         <div className="product-breadcrumb label">
           <Link to={d ? "/archive" : "/shop"}>{d ? "THE DROPS" : "CORE COLLECTION"}</Link>
           <span> / </span>
-          <span>{d ? `DROP ${dropNumber(d.number)}` : "THE PUZZLES"}</span>
+          <span>{d ? `DROP ${dropNumber(d.number)}` : p.name}</span>
         </div>
         <div className="product-layout">
           <Gallery images={p.images} name={p.name} />

@@ -1,4 +1,5 @@
-import type { Art, Drop, Drops, ProductDetail, Storefront } from "../../src/types.ts";
+import { HOME_HERO_ART, HOME_HERO_SIZES } from "../../src/homeHero.ts";
+import type { Drop, Drops, ProductDetail, Storefront } from "../../src/types.ts";
 
 export const DEFAULT_SITE_URL = "https://tanoytasi.shimizu-technology.com";
 export const DEFAULT_API_URL = "https://tano-y-tasi-api.onrender.com";
@@ -28,10 +29,6 @@ export function escapeHtml(value: string): string {
 export function serializeData(data: InitialData): string {
   return JSON.stringify(data).replace(/[<>&\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
-const tabletop: Art = {
-  base: "/images/products/hafa-adai-from-tumon-bay/finished-tabletop", widths: [640, 1280, 2000],
-  aspect: "3:4", role: "hero", alt: "Finished Tumon Bay puzzle",
-};
 export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT_SITE_URL): string {
   const route = matchRoute(data.pathname);
   if (!route || !html.includes("<!-- tyt:meta:start -->")) return html;
@@ -51,10 +48,10 @@ export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT
     meta("og:url", canonical), meta("og:type", product ? "product" : "website"), meta("og:site_name", "Tåno + Tåsi"),
     meta("twitter:card", "summary_large_image", false),
   ];
-  const hero = product?.images[0] ?? (route.kind === "home" ? data.storefront.featured_drop?.product.image ?? tabletop : undefined);
+  const hero = route.kind === "home" ? HOME_HERO_ART : product?.images[0];
   if (hero) {
     // Must match the rendered <img sizes> so the browser reuses the preloaded candidate.
-    const sizes = route.kind === "home" ? "(min-width: 900px) 60vw, 100vw" : "(min-width: 900px) 58vw, calc(100vw - 32px)";
+    const sizes = route.kind === "home" ? HOME_HERO_SIZES : "(min-width: 900px) 58vw, calc(100vw - 32px)";
     tags.push(`<link data-tyt-preload rel="preload" as="image" imagesrcset="${escapeHtml(hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", "))}" imagesizes="${sizes}" fetchpriority="high" />`);
   }
   tags.push(`<script type="application/json" id="tyt-initial-data">${serializeData(data)}</script>`);

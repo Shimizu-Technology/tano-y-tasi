@@ -45,7 +45,9 @@ it("replaces default tags with complete absolute product metadata and matching r
 it("uses drop-specific OG and brand OG for other pages", () => {
   expect(transformHtml(html, { ...snapshot("/drop"), drop: { drop, server_time, receivedAt: snapshotTime } })).toContain(`/images/og/${MAP}.jpg`);
   expect(transformHtml(html, snapshot())).toContain("/images/og/brand.jpg");
-  expect(transformHtml(html, snapshot())).toContain(`${map.image.base}-640.webp`);
+  // The home hero is the same photo in every drop state, so the preload never depends on the drop.
+  expect(transformHtml(html, snapshot())).toContain("finished-tabletop-640.webp");
+  expect(transformHtml(html, snapshot())).not.toContain(`${map.image.base}-640.webp`);
   expect(transformHtml(html, { ...snapshot(), storefront: { ...snapshot().storefront, featured_drop: null } })).toContain("finished-tabletop-640.webp");
 });
 it("escapes metadata and JSON without executable inline scripts or dollar-pattern substitutions", () => {

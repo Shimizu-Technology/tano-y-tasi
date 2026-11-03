@@ -1,10 +1,9 @@
-import { useLook } from "../looks/look";
 import { Minus, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
-import { ProductArt } from "./ProductArt";
+import { ArtImage } from "./ArtImage";
 import type { Product } from "../types";
 import { dropNumber, money, releaseDate, releaseTimes, countdown, remainingMs } from "../utils";
 export function Meta({
@@ -26,9 +25,7 @@ export function Meta({
   );
 }
 export function Wordmark() {
-  const look = useLook();
-  if (look === "1" || look === "2" || look === "4" || look === "5") return <img className="look-wordmark" src="/images/brand/wordmark-ink-360.webp" srcSet="/images/brand/wordmark-ink-360.webp 360w, /images/brand/wordmark-ink-720.webp 720w" sizes="(min-width: 900px) 136px, 132px" width="360" height="116" alt="TÅNO + TÅSI — Island Supply Co." />;
-  return <span className="wordmark">TÅNO + TÅSI</span>;
+  return <img className="wordmark" src="/images/brand/wordmark-ink-360.webp" srcSet="/images/brand/wordmark-ink-360.webp 360w, /images/brand/wordmark-ink-720.webp 720w" sizes="(min-width: 900px) 136px, 132px" width="360" height="116" alt="TÅNO + TÅSI — Island Supply Co." />;
 }
 export function Loading({ layout = "page" }: { layout?: "home" | "collection" | "product" | "drop" | "archive" | "page" }) {
   const product = layout === "product" || layout === "drop";
@@ -38,11 +35,14 @@ export function Loading({ layout = "page" }: { layout?: "home" | "collection" | 
       <div aria-hidden="true">
         {layout === "home" ? (
           <>
-            <div className="hero skeleton-hero">
-              <div className="skeleton skeleton-art" />
-              <div className="hero-caption"><div className="skeleton skeleton-title" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-copy" /><div className="skeleton skeleton-button" /></div>
+            {/* Same grid as the home hero, so the real page replaces it without moving. */}
+            <div className="home-hero">
+              <div className="home-hero-copy">
+                <div className="skeleton skeleton-emblem" /><div className="skeleton skeleton-headline" /><div className="skeleton skeleton-mission" />
+              </div>
+              <div className="home-hero-art"><div className="skeleton skeleton-hero-art" /></div>
+              <div className="home-hero-actions"><div className="skeleton skeleton-button" /></div>
             </div>
-            <div className="section"><div className="skeleton skeleton-title" /><div className="skeleton-tiles"><div className="skeleton tile" /><div className="skeleton tile" /></div></div>
           </>
         ) : product ? (
           <div className="product-page">
@@ -80,7 +80,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <Link className="product-card" to={`/products/${product.slug}`}>
       <div className="tile">
-        <ProductArt product={product} />
+        <ArtImage art={product.image} />
       </div>
       <div className="card-caption">
         <p>{product.name}</p>
@@ -104,16 +104,18 @@ export function ProductCard({ product }: { product: Product }) {
     </Link>
   );
 }
-export function Signup({ source = "home", dropSlug }: { source?: string; dropSlug?: string }) {
+export function Signup({ source = "home", dropSlug, inline = false, cta = "SIGN UP" }: { source?: string; dropSlug?: string; inline?: boolean; cta?: string }) {
   const [email, setEmail] = useState("");
   const mutation = useMutation({ mutationFn: () => api.subscribe(email, source, dropSlug) });
   const id = `signup-${source}`;
   return (
-    <section className="signup" id="notify">
-      <div>
-        <h2>New drops, first.</h2>
-        <p className="muted">No spam. Just a piece of home.</p>
-      </div>
+    <section className={`signup${inline ? " signup-inline" : ""}`} id="notify" aria-label={inline ? "Drop alerts" : undefined}>
+      {!inline && (
+        <div>
+          <h2>New drops, first.</h2>
+          <p className="muted">No spam. Just a piece of home.</p>
+        </div>
+      )}
       {mutation.isSuccess ? (
         <p role="status" className="signup-success">
           You’re on the list. We’ll keep you posted.
@@ -144,7 +146,7 @@ export function Signup({ source = "home", dropSlug }: { source?: string; dropSlu
               aria-describedby={mutation.isError ? `${id}-error` : undefined}
             />
             <button disabled={mutation.isPending} className="button">
-              {mutation.isPending ? "SIGNING UP…" : "SIGN UP"}
+              {mutation.isPending ? "SIGNING UP…" : cta}
             </button>
           </div>
           {mutation.isError && (

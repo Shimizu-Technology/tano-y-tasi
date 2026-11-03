@@ -1,0 +1,75 @@
+/* Home. The hero is one grid so the loading skeleton (same classes) swaps in without shifting. */
+.home-hero { max-width: 1440px; margin: auto; display: grid; }
+.home-hero-copy { padding: 16px var(--gutter) 20px; text-align: center; }
+.home-hero-copy .skeleton { margin-inline: auto; }
+.home-emblem { width: 124px; height: auto; margin: 0 auto 12px; }
+.home-hero h1 { font-size: clamp(30px, 9vw, 44px); font-weight: 800; line-height: 1.05; letter-spacing: -0.045em; text-wrap: balance; }
+.home-mission { margin: 8px auto 0; max-width: 28ch; font-size: 18px; line-height: 1.4; text-wrap: balance; }
+.home-hero-art { padding: 0 var(--gutter); }
+.home-hero-art img { aspect-ratio: 5/4; object-fit: cover; object-position: center 55%; }
+.home-hero-actions { padding: 14px var(--gutter) 8px; text-align: center; }
+.home-hero-caption { font-size: 14px; line-height: 1.4; color: var(--color-ink-muted); }
+.home-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 24px; margin-top: 12px; }
+
+/* Mission strip: a slow marquee with a pause control; static and single when motion is reduced. */
+.mission-marquee { display: flex; align-items: center; background: var(--color-green); color: var(--color-cream); }
+.mission-viewport { flex: 1; min-width: 0; overflow: hidden; padding-block: 20px; }
+.mission-track { display: flex; width: max-content; animation: mission-scroll 55s linear infinite; }
+.mission-track-copy { display: flex; flex-shrink: 0; align-items: center; }
+.mission-track-copy > span { display: flex; align-items: center; gap: 40px; padding-right: 40px; white-space: nowrap; font-size: 16px; font-weight: 500; }
+.mission-marquee[data-paused] .mission-track { animation-play-state: paused; }
+.mission-toggle { flex-shrink: 0; display: grid; place-items: center; width: 44px; height: 44px; margin-inline: 8px var(--gutter); }
+.mission-toggle:focus-visible, .mission-marquee :focus-visible { outline-color: var(--color-cream); }
+.mission-toggle .lucide { width: 18px; height: 18px; }
+.mission-marquee[data-static] .mission-viewport { padding: 20px var(--gutter); }
+.mission-marquee[data-static] .mission-track { width: auto; animation: none; }
+.mission-marquee[data-static] .mission-track-copy { flex-wrap: wrap; justify-content: center; gap: 12px 20px; }
+.mission-marquee[data-static] .mission-track-copy > span { white-space: normal; padding: 0; gap: 16px; text-align: left; }
+@keyframes mission-scroll { to { transform: translateX(-50%); } }
+.sun-hill-mark { width: 48px; height: 28px; flex-shrink: 0; }
+.mark-sun { fill: var(--color-sun); }
+.mark-hill { fill: var(--color-green); }
+.mission-marquee .mark-hill { fill: var(--color-cream); }
+
+.home-section { padding: 64px var(--gutter); max-width: 1440px; margin: auto; }
+.home-collection .section-heading > a { white-space: nowrap; flex-shrink: 0; }
+.home-drop, .home-story { display: grid; gap: 32px; align-items: center; }
+.home-drop > img { max-height: 640px; object-fit: contain; background: var(--color-tile); }
+.home-drop h2, .home-story h2 { font-size: 32px; letter-spacing: -0.03em; margin: 12px 0 20px; }
+.home-drop p, .home-story p { max-width: 36ch; }
+.home-drop-price { margin-top: 16px; font-variant-numeric: tabular-nums; }
+.home-drop-status { margin-top: 16px; font-size: 14px; line-height: 1.5; color: var(--color-ink-muted); }
+.home-drop[data-drop-state="coming_soon"] .home-drop-status { font-size: 16px; color: var(--color-ink); }
+.home-drop .signup-inline { margin-top: 24px; max-width: 440px; }
+.home-drop .signup-inline > form, .home-drop .signup-inline > .signup-success { width: 100%; max-width: none; }
+.home-drop > div > .button { margin-top: 24px; }
+.home-drop > div > .text-link { margin-top: 12px; }
+.home-story { border-top: 1px solid var(--color-line); }
+.home-story .sun-hill-mark { margin-bottom: 4px; }
+.home-story .home-secondary-tagline { margin-top: 20px; max-width: none; color: var(--color-green); letter-spacing: 0.1em; text-wrap: balance; }
+.home-story .text-link { margin-top: 12px; }
+.home-signup { padding-top: 0; }
+
+@media (min-width: 900px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; column-gap: 48px; padding: 40px var(--gutter) 48px; }
+  .home-hero-copy { grid-column: 1; grid-row: 1; align-self: end; padding: 0; }
+  .home-hero-actions { grid-column: 1; grid-row: 2; align-self: start; padding: 20px 0 0; }
+  .home-hero-art { grid-column: 2; grid-row: 1 / span 2; padding: 0; }
+  .home-hero-art img { aspect-ratio: 1; }
+  .home-emblem { width: min(22vw, 300px); margin-bottom: 8px; }
+  .home-hero h1 { font-size: clamp(44px, 3.9vw, 56px); margin-top: 20px; }
+  .home-mission { margin-top: 16px; font-size: 20px; max-width: 30ch; }
+  .home-hero-caption { font-size: 16px; }
+  .home-actions { margin-top: 16px; }
+  .skeleton-emblem { width: min(22vw, 300px); height: calc(min(22vw, 300px) * 0.825); }
+  .skeleton-headline { height: 56px; }
+  .skeleton-hero-art { aspect-ratio: 1; }
+  .home-section { padding-block: 112px; }
+  .home-drop .signup-inline { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; }
+  .home-drop, .home-story { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 96px; }
+  .home-drop h2, .home-story h2 { font-size: 48px; }
+  .home-story p { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mission-track { animation: none; }
+}
