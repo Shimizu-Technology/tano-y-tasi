@@ -46,7 +46,7 @@ async function checkout(page: Page, email = "qa@example.com") {
 }
 test("home upcoming: hero, collection and island identity", async ({ page }, info) => {
   await go(page, "/");
-  await expect(page.getByRole("heading", { name: "GUÅHAN", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A piece of home.", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "NOTIFY ME" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "The core collection", exact: true })).toBeVisible();
   await shot(page, info, "home-upcoming");
@@ -192,7 +192,7 @@ test("archive: empty first-drop state", async ({ page }, info) => {
   await expect(page.getByRole("button", { name: "RELEASES DEC 5" })).toBeDisabled();
 });
 test("signup: valid email saves and invalid input stays local", async ({ page }) => {
-  await go(page, "/");
+  await go(page, "/", "live");
   await page.getByLabel("Email for drop alerts").fill("invalid");
   await page.getByRole("button", { name: "SIGN UP", exact: true }).click();
   await expect(page.getByLabel("Email for drop alerts")).toBeVisible();
@@ -285,7 +285,8 @@ test("self-hosted type renders diacritics and reduced motion keeps gentle fades"
 
 test("home without an active drop: tabletop artwork and shop action", async ({ page }, info) => {
   await go(page, "/", "closed");
-  await expect(page.getByRole("heading", { name: "A PIECE OF HOME." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A piece of home.", exact: true })).toBeVisible();
+  await expect(page.locator(".home-drop")).toHaveCount(0);
   await shot(page, info, "home-no-drop");
   await overflow(page);
 });
@@ -298,7 +299,7 @@ for (const count of [1, 2, 3]) {
       if (count === 1) {
         await expect(collection).toHaveClass(/collection-feature/);
         await expect(collection.getByText("100 pieces · 12 × 9 in finished")).toBeVisible();
-        const image = await collection.locator("img").boundingBox();
+        const image = await collection.locator(".feature-art").boundingBox();
         const caption = await collection.locator(".feature-info").boundingBox();
         if (info.project.name === "desktop") {
           expect(image!.width).toBeGreaterThan(700);
@@ -315,32 +316,10 @@ for (const count of [1, 2, 3]) {
       await shot(page, info, `${route === "/" ? "home" : "shop"}-core-${count}`);
       await overflow(page);
     }
-    await page.getByRole("link", { name: count === 1 ? "VIEW PUZZLE" : /Tumon Bay — Mock 2/ }).click();
+    await page.getByRole("link", { name: count === 1 ? "VIEW DETAILS" : /Tumon Bay — Mock 2/ }).click();
     await expect(page.getByRole("button", { name: "ADD TO CART", exact: true }).first()).toBeVisible();
   });
 }
-
-test("mobile hero separates art and caption; desktop gives art 60% with visible shop actions", async ({ page }, info) => {
-  for (const state of ["upcoming", "live", "closed"]) {
-    await go(page, "/", state);
-    const art = await page.locator(".hero > img").boundingBox();
-    const caption = await page.locator(".hero-caption").boundingBox();
-    if (info.project.name === "mobile") {
-      expect(art!.width).toBe(390);
-      expect(art!.height).toBeCloseTo(487.5);
-      expect(caption!.y).toBeGreaterThanOrEqual(art!.y + art!.height);
-    } else if (state !== "closed") {
-      await expect(page.locator(".hero > img")).toHaveCSS("object-fit", "cover");
-      expect(art!.width / page.viewportSize()!.width).toBeCloseTo(0.6);
-      expect(caption!.x).toBeGreaterThanOrEqual(art!.x + art!.width);
-      await expect(page.getByRole("link", { name: state === "live" ? "SHOP THE DROP" : "NOTIFY ME", exact: true })).toBeInViewport();
-      await expect(page.getByRole("link", { name: "Shop Håfa Adai from Tumon Bay — $35", exact: true })).toBeInViewport();
-    }
-    await expect(page.locator(".hero h1")).toHaveCSS("font-variation-settings", '"wdth" 125');
-    await expect(page.locator(".hero h1")).toHaveCSS("font-stretch", "125%");
-    expect(await page.locator(".hero h1").evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Archivo Variable");
-  }
-});
 
 test("a coming-soon drop shows no date or quantity and cannot be bought", async ({ page }) => {
   await go(page, "/drop", "coming_soon");
@@ -349,6 +328,7 @@ test("a coming-soon drop shows no date or quantity and cannot be bought", async 
   await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
   await expect(page.getByText(/\d+ made/)).toHaveCount(0);
   await expect(page.getByText(/ChST/)).toHaveCount(0);
+  await expect(page.locator(".product-price")).toHaveCount(0);
   await overflow(page);
   await page.goto("/archive");
   await expect(page.getByText("Drop 001 · Coming soon")).toBeVisible();
@@ -397,7 +377,7 @@ test("header rule follows scrolling without changing its height", async ({ page 
   expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe("rgba(0, 0, 0, 0)");
   await page.evaluate(() => window.scrollTo(0, 200));
   await expect(header).toHaveClass(/is-scrolled/);
-  expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe("rgb(221, 213, 200)");
+  expect(await header.evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe("rgb(188, 179, 163)");
   expect(await header.evaluate((el) => el.getBoundingClientRect().height)).toBe(height);
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(header).not.toHaveClass(/is-scrolled/);
@@ -474,11 +454,9 @@ test("order A payment preserves a re-added cart and checkout B reservation", asy
 });
 
 
-test("home core link names the buyable puzzle and preserves the path into cart", async ({ page }) => {
+test("home: from the collection to the cart", async ({ page }) => {
   await go(page, "/");
-  const core = page.getByRole("link", { name: "Shop Håfa Adai from Tumon Bay — $35", exact: true });
-  await expect(core).toBeInViewport();
-  await core.click();
+  await page.getByRole("link", { name: "VIEW DETAILS", exact: true }).click();
   await expect(page).toHaveURL(/products\/hafa-adai-from-tumon-bay/);
   await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
   const cart = page.getByRole("dialog", { name: "Your cart" });
@@ -520,5 +498,5 @@ test("storefront type stays at least 12px and placeholder text uses the readable
   expect(await page.getByLabel("Email for drop alerts").evaluate((input) => ({
     placeholder: getComputedStyle(input, "::placeholder").color,
     muted: getComputedStyle(document.querySelector(".muted")!).color,
-  }))).toEqual({ placeholder: "rgb(95, 90, 83)", muted: "rgb(95, 90, 83)" });
+  }))).toEqual({ placeholder: "rgb(97, 89, 77)", muted: "rgb(97, 89, 77)" });
 });

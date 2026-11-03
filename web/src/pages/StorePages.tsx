@@ -1,25 +1,14 @@
-import { useLook } from "../looks/look";
-import { LookHome } from "../looks/LookHome";
-import { useEffect, useState, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
+import { brand } from "../brand";
 import { ArtImage } from "../components/ArtImage";
-import { ProductArt } from "../components/ProductArt";
-import { Failure, Loading, Meta, Signup } from "../components/Shared";
-import { dropNumber, releaseTimes, releaseDate, money, heroReleaseTime } from "../utils";
+import { Emblem } from "../components/Emblem";
+import { Failure, Loading, Meta } from "../components/Shared";
+import { dropNumber, releaseTimes, releaseDate } from "../utils";
 import { ProductCollection } from "../components/ProductCollection";
 import type { Art } from "../types";
-export const story =
-  "Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.";
-const tabletop: Art = {
-  base: "/images/products/hafa-adai-from-tumon-bay/finished-tabletop",
-  widths: [640, 1280, 2000],
-  aspect: "3:4",
-  role: "lifestyle",
-  alt: "Finished Tumon Bay puzzle on a table, with flowers and its keepsake box.",
-};
 const flatPuzzle: Art = {
   base: "/images/products/hafa-adai-from-tumon-bay/finished-flat",
   widths: [640, 1280, 2000],
@@ -40,105 +29,6 @@ function MapDetails() {
     </div>
   );
 }
-function HeroCaption({ children }: { children: ReactNode }) {
-  const [enter, setEnter] = useState(() => sessionStorage.getItem("tyt-hero-seen") !== "true");
-  useEffect(() => {
-    sessionStorage.setItem("tyt-hero-seen", "true");
-    if (!enter) return;
-    // Drop the marker once the ~300 ms entrance has played, so content that arrives
-    // later (a fresh response replacing the edge snapshot) appears without animating.
-    const timer = setTimeout(() => setEnter(false), 400);
-    return () => clearTimeout(timer);
-  }, [enter]);
-  const caption = useRef<HTMLDivElement>(null);
-  // Only children present on the first commit take part in the entrance; anything a
-  // refetch inserts afterwards (even within the 400 ms window) appears without animating.
-  useLayoutEffect(() => {
-    if (!enter) return;
-    for (const child of caption.current?.children ?? []) child.setAttribute("data-enter-item", "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return <div ref={caption} className="hero-caption" data-enter={enter ? "once" : undefined}>{children}</div>;
-}
-export function Home() {
-  const look = useLook();
-  const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
-  if (q.isPending) return <Loading layout="home" />;
-  // A failed background refresh keeps showing the data already on screen.
-  if (!q.data) return <Failure error={q.error ?? new Error("Unavailable")} retry={() => void q.refetch()} />;
-  const data = q.data;
-  if (look) return <LookHome look={look} data={data} story={story} />;
-  const d = data.featured_drop;
-  const live = d?.state === "live";
-  const core = data.core_products.find((product) => product.availability.purchasable);
-  const hero = d?.product.image ?? tabletop;
-  return (
-    <>
-      <Meta title="A Piece of Home." />
-      <link
-        rel="preload"
-        as="image"
-        imageSrcSet={hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", ")}
-        imageSizes="(min-width: 900px) 60vw, 100vw"
-      />
-      <section
-        className={`hero ${d ? "map-hero" : "core-hero"}`}
-        aria-label={d ? "Guåhan Sunset Map puzzle" : "Puzzles of Guåhan"}
-      >
-        <ArtImage art={hero} sizes="(min-width: 900px) 60vw, 100vw" priority />
-        <HeroCaption>
-          <h1>
-            {d ? (
-              "GUÅHAN"
-            ) : (
-              <>
-                A PIECE
-                <br />
-                OF HOME.
-              </>
-            )}
-          </h1>
-          <p className="hero-summary">{d?.product.summary ?? core?.summary ?? "Puzzles from the island. For wherever you are."}</p>
-          {d && (
-            <p className="hero-release">
-              Drop {dropNumber(d.number)} · {live ? `Available now${d.quantity != null ? ` · ${d.quantity} made` : ""}` : d.release_at ? `Releases ${heroReleaseTime(d.release_at)}` : "Coming soon"}
-            </p>
-          )}
-          <Link className="button" to={d ? (live ? "/drop" : "/drop#notify") : "/shop"}>
-            {d ? (live ? "SHOP THE DROP" : "NOTIFY ME") : "SHOP"}
-          </Link>
-          {core && (
-            <Link className="text-link hero-core-link" to={`/products/${core.slug}`}>
-              <span>Shop {core.name} — {money(core.price_cents)}</span><ArrowRight aria-hidden="true" />
-            </Link>
-          )}
-        </HeroCaption>
-      </section>
-      <section className="section collection">
-        <div className="section-heading">
-          <h2>The core collection</h2>
-          <Link className="text-link label" to="/shop">
-            Shop all <ArrowRight aria-hidden="true" />
-          </Link>
-        </div>
-        <ProductCollection products={data.core_products} />
-      </section>
-      <section className="section story-strip">
-        <div className="story-strip-copy">
-          <h2>Tåno is land. Tåsi is sea.</h2>
-          <p>{story}</p>
-          <Link className="text-link label" to="/story">
-            Our story <ArrowRight aria-hidden="true" />
-          </Link>
-        </div>
-        <MapDetails />
-      </section>
-      <div className="section">
-        <Signup />
-      </div>
-    </>
-  );
-}
 export function Shop() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="collection" />;
@@ -151,7 +41,7 @@ export function Shop() {
       <div className="page-heading">
         <div className="shop-title">
           <h1>Shop</h1>
-          <span className="muted">{q.data.core_products.length} {q.data.core_products.length === 1 ? "puzzle" : "puzzles"}</span>
+          <span className="muted">{q.data.core_products.length} {q.data.core_products.length === 1 ? "item" : "items"}</span>
         </div>
         <p className="muted">The core collection. Made to come back to.</p>
       </div>
@@ -191,7 +81,7 @@ export function Archive() {
             <div key={d.slug}>
               <Link to={`/drops/${d.slug}`} className="archive-card">
                 <div className="tile">
-                  <ProductArt product={d.product} />
+                  <ArtImage art={d.product.image} />
                 </div>
                 <p>{d.name}</p>
                 <p className="label muted">
@@ -205,7 +95,7 @@ export function Archive() {
       ) : next ? (
         <article className="archive-preview">
           <Link to={`/drops/${next.slug}`} aria-label={`Explore Drop ${dropNumber(next.number)} — ${next.name}`}>
-            <ProductArt product={next.product} sizes="(min-width: 900px) 50vw, 100vw" priority />
+            <ArtImage art={next.product.image} sizes="(min-width: 900px) 50vw, 100vw" priority />
           </Link>
           <div>
             <p className="label">Drop {dropNumber(next.number)} · {next.state !== "upcoming" ? "Available now" : next.release_at ? "Upcoming" : "Coming soon"}</p>
@@ -226,11 +116,11 @@ export function Story() {
       <Meta title="Our Story" />
       <section className="story-intro">
         <div className="story-emblem">
-          <img src="/images/brand/logo-mark-800.png" width="280" height="224" alt="Tåno Tåsi — land and sea" />
+          <Emblem sizes="(min-width: 900px) 320px, 200px" width={320} priority />
         </div>
         <div>
-          <h1>A piece of home.</h1>
-          <p className="story-lead">{story}</p>
+          <h1>{brand.tagline}</h1>
+          <p className="story-lead">{brand.story}</p>
         </div>
       </section>
       <section className="story-chapter story-meaning">

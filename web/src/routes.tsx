@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import { Layout } from "./components/Layout";
-import { Home, Shop, Archive, Story, NotFound, Info } from "./pages/StorePages";
+import { Home } from "./pages/Home";
+import { Shop, Archive, Story, NotFound, Info } from "./pages/StorePages";
 import { ProductPage, DropPage } from "./pages/ProductPage";
 import { OrderPage, CancelPage } from "./pages/OrderPages";
 export const router = createBrowserRouter([

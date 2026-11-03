@@ -3,8 +3,8 @@ import { Link, NavLink, Outlet, ScrollRestoration } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useCart } from "../cart";
-import { PreviewBar } from "../looks/PreviewBar";
-import { useLook } from "../looks/look";
+import { brand } from "../brand";
+import { Emblem } from "./Emblem";
 import { Wordmark } from "./Shared";
 import { Modal } from "./Modal";
 import { CartDrawer } from "./CartDrawer";
@@ -60,7 +60,6 @@ export function Layout() {
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <PreviewBar />
       <header className={`site-header${scrolled ? " is-scrolled" : ""}`}>
         <Link to="/" aria-label="Tåno + Tåsi home">
           <Wordmark />
@@ -92,7 +91,7 @@ export function Layout() {
           {nav(true, close)}
           <p className="label muted menu-signoff">
             GUÅHAN · MARIANA ISLANDS
-            <br />A PIECE OF HOME.
+            <br />{brand.tagline.toUpperCase()}
           </p>
           </>}
         </Modal>
@@ -102,18 +101,11 @@ export function Layout() {
   );
 }
 function Footer() {
-  const look = useLook();
   return (
     <footer className="site-footer">
       <div className="footer-top">
         <Link to="/" aria-label="Tåno + Tåsi home">
-          <img
-            src={look === "1" ? "/images/brand/wordmark-cream-720.webp" : "/images/brand/logo-mark-800.png"}
-            width={look === "1" ? "360" : "112"}
-            height={look === "1" ? "116" : "90"}
-            alt="Tåno Tåsi, land and sea"
-            loading="lazy"
-          />
+          <Emblem sizes="112px" width={112} />
         </Link>
         <p>
           Made for Guåhan and everyone

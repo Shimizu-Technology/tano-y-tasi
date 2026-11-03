@@ -1,71 +1,81 @@
 # Design Direction — Tåno + Tåsi Storefront
 
-The goal is a quiet, premium shell with confident type and a lot of space. Christian's artwork supplies all the color. References: Supreme and Stüssy for restraint, Noah for the core-plus-drops structure, Aimé Leon Dore for typographic calm, Salvage Public and FITTED Hawaiʻi for specific island identity. Copy none of them.
+Retro and a little modern, simple, and unmistakably the island. That was Christian's brief, and he picked this look ("Look 2") from five previews. A warm sand page, brown ink, the rounded Tåno Tåsi logo, and a slow green strip of the mission. The mission leads. Product artwork supplies the loud colors; the shell stays quiet. Tone references are Ordinary Habit and Salem Goods: studied for feel, copied for nothing.
 
 ## Principles
 
-1. **Product first.** Every screen leads with artwork or the product. Copy is short.
-2. **Restraint signals premium.** Few links, no badges or popups, no fake urgency, no discount banner.
-3. **Show the evidence.** Piece count, size, what's included, credit and drop terms are always easy to find. Minimal never means vague.
-4. **One system everywhere.** The same image ratios, the same type scale, and the same spacing on every page.
-5. **Phones first.** Thumb-reachable primary actions, 44px minimum touch targets, no horizontal scroll, and fast image loading.
+1. **Mission first, then product.** The first screen says what the brand is for ("A piece of home.", "Keeping us connected to where we come from.") and shows real artwork. The brand is expected to sell more than puzzles, so navigation and collection framing use neutral words (`Shop`, `collection`, `items`); only product data says "puzzle".
+2. **Restraint signals premium.** Few links, no badges or popups, no gradients, no fake urgency, no discount banner.
+3. **Show the evidence.** Piece count, size, what's included, credit and drop terms are easy to find. Minimal never means vague.
+4. **One system everywhere.** The same tokens, image ratios and type scale on every page.
+5. **Phones first.** Thumb-reachable primary actions, 44px minimum touch targets, no horizontal scroll, fast image loading. Verify at 390×844 and 1440×900.
 
 ## Tokens
 
-Define these as CSS variables or a Tailwind v4 `@theme`. Reference token roles, never raw hex values in components.
+Defined in the `@theme` block of `web/src/styles.css`. Reference token roles, never raw hex values in components.
 
 | Role | Value | Use |
 |---|---|---|
-| `--color-paper` | `#F5F0E7` | Page background (warm cream from the box) |
-| `--color-paper-raised` | `#FBF8F2` | Drawer and sheet surfaces |
-| `--color-ink` | `#141311` | Text, primary buttons |
-| `--color-ink-muted` | `#5F5A53` | Secondary text (check AA contrast on paper) |
-| `--color-line` | `#DDD5C8` | Hairlines and dividers |
-| `--color-sun` | `#E8601C` | The **only** accent: live-drop indicator, focus ring, rare emphasis |
-| `--color-sold` | `#8A847B` | Sold-out text and state |
+| `--color-paper` | `#E5DFD2` | Page background (warm sand). Also the `theme-color` in `index.html`. |
+| `--color-paper-raised` | `#F2EDE3` | Drawer, sheet and input surfaces |
+| `--color-paper-deep` | `#D9D0BF` | Footer band |
+| `--color-tile` | `#DBD3C3` | Ground behind contained artwork (product tiles, drop art) |
+| `--color-ink` | `#491E0B` | Text, primary buttons (the logo's brown) |
+| `--color-ink-muted` | `#61594D` | Secondary text and placeholders |
+| `--color-line` | `#BCB3A3` | Hairlines and dividers |
+| `--color-green` | `#14492B` | Mission strip, focus ring, the tagline in the story section |
+| `--color-teal` | `#0E495B` | Reserved for the logo's sea; not used for UI yet |
+| `--color-cream` | `#FDEFD5` | Text and icons on the green strip |
+| `--color-sun` | `#ED601B` | The logo's sun: live-drop dot, the sun in the hill mark |
+| `--color-sold` | `#8A847B` | Disabled and sold-out states |
 
-Never use gradients, drop shadows on cards, or rounded "pill" cards. Corner radius is 0 everywhere except the focus ring offset.
+No gradients, no card shadows, no pill cards. Corner radius is 0 everywhere.
 
 ## Typography
 
-- Use one family: **Archivo** (variable, with width and weight axes), self-hosted via `@fontsource-variable/archivo`. Use the wide plus heavy settings for the wordmark and display moments, and normal width and weight for body. Verify that å, ñ and the ʻ/' glyphs render.
+- One family: **Archivo** (variable, with width and weight axes), self-hosted via `@fontsource-variable/archivo`. Headlines are heavy (800) with tight tracking (`-0.03em` to `-0.045em`); body is 400. There is no serif. Verify that å, ñ and the ʻ/' glyphs render.
 - Scale (mobile → desktop):
-  - `label` 12px, uppercase, tracking 0.08em, weight 600: nav and information-bearing state labels.
-  - `body` 16px, weight 400, line-height 1.5.
-  - `title` 20/24px, weight 600: product names on product pages.
-  - `display` clamp(40px, 9vw, 112px), wide width, weight 800, uppercase, tight leading 0.9: hero headline only.
-- Buttons use 13px; `.small` is at least 13px. No storefront text is smaller than 12px. Prices use tabular numbers. Hero summaries use at least 18px in full ink.
-- Email placeholders use `--color-ink-muted`, with the same readable contrast as secondary text.
+  - `home h1` clamp(30px, 9vw, 44px) → clamp(44px, 3.9vw, 56px), weight 800, leading 1.05.
+  - section `h2` 32px → 48px (home drop and story), 24px → 32px (collection, signup).
+  - `title` 20px → 24px, weight 600: product names.
+  - `label` 12px, uppercase, tracking 0.08em, weight 600: nav, state labels.
+  - `body` 16px, weight 400, line-height 1.5. Mission line 18px → 20px.
+- Buttons use 13px. No storefront text is smaller than 12px. Prices use tabular numbers. Email placeholders use `--color-ink-muted`.
 
 ## Layout
 
 - Max content width 1440px. Gutters: 16px mobile, 24px tablet, 40px desktop.
-- Spacing rhythm is on an 8px grid. Major section spacing is 96px mobile and 160px desktop.
-- Product grid: **2 columns on mobile, 3 on desktop**. Square image tiles on `--color-paper` with no border; contain the artwork so landscape puzzles stay whole. A single-product feature uses the image's natural aspect ratio. Name and price sit below in `body`; the state label (`SOLD OUT`, `DROP 001`, `COMING DEC 5`) goes in `label` style.
+- Spacing rhythm is on an 8px grid. Home sections use 64px of vertical padding on phones and 112px on desktop.
+- Product grid: 2 columns on mobile, 3 on desktop. A single-product collection is a feature: contained artwork on `--color-tile` beside its name, price, summary and a `VIEW DETAILS` button.
 
 ## Header and navigation
 
-- Height 56px, sticky, paper background with a hairline bottom border on scroll.
-- Left: **wordmark** "TÅNO + TÅSI" as text, using the Archivo wide heavy settings. Build it as a single `<Wordmark/>` component so it can be swapped for the logo image if Christian picks the rounded logo.
-- Desktop: center or right inline links `SHOP · DROP · STORY · ARCHIVE` in `label` style, then `CART (0)`.
-- Mobile: `MENU` text button on the left of the cart, opening a full-screen paper sheet with large stacked links. Plain text, no hamburger icon.
-- When a drop is live, show a small `--color-sun` dot beside `DROP`. That is the only animated hint (a subtle pulse, disabled under reduced motion).
+- Height 56px, sticky, paper background with a hairline on scroll.
+- Left: the distressed **wordmark** image ("TÅNO + TÅSI · Island Supply Co", ink color, 360/720px WebP served at 132–136px), rendered by `<Wordmark/>`.
+- Desktop: `SHOP · DROP · STORY · ARCHIVE` in `label` style, then `CART (0)`. Mobile: a `MENU` text button beside the cart, opening a full-screen paper sheet with 40px stacked links and the sign-off `GUÅHAN · MARIANA ISLANDS` / `A PIECE OF HOME.`
+- When a drop is live, a small `--color-sun` dot sits beside `DROP`. It pulses slowly and is static under reduced motion.
 
-## Pages
+## Home
 
-### Home
-1. **Hero** led by the drop's state:
-   - Drop upcoming or live: drop artwork (map), display headline `GUÅHAN`, the product summary from the API, then `Drop 001 · Releases Sat, Dec 5 · 10:00 AM ChST` or `Drop 001 · Available now · 100 made` using the API's date and quantity. Primary action: `NOTIFY ME` / `SHOP THE DROP`.
-   - No active drop: the Tumon puzzle tabletop photo with display headline `A PIECE OF HOME.` and `SHOP`.
-   - A secondary text link names the first available core puzzle and its price from the API, with a Lucide arrow.
-   - Mobile: full-width 4:5 art, then caption. Desktop ≥900px: art occupies about 60% of the hero at near viewport height, with a bottom-aligned caption beside it. No decorative kicker or vertical side label.
-2. **The core collection:** a real 24–32px h2, plus `Shop all` and the product collection. A single featured puzzle shows its available specs instead of a repeated collection label.
-3. **Story strip:** h2 `Tåno is land. Tåsi is sea.`, the brand paragraph at a narrow measure (~36ch), and `Our story` with a Lucide arrow. At ≥900px, an unequal-size composition of the ko'ko', Two Lovers Point and Humåtak map details fills the other half. Mobile stays one column with the ko'ko' detail.
-4. **Signup:** h2 `New drops, first.`, with an email field and `SIGN UP`. Separate it with space, without a top rule or decorative kicker.
-5. **Footer:** a raised-paper tone step, the small rounded logo emblem, real links to Shipping and FAQ, "Made for Guåhan and everyone carrying it with them," and © year. No decorative top or inner rules. Contact remains a route but is not linked until contact details are supplied.
+All home copy comes from `web/src/brand.ts` (tagline, mission lines, story paragraph, secondary tagline) so an admin setting can supply it later.
+
+1. **Hero.** The rounded logo emblem, `A piece of home.` as the h1, the first mission line, then the tabletop puzzle photo, a one-line description of the first buyable product (from the API, omitted if there is none), and the actions. The hero never depends on a drop or a particular product: it is the same in every drop state, and the edge preload (`web/netlify/lib/storefront.ts`) names the same image and `sizes` (`web/src/homeHero.ts`).
+   - Primary action: `SHOP THE COLLECTION`. A secondary text link appears only for a drop that is live (`SHOP THE DROP`) or upcoming (`NOTIFY ME`, jumping to the alert form below).
+   - Mobile (390×844): copy, then a 5:4 photo, then actions, so the mission and the photo are both on the first screen. Desktop ≥900px: two columns, copy and actions left, a square photo right, all inside 900px of height.
+2. **Mission strip.** A green band with the tagline and both mission lines separated by sun-and-hill marks, moving slowly (55s loop). A 44px pause/play button controls it (WCAG 2.2.2). With reduced motion the lines sit still, once, wrapped and centred, with no duplicated copy and no button.
+3. **The core collection.** `h2`, `Shop all`, then the product collection.
+4. **The drop**, when the API features one. Art on `--color-tile`, `DROP 001`, the drop name and summary:
+   - *Coming soon* (`release_at` null): `DROP 001 · COMING SOON`, "The release date goes to the list first.", no date, quantity or price, and the alert form (`NOTIFY ME`) is the action. A text link goes to the drop page.
+   - *Upcoming with a date*: the price, `Drop 001 · Releases Sat, Dec 5 · 10:00 AM ChST · 100 made` (quantity only when known), the alert form.
+   - *Live*: `Drop 001 · Available now`, the price and `VIEW THE DROP`.
+   - *Sold out / closed*: the status line and `VIEW THE DROP`.
+   - *No drop*: the section is omitted.
+5. **Story.** A map detail, the sun-and-hill mark, `Tåno is land. Tåsi is sea.`, the brand paragraph at ~36ch, the secondary tagline "Grounded by land, guided by sea." in green label type, and `Our story`.
+6. **Signup.** `New drops, first.` with an email field and `SIGN UP`. When the drop is upcoming or coming soon, its section carries the form instead, so the page never shows two.
+7. **Footer.** A full-width `--color-paper-deep` band with the small rounded logo (served at 240/480/960px WebP, not the full-size original), "Made for Guåhan and everyone carrying it with them," links to Shipping and FAQ, and © year. Contact stays a route but is not linked until contact details are supplied.
 
 ### Shop
-Title `Shop` with a muted `1 puzzle` / `N puzzles` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
+Title `Shop` with a muted `1 item` / `N items` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
 
 ### Drop (`/drop` → current or next drop; `/drops/:slug` for any)
 - **Upcoming:** large artwork, `DROP 001 — GUÅHAN SUNSET MAP`, the release time in **ChST**, plus PT and HT on a second line, quantity ("100 made"), limit ("Limit 2 per customer"), price, a detail gallery, and the drop-alert form. The add-to-cart button is disabled and reads `RELEASES DEC 5`. A countdown is optional and must only show inside the final 48 hours.
@@ -99,19 +109,19 @@ Shipping states the checkout calculation and supported destinations (United Stat
 
 ## Loading and icons
 
-Route loading states reserve the hero aspect ratio, collection tiles, or product columns with flat tone blocks and accessible status text. No shimmer. The main region keeps the footer below the viewport during loading. Use Lucide SVG icons at 16px and stroke width 1.5 for arrows, quantity controls and accordion markers; hide decorative icons from assistive technology.
+Route loading states reserve the hero grid (emblem, headline and photo at their real sizes), collection tiles, or product columns with flat tone blocks and accessible status text. No shimmer. The main region keeps the footer below the viewport during loading. Use Lucide SVG icons at 16px and stroke width 1.5 for arrows, quantity controls and accordion markers; hide decorative icons from assistive technology.
 
 ## Motion
 
-Subtle and fast: image fade-in on load (150ms), drawer and sheet enter (220ms) and faster exit (160ms), progressive native accordion height, and 140ms press feedback. Drawers use `cubic-bezier(0.32, 0.72, 0, 1)`; other motion uses `cubic-bezier(0.23, 1, 0.32, 1)`. Keep overlays interruptible and retain focus and scroll lock until exit finishes. Phone carts dismiss with a rightward swipe; artwork inspection uses anchored transform zoom up to 4×.
+Subtle and fast: image fade-in on load (150ms), drawer and sheet enter (220ms) and faster exit (160ms), progressive native accordion height, and 140ms press feedback. Drawers use `cubic-bezier(0.32, 0.72, 0, 1)`; other motion uses `cubic-bezier(0.23, 1, 0.32, 1)`. Keep overlays interruptible and retain focus and scroll lock until exit finishes. Phone carts dismiss with a rightward swipe; artwork inspection uses anchored transform zoom up to 4×. Adding an item briefly ticks the cart count.
 
-The home caption enters once per session with 50ms staggers and at most 8px of movement; adding items briefly ticks the cart count. Reduced motion retains short opacity and colour fades, removes decorative transforms and the live pulse, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
+The home has one ambient motion, the mission strip, and it is pausable. There is no hero entrance animation. Reduced motion keeps short opacity and colour fades, removes decorative transforms, the live pulse and the strip's movement, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
 
 ## Imagery
 
-Use the files in `web/public/images/products/*` and `web/public/images/brand/*`. Use `srcset` and `sizes` with lazy loading below the fold and `fetchpriority="high"` on the hero. Always set width and height or an aspect ratio to avoid layout shift. Alt text describes the artwork, for example "Puzzle of the colorful GUAM letter sign on the sand at Tumon Bay."
+Use the files in `web/public/images/products/*` and `web/public/images/brand/*`. Use `srcset` and `sizes` with lazy loading below the fold and `fetchpriority="high"` on the hero. Always set width and height or an aspect ratio to avoid layout shift. Alt text describes the artwork, for example "Puzzle of the colorful GUAM letter sign on the sand at Tumon Bay." The emblem is `logo-emblem-{240,480,960}.webp` through `<Emblem sizes=…/>`; `web/scripts/build-brand-assets.sh` regenerates it and the wordmark from Christian's originals.
 
-The core Tumon puzzle leads with `finished-flat` (12:7), followed by `piece-detail` and `finished-tabletop`. Keep the portrait tabletop scene for the no-drop home hero and its edge preload. The square/landscape duplicate crops and misprinted box-front stay on disk but are omitted from the catalog gallery. Cart thumbnails contain the full artwork.
+The core Tumon puzzle leads with `finished-flat` (12:7), followed by `piece-detail` and `finished-tabletop`. The portrait tabletop scene is the home hero and its edge preload. The square/landscape duplicate crops and misprinted box-front stay on disk but are omitted from the catalog gallery. Cart thumbnails contain the full artwork.
 
 ## Copy voice
 
@@ -119,4 +129,4 @@ Plain, warm and brief. Chamorro words appear naturally (Håfa Adai, Guåhan). Av
 
 ## Accessibility and performance
 
-WCAG AA contrast, visible focus (2px `--color-sun` outline, 2px offset), and semantic landmarks. Drawers and sheets trap focus and close on Esc. Form errors are tied to inputs. Target LCP under 2.5s on mid-range mobile: preload the hero image and font, and use no heavy animation libraries.
+WCAG AA contrast, visible focus (2px `--color-green` outline, 2px offset; cream on the green strip), and semantic landmarks. Drawers and sheets trap focus and close on Esc. Form errors are tied to inputs. Target LCP under 2.5s on mid-range mobile: preload the hero image and font, and use no heavy animation libraries.

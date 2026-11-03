@@ -1,7 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Archive, Home, Info, Shop, Story } from "./StorePages";
+import { Archive, Info, Shop, Story } from "./StorePages";
 import { catalog, CORE, MAP, dropSummary } from "../mocks/data";
 import type { Drops, Storefront } from "../types";
 
@@ -19,7 +19,6 @@ function show(path: string, data = storefront, drops?: Drops) {
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/info/:topic" element={<Info />} />
           <Route path="/archive" element={<Archive />} />
@@ -29,17 +28,6 @@ function show(path: string, data = storefront, drops?: Drops) {
     </QueryClientProvider>
   );
 }
-it("explains the featured art and links to the first buyable core puzzle at its actual price", () => {
-  show("/", { ...storefront, core_products: [
-    { ...products[0], availability: { ...products[0].availability, purchasable: false } },
-    { ...products[0], slug: "available-puzzle", name: "Available puzzle", price_cents: 4175 },
-  ] });
-  expect(screen.getByText(products[1].summary)).toBeVisible();
-  expect(screen.getByText("Drop 001 · Releases Sat, Dec 5 · 10:00 AM ChST")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Shop Available puzzle — $41.75" })).toHaveAttribute("href", "/products/available-puzzle");
-  expect(screen.getByRole("link", { name: "NOTIFY ME" })).toHaveAttribute("href", "/drop#notify");
-});
-
 it("previews the API's upcoming drop when the archive is empty, without a hardcoded release", () => {
   const upcoming = { ...dropSummary("upcoming"), number: 8, name: "Next island puzzle", slug: "drop-008", release_at: "2027-01-09T00:00:00Z", product: products[1] };
   show("/archive", storefront, { current: null, upcoming: [upcoming], archive: [], server_time: storefront.server_time });
@@ -78,14 +66,10 @@ it("keeps the approved Story copy and places its collection action with the puzz
   expect(section.querySelector("a")).toHaveAttribute("href", "/shop");
   expect(section.querySelector("img")).toHaveAttribute("src", expect.stringContaining("finished-flat"));
 });
-it("omits a buyable core link when every core puzzle is unavailable", () => {
-  show("/", { ...storefront, core_products: [] });
-  expect(screen.queryByRole("link", { name: /Shop .* —/ })).not.toBeInTheDocument();
-});
-it.each([1, 2])("uses a plain Shop heading and a meaningful count for %i products", (count) => {
+it.each([1, 2])("uses a plain Shop heading and a neutral item count for %i products", (count) => {
   show("/shop", { ...storefront, core_products: products.slice(0, count) });
   expect(screen.getByRole("heading", { level: 1, name: "Shop" })).toBeVisible();
-  expect(screen.getByText(`${count} ${count === 1 ? "puzzle" : "puzzles"}`)).toBeVisible();
+  expect(screen.getByText(`${count} ${count === 1 ? "item" : "items"}`)).toBeVisible();
 });
 it("answers FAQ release times and limits from the current payload", () => {
   show("/info/faq", { ...storefront, featured_drop: { ...storefront.featured_drop!, number: 7, per_customer_limit: 3 } });
@@ -103,76 +87,4 @@ it("publishes only the known shipping calculation and destinations", () => {
   show("/info/shipping");
   expect(screen.getByText("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico.")).toBeVisible();
   expect(screen.queryByText(/placeholder|returns policy/i)).not.toBeInTheDocument();
-});
-
-it("keeps showing the page when a background refresh fails", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-  try {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } });
-    client.setQueryData(["storefront"], storefront);
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/"]}>
-          <Routes><Route path="/" element={<Home />} /></Routes>
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
-    // Stale data triggers a background refetch on mount, which rejects.
-    await vi.waitFor(() => expect(client.getQueryState(["storefront"])?.status).toBe("error"));
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("GUÅHAN");
-    expect(screen.queryByText("The shop is taking a moment.")).not.toBeInTheDocument();
-  } finally {
-    vi.unstubAllGlobals();
-  }
-});
-
-it("runs the hero entrance once, survives refetch, and skips later session visits", () => {
-  const first = show("/");
-  const caption = first.container.querySelector(".hero-caption")!;
-  expect(caption).toHaveAttribute("data-enter", "once");
-  expect(sessionStorage.getItem("tyt-hero-seen")).toBe("true");
-  first.unmount();
-  const second = show("/");
-  expect(second.container.querySelector(".hero-caption")).not.toHaveAttribute("data-enter");
-});
-
-it("drops the entrance marker after it plays, so later content doesn't animate", () => {
-  sessionStorage.removeItem("tyt-hero-seen");
-  vi.useFakeTimers();
-  try {
-    const view = show("/");
-    const caption = view.container.querySelector(".hero-caption")!;
-    expect(caption).toHaveAttribute("data-enter", "once");
-    act(() => vi.advanceTimersByTime(400));
-    expect(caption).not.toHaveAttribute("data-enter");
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
-it("animates only the hero children from the first render, even if a refresh lands inside the entrance", () => {
-  sessionStorage.removeItem("tyt-hero-seen");
-  vi.useFakeTimers();
-  try {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    client.setQueryData(["storefront"], { ...storefront, core_products: [] });
-    const { container } = render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/"]}><Routes><Route path="/" element={<Home />} /></Routes></MemoryRouter>
-      </QueryClientProvider>
-    );
-    const caption = container.querySelector(".hero-caption")!;
-    const initial = [...caption.children];
-    expect(initial.every((child) => child.hasAttribute("data-enter-item"))).toBe(true);
-    // A fresh response at ~200 ms adds the core puzzle link while the entrance is still running.
-    act(() => vi.advanceTimersByTime(200));
-    act(() => { client.setQueryData(["storefront"], storefront); });
-    // React Query batches observer notifications on a timer.
-    act(() => vi.advanceTimersByTime(10));
-    const added = [...caption.children].filter((child) => !initial.includes(child));
-    expect(added.length).toBeGreaterThan(0);
-    expect(added.some((child) => child.hasAttribute("data-enter-item"))).toBe(false);
-  } finally {
-    vi.useRealTimers();
-  }
 });

@@ -99,12 +99,26 @@ test("viewer: keyboard zoom, point zoom, pan, and image swap preserve its fixed 
   await expect(viewer).toBeHidden();
   await expect(opener).toBeFocused();
 });
-test("reduced motion keeps fades, readable hero, working overlays and disclosures", async ({ page }) => {
+test("reduced motion shows every mission line without clipping", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const lines = page.locator(".mission-track-copy > span");
+  await expect(lines.first()).toBeVisible();
+  const width = page.viewportSize()!.width;
+  for (const line of await lines.all()) {
+    const box = await line.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+  }
+});
+
+test("reduced motion keeps fades, a static mission strip, working overlays and disclosures", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/?mockDrop=live");
-  await expect(page.getByRole("heading", { name: "GUÅHAN", exact: true })).toBeVisible();
-  await expect(page.locator(".hero-caption h1")).toHaveCSS("transform", "none");
-  await expect(page.locator(".hero-caption h1")).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("heading", { name: "A piece of home.", exact: true })).toBeVisible();
+  await expect(page.locator(".mission-track")).toHaveCSS("animation-name", "none");
+  await expect(page.locator(".mission-track-copy")).toHaveCount(1);
+  await expect(page.locator(".mission-toggle")).toHaveCount(0);
   await expect(page.locator(".live-dot").first()).toHaveCSS("animation-name", "none");
   await page.getByRole("button", { name: "CART (0)" }).click();
   const dialog = page.getByRole("dialog", { name: "Your cart" });
@@ -119,20 +133,11 @@ test("reduced motion keeps fades, readable hero, working overlays and disclosure
   await shipping.locator("summary").click();
   await expect(shipping).not.toHaveAttribute("open");
 });
-test("hero entrance does not replay on refetch or a later route visit, and count ticks only after adding", async ({ page }) => {
+test("the cart count ticks only after adding, never on load", async ({ page }) => {
   await page.goto("/?mockDrop=upcoming");
-  const heading = page.locator(".hero-caption h1");
-  await expect(heading).toBeVisible();
-  // The marker itself is transient (removed after ~400 ms), so assert what persists:
-  // which children took part in the entrance, and that a refetch adds none.
-  await expect(heading).toHaveAttribute("data-enter-item", "");
-  const items = page.locator(".hero-caption > [data-enter-item]");
-  const count = await items.count();
-  await page.evaluate(() => { window.dispatchEvent(new Event("focus")); });
-  await expect(page.locator(".hero-caption")).not.toHaveAttribute("data-enter");
-  await expect(items).toHaveCount(count);
+  await expect(page.getByRole("heading", { name: "A piece of home.", exact: true })).toBeVisible();
   expect(await page.locator(".cart-count").evaluate((el) => el.getAnimations().length)).toBe(0);
-  await page.getByRole("link", { name: /Shop Håfa Adai/ }).click();
+  await page.getByRole("link", { name: "VIEW DETAILS", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Håfa Adai from Tumon Bay" })).toBeVisible();
   // Capture the count's WAAPI tick even if it completes before Playwright's next call.
   await page.evaluate(() => {
@@ -144,11 +149,6 @@ test("hero entrance does not replay on refetch or a later route visit, and count
   });
   await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
   await expect(page.locator(".cart-count")).toHaveAttribute("data-tick", /scale\(1.15\)/);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toBeHidden();
-  await page.getByRole("link", { name: "Tåno + Tåsi home", exact: true }).first().click();
-  await expect(heading).toBeVisible();
-  await expect(page.locator(".hero-caption")).not.toHaveAttribute("data-enter");
 });
 
 test.describe("motion recordings", () => {
