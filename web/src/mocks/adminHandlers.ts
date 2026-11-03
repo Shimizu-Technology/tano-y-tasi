@@ -68,6 +68,9 @@ export function configureAdminMocks(nextMode = "ok") {
     tracking_number: null,
     tracking_url: null,
     fulfilled_at: null,
+    refunded_cents: 0,
+    attention_reason: null,
+    dispute_status: null,
     notes: "",
     email_deliveries: [
       {
@@ -209,6 +212,28 @@ export const adminHandlers = [
         attempts: 1,
         sent_at: now,
       });
+    return HttpResponse.json({ order });
+  }),
+  http.post(`${prefix}/orders/:number/refund`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const order = db.orders.find((o) => o.number === params.number);
+    if (!order || !["paid", "needs_attention"].includes(order.status)) return fail("Only paid orders can be refunded.");
+    const body = (await request.json()) as { amount_cents?: number };
+    const refunded = order.refunded_cents ?? 0;
+    const amount = body.amount_cents ?? order.total_cents - refunded;
+    if (amount < 1 || amount > order.total_cents - refunded) return fail("Enter a valid refund.");
+    order.refunded_cents = refunded + amount;
+    if (order.refunded_cents === order.total_cents) order.status = "refunded";
+    return HttpResponse.json({ order });
+  }),
+  http.post(`${prefix}/orders/:number/mark_paid`, ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const order = db.orders.find((o) => o.number === params.number);
+    if (!order || order.status !== "needs_attention") return fail("Only orders that need attention can be marked paid.");
+    order.status = "paid";
+    order.attention_reason = null;
     return HttpResponse.json({ order });
   }),
   http.post(`${prefix}/orders/:number/unfulfill`, ({ request, params }) => {

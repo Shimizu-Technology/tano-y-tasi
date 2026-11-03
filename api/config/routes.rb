@@ -8,6 +8,8 @@ Rails.application.routes.draw do
         resources :orders, param: :number, only: [ :index, :show, :update ] do
           post :fulfill, on: :member
           post :unfulfill, on: :member
+          post :refund, on: :member
+          post :mark_paid, on: :member
           post "email_deliveries/:id/resend", to: "orders#resend", on: :member
         end
         resources :products, param: :slug, only: [ :index, :show, :update ] do

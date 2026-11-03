@@ -22,6 +22,7 @@ import {
   guamToIso,
   validateDrop,
   validateProduct,
+  attentionReasons,
 } from "./adminUtils";
 
 type Resource<T> = { data: T | null; error: string; loading: boolean; reload: () => void };
@@ -648,6 +649,11 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
       !saving
   );
   const endpoint = `/orders/${encodeURIComponent(order.number)}`;
+  const refunded = order.refunded_cents ?? 0;
+  const refundable = ["paid", "needs_attention"].includes(order.status) && order.paid_at ? order.total_cents - refunded : 0;
+  // Empty until edited, so the field follows the balance after each refund.
+  const [refundDraft, setRefundDraft] = useState<string | null>(null);
+  const refund = refundDraft ?? centsToDollars(refundable);
   async function perform(path: string, method: "POST" | "PATCH", body?: unknown) {
     setSaving(true);
     setFailure("");
@@ -717,6 +723,27 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
           <p>{order.email}</p>
           <ShippingAddress shipping={order.shipping} />
           <h2 className="admin-subheading">Payment</h2>
+          {order.status === "needs_attention" && (
+            <div className="admin-attention" role="alert">
+              <strong>This payment needs your review.</strong>
+              <p>{attentionReasons[order.attention_reason ?? ""] ?? "Check this payment in Stripe."} Refund it, or mark it paid if you'll ship it.</p>
+              <button
+                className="admin-button secondary"
+                disabled={saving}
+                onClick={() => {
+                  if (window.confirm("Mark this order paid? This takes the items out of stock and emails the customer their confirmation."))
+                    void perform(`${endpoint}/mark_paid`, "POST", {});
+                }}
+              >
+                Mark paid
+              </button>
+            </div>
+          )}
+          {order.dispute_status && (
+            <p className="admin-attention" role="alert">
+              <strong>Payment dispute: {order.dispute_status.replaceAll("_", " ")}.</strong> Respond in the Stripe dashboard.
+            </p>
+          )}
           <dl className="admin-meta">
             <dt>Provider</dt>
             <dd>{order.provider ?? "—"}</dd>
@@ -726,7 +753,40 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
             <dd>
               <DateText value={order.paid_at} />
             </dd>
+            <dt>Refunded</dt>
+            <dd>
+              <Money cents={refunded} />
+            </dd>
           </dl>
+          {refundable > 0 && (
+            <>
+              <Field
+                label={`Refund amount (USD), up to ${centsToDollars(refundable)}`}
+                name="amount_cents"
+                value={refund}
+                onChange={setRefundDraft}
+                error={errors.amount_cents}
+              />
+              <button
+                className="admin-button secondary"
+                disabled={saving}
+                onClick={() => {
+                  const cents = dollarsToCents(refund);
+                  if (cents === null || cents < 1 || cents > refundable) {
+                    setFailure(`Enter a refund between $0.01 and $${centsToDollars(refundable)}.`);
+                    return;
+                  }
+                  if (window.confirm(`Refund $${centsToDollars(cents)} to the customer? This can't be undone.`)) {
+                    setRefundDraft(null);
+                    void perform(`${endpoint}/refund`, "POST", { amount_cents: cents });
+                  }
+                }}
+              >
+                Refund
+              </button>
+              <p className="admin-help">A full refund of an unshipped order puts its items back in stock.</p>
+            </>
+          )}
         </section>
         <section className="admin-panel">
           <h2>Notes</h2>

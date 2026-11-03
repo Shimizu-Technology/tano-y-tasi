@@ -1,19 +1,6 @@
 module AdminLock
-  # Session advisory locks serialize provider work without an open transaction.
-  def self.with(key)
-    ActiveRecord::Base.connection_pool.with_connection do |connection|
-      lock_id = query_attribute(key)
-      connection.exec_query("SELECT 1 FROM pg_advisory_lock($1)", "AdminLock", [ lock_id ])
-      begin
-        yield
-      ensure
-        connection.exec_query("SELECT pg_advisory_unlock($1)", "AdminLock", [ lock_id ])
-      end
-    end
-  end
-
-  # Transaction advisory locks share PostgreSQL's advisory-lock namespace with
-  # session locks, but release automatically at the end of the transaction.
+  # Transaction advisory locks release automatically at the end of the transaction,
+  # which is the only advisory-lock form that is safe through the Neon pooler.
   def self.with_transaction(key)
     ActiveRecord::Base.transaction(requires_new: true) do
       lock_id = query_attribute(key)

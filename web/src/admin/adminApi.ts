@@ -59,6 +59,10 @@ export type OrderDetail = OrderSummary & {
   tracking_url?: string | null;
   fulfilled_at?: string | null;
   notes?: string | null;
+  attention_reason?: string | null;
+  refunded_cents?: number;
+  refunded_at?: string | null;
+  dispute_status?: string | null;
   email_deliveries: Delivery[];
 };
 export type AdminProduct = {

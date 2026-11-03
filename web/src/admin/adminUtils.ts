@@ -12,6 +12,12 @@ export function safeReturnPath(value: string | null | undefined): string {
 export function signInPath(path: string) {
   return `/admin/sign-in?returnTo=${encodeURIComponent(safeReturnPath(path))}`;
 }
+export const attentionReasons: Record<string, string> = {
+  amount_mismatch: "Stripe charged an amount that doesn't match this order.",
+  session_mismatch: "This payment came from a different Stripe checkout than the order expected.",
+  customer_limit_exceeded: "This payment would put the customer over the drop's limit.",
+  stock_unavailable: "This late payment arrived after the stock was gone.",
+};
 export function centsToDollars(cents: number) {
   return (cents / 100).toFixed(2);
 }

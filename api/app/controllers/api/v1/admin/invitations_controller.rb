@@ -6,7 +6,7 @@ module Api
           email = params.permit(:email)[:email].to_s.strip.downcase
           candidate = AdminInvitation.new(email: email, invited_by: @current_user)
           candidate.validate!
-          invitation = AdminLock.with(AdminLock.admin_email_key(email)) do
+          invitation = ProviderLease.with(AdminLock.admin_email_key(email)) do
             existing = AdminInvitation.pending.find_by(email: email)
             next existing if existing
             response = ClerkClient.request(:post, "invitations", email_address: email, redirect_url: "#{Emails::Template.frontend_url}/admin/sign-up", ignore_existing: true)

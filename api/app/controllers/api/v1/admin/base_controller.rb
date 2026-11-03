@@ -7,6 +7,9 @@ module Api
           Rails.logger.error("ADMIN_IDENTITY_UNAVAILABLE #{error.message}")
           render_error("identity_unavailable", "Admin identity is temporarily unavailable.", :service_unavailable)
         end
+        rescue_from ProviderLease::Busy do
+          render_error("busy", "Another request for this is still running. Try again in a moment.", :conflict)
+        end
         rescue_from ActiveRecord::RecordInvalid do |error|
           render_error("invalid_record", error.record.errors.full_messages.join(", "), :unprocessable_content)
         end

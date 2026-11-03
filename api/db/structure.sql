@@ -260,8 +260,14 @@ CREATE TABLE public.orders (
     tracking_url character varying,
     fulfilled_at timestamp(6) without time zone,
     notes text,
+    attention_reason character varying,
+    refunded_cents integer DEFAULT 0 NOT NULL,
+    refunded_at timestamp(6) without time zone,
+    dispute_status character varying,
+    customer_key character varying NOT NULL,
     CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
+    CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND (refunded_cents <= total_cents))),
     CONSTRAINT order_status_valid CHECK (((status)::text = ANY (ARRAY[('pending_payment'::character varying)::text, ('paid'::character varying)::text, ('expired'::character varying)::text, ('canceled'::character varying)::text, ('refunded'::character varying)::text, ('needs_attention'::character varying)::text]))),
     CONSTRAINT order_totals_valid CHECK (((subtotal_cents >= 0) AND (total_cents >= 0) AND ((currency)::text = 'USD'::text)))
 );
@@ -368,6 +374,17 @@ CREATE SEQUENCE public.products_id_seq
 --
 
 ALTER SEQUENCE public.products_id_seq OWNED BY public.products.id;
+
+
+--
+-- Name: provider_leases; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.provider_leases (
+    key character varying NOT NULL,
+    holder character varying NOT NULL,
+    expires_at timestamp(6) without time zone NOT NULL
+);
 
 
 --
@@ -592,6 +609,14 @@ ALTER TABLE ONLY public.products
 
 
 --
+-- Name: provider_leases provider_leases_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.provider_leases
+    ADD CONSTRAINT provider_leases_pkey PRIMARY KEY (key);
+
+
+--
 -- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -683,6 +708,13 @@ CREATE UNIQUE INDEX index_order_items_on_order_id_and_product_id ON public.order
 --
 
 CREATE INDEX index_order_items_on_product_id ON public.order_items USING btree (product_id);
+
+
+--
+-- Name: index_orders_on_customer_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_orders_on_customer_key ON public.orders USING btree (customer_key);
 
 
 --
@@ -860,6 +892,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261104000002'),
 ('20261104000001'),
 ('20261029000005'),
 ('20261029000004'),

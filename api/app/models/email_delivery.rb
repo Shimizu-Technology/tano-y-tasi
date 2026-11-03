@@ -1,12 +1,13 @@
 class EmailDelivery < ApplicationRecord
   belongs_to :order
-  validates :kind, inclusion: { in: %w[order_confirmation admin_new_order order_shipped] }
+  validates :kind, inclusion: { in: %w[order_confirmation admin_new_order admin_attention order_shipped order_refunded] }
   validates :status, inclusion: { in: %w[pending sent failed skipped] }
   validates :to, format: { with: URI::MailTo::EMAIL_REGEXP }
+  scope :retryable, -> { where(status: %w[pending failed]).where("attempts < ?", 5) }
 
   def idempotency_key
     key = "#{kind}-#{order.token}"
-    key += "-#{Digest::SHA256.hexdigest(to)[0, 16]}" if kind == "admin_new_order"
+    key += "-#{Digest::SHA256.hexdigest(to)[0, 16]}" if kind.start_with?("admin_")
     resend_number.positive? ? "#{key}-resend-#{resend_number}" : key
   end
 
@@ -18,7 +19,7 @@ class EmailDelivery < ApplicationRecord
       ActiveRecord::Base.current_transaction.after_commit { deliver!(resend: resend) }
       return self
     end
-    AdminLock.with("email-delivery-#{id}") do
+    ProviderLease.with("email-delivery-#{id}") do
       reload
       return self if !resend && (%w[sent skipped].include?(status) || attempts >= 5)
       update!(resend_number: attempts + 1, outbound_payload: {}) if resend

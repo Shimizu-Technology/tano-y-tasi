@@ -41,6 +41,26 @@ module Api
           render_order
         end
 
+        def refund
+          Payments::IssueRefund.call(@order, amount_cents: params[:amount_cents])
+          render_order
+        end
+
+        # The merchant reviewed a flagged payment and will ship it after all.
+        def mark_paid
+          Orders::Inventory.with_locked_order(@order) do |products|
+            raise ApiError.new("invalid_order_state", "Only orders that need attention can be marked paid.") unless @order.status == "needs_attention"
+            items = @order.order_items.to_a
+            if items.any? { |item| products.fetch(item.product_id).stock_quantity < item.quantity }
+              raise ApiError.new("insufficient_stock", "There isn't enough stock left to fill this order.")
+            end
+            items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), @order, -item.quantity, "attention_resolved") }
+            @order.update!(status: "paid", attention_reason: nil)
+            products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
+          end
+          render_order
+        end
+
         def resend
           delivery = @order.email_deliveries.find(params[:id])
           delivery.deliver!(resend: true)

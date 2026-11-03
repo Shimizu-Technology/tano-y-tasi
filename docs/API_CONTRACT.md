@@ -105,14 +105,14 @@ Response `201`:
 ```
 - The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
 - `422` codes: `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at, null when coming soon), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
-- The per-customer limit counts quantities across this email's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that drop product (case-insensitive email). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
+- The per-customer limit treats Gmail dot variants and `+tags` as one customer, and counts quantities across that customer's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that drop product (case-insensitive email). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
 - Stripe holds last 31 minutes, with the session expiry saved before the provider request; simulated holds last 30 minutes. Retries reuse the saved expiry and item snapshots. Holds are released 5 minutes after expiry, as a grace period for in-flight payments.
 - `503 payment_unavailable` always includes `details.retry`. `"same_key"` means a transient provider failure preserved the hold: retry the **same payload and idempotency key**, even if fresh availability shows no stock (this attempt may hold the last unit). `"new_checkout"` means definitive rejection released the reservation, or the unsessioned hold has ended: clear the saved attempt and **start a new checkout** with a fresh key. Expired holds are cleaned up normally.
 - Error details: `sold_out` / `insufficient_stock` include `{ product_slug, available }`; `drop_not_live` includes `{ product_slug, release_at }`; `limit_exceeded` includes `{ product_slug, limit, already_purchased }`. Validation (`invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`, `malformed`), `idempotency_conflict`, and `rate_limited` use `{}`. Clients should preserve a general recovery message when an older response omits a product slug.
 
 ### `GET /api/v1/orders/:token`
 ```json
-{ "order": { "token": "…", "number": "TYT-100001", "status": "paid", "email_masked": "a•••@b.com", "items": [ { "product_slug": "…", "name": "…", "quantity": 2, "unit_price_cents": 4500, "image": { … } } ], "subtotal_cents": 9000, "total_cents": 9000, "currency": "USD", "created_at": "…", "paid_at": "…", "expires_at": "…" } }
+{ "order": { "token": "…", "number": "TYT-100001", "status": "paid", "email_masked": "a•••@b.com", "items": [ { "product_slug": "…", "name": "…", "quantity": 2, "unit_price_cents": 4500, "image": { … } } ], "subtotal_cents": 9000, "total_cents": 9000, "refunded_cents": 0, "currency": "USD", "created_at": "…", "paid_at": "…", "expires_at": "…" } }
 ```
 Order `status` is `pending_payment`, `paid`, `expired`, `canceled`, `refunded` or `needs_attention`. The token is a long random value (unguessable); it is the only way to read an order publicly.
 
@@ -120,7 +120,13 @@ Order `status` is `pending_payment`, `paid`, `expired`, `canceled`, `refunded` o
 The customer abandons checkout from the cancel page. If the order is `pending_payment`, the stock is released and the status becomes `canceled`. The call is idempotent and returns the order. For canceled or expired Stripe orders, every call retries closing an unconfirmed session. Closure failures leave persistent retry work for later cancels or the scheduled expiry task; stock is restored only once. A late payment still passes the stock and customer-limit checks and may require a refund.
 
 ### `POST /api/v1/webhooks/stripe`
-Verifies the `Stripe-Signature` header. Handles `checkout.session.completed` (marks paid and records the payment intent), `checkout.session.expired` (releases stock and marks expired), and `checkout.session.async_payment_failed` (releases stock and marks canceled). Events are idempotent by Stripe event id. Returns 2xx for ignored event types.
+Verifies the `Stripe-Signature` header; a bad signature is the only `400`. Every signed event gets a 2xx and is idempotent by Stripe event id.
+
+- `checkout.session.completed` / `async_payment_succeeded`: marks paid and records the payment intent. A charged amount or session that doesn't match the order becomes `needs_attention` with `attention_reason`, releases any held stock, and alerts admins.
+- `checkout.session.expired`: releases stock and marks expired. `checkout.session.async_payment_failed`: releases stock and marks canceled.
+- `charge.refunded`: records the absolute `amount_refunded`. A full refund marks the order `refunded` and restocks it if it hasn't shipped. A partial refund keeps the status.
+- `charge.dispute.created|updated|closed`: records `dispute_status`; a new dispute alerts admins.
+- Sessions and payments that aren't ours are acknowledged and ignored.
 
 ### Simulated provider (development/test only)
 Enabled only when `PAYMENT_PROVIDER=simulated` **and** `Rails.env` is development or test. Booting production with the simulated provider must raise.

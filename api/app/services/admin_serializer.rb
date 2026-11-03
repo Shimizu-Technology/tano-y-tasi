@@ -15,7 +15,7 @@ class AdminSerializer
     data = order.slice(:number, :token, :status, :fulfillment_status, :email, :total_cents, :currency, :created_at, :paid_at)
     data["item_count"] = order.order_items.sum(&:quantity)
     if detail
-      data.merge!(order.slice(:shipping, :provider, :provider_payment_intent_id, :tracking_number, :tracking_url, :fulfilled_at, :notes, :subtotal_cents))
+      data.merge!(order.slice(:shipping, :provider, :provider_payment_intent_id, :tracking_number, :tracking_url, :fulfilled_at, :notes, :subtotal_cents, :attention_reason, :refunded_cents, :refunded_at, :dispute_status))
       data["items"] = order.order_items.map { |item| item.slice(:product_slug, :name, :quantity, :unit_price_cents, :image) }
       data["email_deliveries"] = order.email_deliveries.order(:id).map { |delivery| self.delivery(delivery) }
     end

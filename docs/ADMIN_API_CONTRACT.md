@@ -41,6 +41,9 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 - `POST /orders/:number/fulfill`: `{ tracking_number?, tracking_url?, notify: true }` marks a paid order fulfilled. When `notify` is true, it sends the "shipped" email. Returns `422` unless the status is `paid`. Idempotent.
 - `POST /orders/:number/unfulfill`: reverts the order to unfulfilled.
 - `POST /orders/:number/email_deliveries/:id/resend`: re-sends that email and returns the updated delivery.
+- `POST /orders/:number/refund` with optional `{ "amount_cents": 1000 }` (default: the remaining balance). Calls Stripe with a stable idempotency key, then records the refund. A full refund of an unshipped order restocks it. `422 invalid_refund` or `refund_rejected`; `503 payment_unavailable`; `409 busy` if another refund is running.
+- `POST /orders/:number/mark_paid`: for a `needs_attention` order the merchant will ship anyway. Takes the items from stock, clears `attention_reason`, and sends the confirmation. `422 invalid_order_state` or `insufficient_stock`.
+- Order detail also returns `attention_reason`, `refunded_cents`, `refunded_at` and `dispute_status`.
 
 ### Products
 - `GET /products`: all statuses, with `stock_quantity` and `drop` summary.

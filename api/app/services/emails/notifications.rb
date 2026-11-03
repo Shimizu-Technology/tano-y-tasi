@@ -2,11 +2,25 @@ module Emails
   module Notifications
     def self.paid(order)
       queue(order, "order_confirmation", order.email)
-      configured = ENV["ADMIN_NOTIFICATION_EMAILS"]
-      emails = configured ? configured.split(",").map { |email| email.strip.downcase }.reject(&:blank?) : User.admins.pluck(:email)
-      emails.uniq.each { |email| queue(order, "admin_new_order", email) }
+      admin_emails.each { |email| queue(order, "admin_new_order", email) }
     rescue StandardError => error
       Rails.logger.error("EMAIL_NOTIFICATION_FAILED order_id=#{order.id} error=#{error.class}")
+    end
+
+    def self.attention(order)
+      admin_emails.each { |email| queue(order, "admin_attention", email) }
+    rescue StandardError => error
+      Rails.logger.error("EMAIL_NOTIFICATION_FAILED order_id=#{order.id} error=#{error.class}")
+    end
+
+    def self.refunded(order)
+      queue(order, "order_refunded", order.email)
+    end
+
+    def self.admin_emails
+      configured = ENV["ADMIN_NOTIFICATION_EMAILS"]
+      emails = configured ? configured.split(",").map { |email| email.strip.downcase }.reject(&:blank?) : User.admins.pluck(:email)
+      emails.uniq
     end
 
     def self.shipped(order)
