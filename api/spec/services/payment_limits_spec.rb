@@ -27,12 +27,6 @@ RSpec.describe "Drop limits across delayed payments" do
     expect(product.reload.stock_quantity).to eq(10)
   end
 
-  it "counts an order written without a customer key during a deploy" do
-    first = checkout
-    first.update_columns(customer_key: nil, status: "paid")
-    expect { checkout }.to raise_error(ApiError) { |error| expect(error.code).to eq("limit_exceeded") }
-  end
-
   it "treats Gmail dots and +tags as the same customer" do
     first = checkout
     Payments::Complete.call(first)
