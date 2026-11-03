@@ -266,7 +266,7 @@ CREATE TABLE public.orders (
     refunded_at timestamp(6) without time zone,
     dispute_status character varying,
     failed_refund_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
-    customer_key character varying,
+    customer_key character varying NOT NULL,
     CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
     CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND ((charged_cents IS NULL) OR (charged_cents >= 0)))),
@@ -292,6 +292,39 @@ CREATE SEQUENCE public.orders_id_seq
 --
 
 ALTER SEQUENCE public.orders_id_seq OWNED BY public.orders.id;
+
+
+--
+-- Name: pages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pages (
+    id bigint NOT NULL,
+    slug character varying NOT NULL,
+    title character varying NOT NULL,
+    body text NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: pages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.pages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: pages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.pages_id_seq OWNED BY public.pages.id;
 
 
 --
@@ -436,6 +469,42 @@ CREATE TABLE public.schema_migrations (
 
 
 --
+-- Name: store_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.store_settings (
+    id bigint NOT NULL,
+    sales_open boolean DEFAULT false NOT NULL,
+    contact_email character varying DEFAULT 'shimizutechnology@gmail.com'::character varying NOT NULL,
+    tagline character varying DEFAULT 'A piece of home.'::character varying NOT NULL,
+    secondary_tagline character varying DEFAULT 'Grounded by land, guided by sea.'::character varying NOT NULL,
+    story text DEFAULT 'Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.'::text NOT NULL,
+    mission_lines jsonb DEFAULT '["A piece of home.", "Keeping us connected to where we come from.", "Carrying a piece of home wherever we are."]'::jsonb NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL
+);
+
+
+--
+-- Name: store_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.store_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: store_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.store_settings_id_seq OWNED BY public.store_settings.id;
+
+
+--
 -- Name: subscribers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -548,6 +617,13 @@ ALTER TABLE ONLY public.orders ALTER COLUMN id SET DEFAULT nextval('public.order
 
 
 --
+-- Name: pages id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pages ALTER COLUMN id SET DEFAULT nextval('public.pages_id_seq'::regclass);
+
+
+--
 -- Name: payment_events id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -566,6 +642,13 @@ ALTER TABLE ONLY public.products ALTER COLUMN id SET DEFAULT nextval('public.pro
 --
 
 ALTER TABLE ONLY public.refund_requests ALTER COLUMN id SET DEFAULT nextval('public.refund_requests_id_seq'::regclass);
+
+
+--
+-- Name: store_settings id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.store_settings ALTER COLUMN id SET DEFAULT nextval('public.store_settings_id_seq'::regclass);
 
 
 --
@@ -639,6 +722,14 @@ ALTER TABLE ONLY public.orders
 
 
 --
+-- Name: pages pages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pages
+    ADD CONSTRAINT pages_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: payment_events payment_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -676,6 +767,14 @@ ALTER TABLE ONLY public.refund_requests
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
+-- Name: store_settings store_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.store_settings
+    ADD CONSTRAINT store_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -821,6 +920,13 @@ CREATE UNIQUE INDEX index_orders_on_token ON public.orders USING btree (token);
 
 
 --
+-- Name: index_pages_on_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_pages_on_slug ON public.pages USING btree (slug);
+
+
+--
 -- Name: index_payment_events_on_event_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -881,6 +987,13 @@ CREATE UNIQUE INDEX one_pending_admin_invitation ON public.admin_invitations USI
 --
 
 CREATE UNIQUE INDEX one_product_per_drop ON public.products USING btree (drop_id) WHERE (drop_id IS NOT NULL);
+
+
+--
+-- Name: one_store_settings_row; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX one_store_settings_row ON public.store_settings USING btree ((true));
 
 
 --
@@ -982,6 +1095,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261104000003'),
 ('20261104000002'),
 ('20261104000001'),
 ('20261029000005'),

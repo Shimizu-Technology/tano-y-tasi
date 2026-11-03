@@ -20,7 +20,7 @@ export function matchRoute(pathname: string): Route | null {
   const fixed = { "/": "home", "/shop": "shop", "/drop": "drop", "/story": "story", "/archive": "archive" } as const;
   if (path in fixed) return { kind: fixed[path as keyof typeof fixed] };
   const match = /^\/(products|drops|info)\/([a-z0-9-]+)$/.exec(path);
-  if (!match || (match[1] === "info" && !["shipping", "faq", "contact"].includes(match[2]))) return null;
+  if (!match || (match[1] === "info" && !["shipping", "returns", "privacy", "terms", "faq", "contact"].includes(match[2]))) return null;
   return { kind: match[1] === "products" ? "product" : match[1] === "drops" ? "drop" : "info", slug: match[2] };
 }
 export function escapeHtml(value: string): string {
@@ -33,7 +33,7 @@ export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT
   const route = matchRoute(data.pathname);
   if (!route || !html.includes("<!-- tyt:meta:start -->")) return html;
   const product = data.product?.product ?? data.drop?.drop?.product;
-  const titles = { home: "A Piece of Home.", shop: "Shop", drop: "Drops", product: "Puzzle", archive: "Archive", story: "Our Story", info: { shipping: "Shipping & Returns", faq: "FAQ", contact: "Contact" }[route.slug ?? ""] ?? "Information" };
+  const titles = { home: "A Piece of Home.", shop: "Shop", drop: "Drops", product: "Puzzle", archive: "Archive", story: "Our Story", info: { shipping: "Shipping", returns: "Returns & refunds", privacy: "Privacy policy", terms: "Terms", faq: "FAQ", contact: "Contact" }[route.slug ?? ""] ?? "Information" };
   const title = `${product?.name ?? titles[route.kind]} — Tåno + Tåsi`;
   const description = product?.summary ?? DESCRIPTION;
   const canonical = new URL(data.pathname, siteUrl).href;

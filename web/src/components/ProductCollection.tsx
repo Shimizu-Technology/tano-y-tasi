@@ -22,6 +22,7 @@ function FeaturedProduct({ product }: { product: Product }) {
       </Link>
       <div className="feature-info">
         {product.availability.state === "sold_out" && <p className="label muted">SOLD OUT</p>}
+        {product.availability.state === "coming_soon" && <p className="label muted">COMING SOON</p>}
         {specLine(specs) && <p className="small muted">{specLine(specs)}</p>}
         <h2>{product.name}</h2>
         <p className="price">{money(product.price_cents)}</p>

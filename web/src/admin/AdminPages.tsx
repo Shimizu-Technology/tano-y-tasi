@@ -27,7 +27,7 @@ import {
 } from "./adminUtils";
 
 type Resource<T> = { data: T | null; error: string; loading: boolean; reload: () => void };
-function useResource<T>(path: string): Resource<T> {
+export function useResource<T>(path: string): Resource<T> {
   const api = useAdminApi();
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
@@ -63,7 +63,7 @@ function useResource<T>(path: string): Resource<T> {
     },
   };
 }
-function Result<T>({
+export function Result<T>({
   resource,
   children,
 }: {
@@ -87,7 +87,7 @@ function Result<T>({
     );
   return resource.data ? <>{children(resource.data)}</> : <p>No data available.</p>;
 }
-function Heading({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+export function Heading({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
   return (
     <div className="admin-heading">
       <div>
@@ -111,7 +111,7 @@ function Money({ cents }: { cents: number }) {
 function DateText({ value }: { value?: string | null }) {
   return <>{value ? datePreview(value, "Pacific/Guam") : "—"}</>;
 }
-function Notice({ text, kind = "success" }: { text: string; kind?: "success" | "error" }) {
+export function Notice({ text, kind = "success" }: { text: string; kind?: "success" | "error" }) {
   return text ? (
     <p role={kind === "error" ? "alert" : "status"} className={`admin-notice ${kind}`}>
       {kind === "success" && <Check size={16} />}
@@ -119,7 +119,7 @@ function Notice({ text, kind = "success" }: { text: string; kind?: "success" | "
     </p>
   ) : null;
 }
-function Field({
+export function Field({
   label,
   name,
   value,
@@ -155,13 +155,14 @@ function Field({
     </label>
   );
 }
-function TextArea({
+export function TextArea({
   label,
   name,
   value,
   onChange,
   error,
   required = false,
+  rows = 4,
 }: {
   label: string;
   name: string;
@@ -169,6 +170,7 @@ function TextArea({
   onChange: (value: string) => void;
   error?: string;
   required?: boolean;
+  rows?: number;
 }) {
   return (
     <label className="admin-field">
@@ -179,14 +181,14 @@ function TextArea({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={!!error}
         aria-describedby={error ? `${name}-error` : undefined}
-        rows={4}
+        rows={rows}
         required={required}
       />
       {error && <small id={`${name}-error`}>{error}</small>}
     </label>
   );
 }
-function useUnsaved(dirty: boolean) {
+export function useUnsaved(dirty: boolean) {
   useBeforeUnload(
     useCallback(
       (event: BeforeUnloadEvent) => {
@@ -206,7 +208,7 @@ function useUnsaved(dirty: boolean) {
     }
   }, [blocker]);
 }
-function issue(error: unknown, fallback = "Could not save changes.") {
+export function issue(error: unknown, fallback = "Could not save changes.") {
   return error instanceof Error ? error.message : fallback;
 }
 function backPath(search: string, section: string) {

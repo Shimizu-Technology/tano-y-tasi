@@ -20,5 +20,9 @@ RSpec.configure do |config|
   config.before do
     Rack::Attack.reset!
     allow(Rails.application.config.x).to receive(:payment_provider).and_return("simulated")
+    allow(StoreSetting).to receive(:sales_open?).and_return(true)
   end
+  config.after { Current.reset }
+  # Non-transactional specs can leave the settings row behind.
+  config.before(:suite) { StoreSetting.delete_all }
 end

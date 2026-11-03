@@ -87,7 +87,9 @@ export function ProductCard({ product }: { product: Product }) {
         <span className="price">{money(product.price_cents)}</span>
       </div>
       <p className="label muted">
-        {product.availability.state === "sold_out"
+        {product.availability.state === "coming_soon"
+          ? "COMING SOON"
+          : product.availability.state === "sold_out"
           ? "SOLD OUT"
           : product.availability.state === "closed"
             ? "DROP CLOSED"

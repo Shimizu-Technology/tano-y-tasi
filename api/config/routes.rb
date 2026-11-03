@@ -17,11 +17,15 @@ Rails.application.routes.draw do
           get :inventory_movements, on: :member
         end
         resources :drops, param: :slug, only: [ :index, :show, :update ]
+        resource :store, only: [ :show, :update ], controller: "store"
+        resources :pages, param: :slug, only: [ :index, :show, :update ]
         resources :subscribers, only: :index
         resources :users, only: [ :index, :update ]
         resources :invitations, only: [ :create, :destroy ]
       end
       get "storefront", to: "catalog#storefront"
+      get "store", to: "store#show"
+      get "pages/:slug", to: "store#page"
       get "products", to: "catalog#products"
       get "products/:slug", to: "catalog#product"
       get "drops", to: "catalog#drops"

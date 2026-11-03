@@ -8,6 +8,8 @@ import type {
   ProductDetail,
   Product,
   Storefront,
+  StorePage,
+  StoreSettings,
 } from "./types";
 export const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "https://tano-y-tasi-api.onrender.com" : "http://localhost:3031")).replace(/\/$/, "");
 export class ApiError extends Error {
@@ -35,6 +37,8 @@ async function request<T>(path: string, body?: unknown): Promise<T> {
 }
 export const api = {
   storefront: () => request<Storefront>("/storefront"),
+  store: () => request<{ store: StoreSettings }>("/store"),
+  page: (slug: string) => request<{ page: StorePage }>(`/pages/${encodeURIComponent(slug)}`),
   products: (kind?: string) => request<{ products: Product[] }>(`/products${kind ? `?kind=${kind}` : ""}`),
   product: (slug: string) =>
     request<{ product: ProductDetail; server_time: string }>(`/products/${encodeURIComponent(slug)}`),
@@ -88,6 +92,7 @@ export function restoreInitialData(client: import("@tanstack/react-query").Query
       client.setQueryData(key, value, { updatedAt: receivedAt });
     };
     seed(["storefront"], data.storefront);
+    if (data.storefront.store) seed(["store"], { store: data.storefront.store });
     if (data.product) seed(["product", data.product.product.slug], data.product);
     if (data.drops) seed(["drops"], data.drops);
     if (data.drop) {

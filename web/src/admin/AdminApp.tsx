@@ -29,6 +29,7 @@ import {
   SubscribersPage,
   AdminsPage,
 } from "./AdminPages";
+import { StorePage, StorePageEditor } from "./AdminStore";
 import "./admin.css";
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -350,6 +351,7 @@ const nav = [
   { label: "Products", path: "/admin/products", icon: Package },
   { label: "Drops", path: "/admin/drops", icon: Archive },
   { label: "Subscribers", path: "/admin/subscribers", icon: Mail },
+  { label: "Store", path: "/admin/store", icon: Store },
   { label: "Admins", path: "/admin/admins", icon: Shield },
 ];
 function NavLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
@@ -413,6 +415,7 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
   if (section === "products") page = location.pathname.split("/")[3] ? <ProductPage /> : <ProductsPage />;
   if (section === "drops") page = location.pathname.split("/")[3] ? <DropPage /> : <DropsPage />;
   if (section === "subscribers") page = <SubscribersPage />;
+  if (section === "store") page = location.pathname.split("/")[3] === "pages" ? <StorePageEditor /> : <StorePage />;
   if (section === "admins") page = <AdminsPage currentUser={user} />;
   return (
     <div className={`admin-app ${collapsed ? "collapsed" : ""}`}>

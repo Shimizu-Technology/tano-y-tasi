@@ -182,7 +182,7 @@ RSpec.describe "Transactional email delivery", type: :request do
 
   it "escapes user content in HTML and provides branded plain text and order links" do
     @order.order_items.first.update!(name: '<script>alert("x")</script>')
-    ENV["MAILER_REPLY_TO"] = "hello@example.com"
+    allow(StoreSetting).to receive(:current).and_return(StoreSetting.new(contact_email: "hello@example.com"))
     complete
     payload = confirmation.outbound_payload
     expect(payload["html"]).to include("TÅNO + TÅSI", "#F5F0E7", "#141311", "&lt;script&gt;")

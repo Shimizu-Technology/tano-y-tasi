@@ -26,7 +26,7 @@ export interface Product {
   summary: string;
   specs: { piece_count?: number; finished_size?: string };
   availability: {
-    state: "available" | "sold_out" | "upcoming" | "closed";
+    state: "available" | "sold_out" | "upcoming" | "coming_soon" | "closed";
     purchasable: boolean;
     remaining: number | null;
     low_stock: boolean;
@@ -55,9 +55,24 @@ export interface ProductDetail extends Product {
 export interface Drop extends DropSummary {
   product: ProductDetail;
 }
+export interface StoreSettings {
+  sales_open: boolean;
+  contact_email: string;
+  tagline: string;
+  secondary_tagline: string;
+  story: string;
+  mission_lines: string[];
+}
+export interface StorePage {
+  slug: string;
+  title: string;
+  body: string;
+  updated_at: string;
+}
 export interface Storefront {
   featured_drop: (DropSummary & { product: Product }) | null;
   core_products: Product[];
+  store?: StoreSettings;
   server_time: string;
 }
 export interface DropList extends DropSummary {

@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { adminHandlers } from "./adminHandlers";
-import { catalog, CORE, MAP, DROP, dropSummary } from "./data";
+import { catalog, CORE, MAP, DROP, dropSummary, mockSalesOpen } from "./data";
+import { mockStore, mockPages } from "./store";
 import type { CartItem, CheckoutResult, DropState, Order, ProductDetail, Product } from "../types";
 interface StoredOrder {
   order: Order;
@@ -127,8 +128,15 @@ export const handlers = [
       core_products: products()
         .filter((p) => p.kind === "core")
         .map(listProduct),
+      store: mockStore(),
       server_time: now(),
     });
+  }),
+  http.get(path("/store"), () => HttpResponse.json({ store: mockStore() })),
+  http.get(path("/pages/:slug"), ({ params }) => {
+    const page = mockPages.find((item) => item.slug === params.slug);
+    if (!page) return HttpResponse.json({ error: { code: "not_found", message: "We couldn't find that." } }, { status: 404 });
+    return HttpResponse.json({ page: { ...page, body: page.body.replaceAll("{{contact_email}}", mockStore().contact_email) } });
   }),
   http.get(path("/products"), ({ request }) => {
     const kind = new URL(request.url).searchParams.get("kind");
@@ -160,6 +168,7 @@ export const handlers = [
       : error("not_found", "We couldn't find that.", 404)
   ),
   http.post(path("/checkout"), async ({ request }) => {
+    if (!mockSalesOpen()) return error("store_closed", "The store isn't open for orders yet. Join the list and you'll hear first.");
     let body: { email?: unknown; idempotency_key?: unknown; items?: unknown };
     try {
       body = (await request.json()) as typeof body;

@@ -16,6 +16,7 @@ module Orders
 
     def call
       validate!
+      raise ApiError.new("store_closed", "The store isn't open for orders yet. Join the list and you'll hear first.") unless StoreSetting.sales_open?
       ReleaseExpired.call
       fingerprint = Digest::SHA256.hexdigest({ email: @email, items: @items }.to_json)
       # The lease serializes only this key, including provider setup. It holds no

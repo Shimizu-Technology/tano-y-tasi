@@ -1,4 +1,17 @@
 class AdminSerializer
+  def self.store
+    CatalogSerializer.store.merge(payment_mode: payment_mode)
+  end
+
+  def self.payment_mode
+    return "simulated" unless Payments::Gateway.provider == "stripe"
+    Stripe.api_key.to_s.start_with?("sk_live_") ? "stripe_live" : "stripe_test"
+  end
+
+  def self.page(page)
+    page.slice(:slug, :title, :body, :updated_at)
+  end
+
   def self.user(user)
     user.slice(:id, :email, :name, :role, :active, :last_signed_in_at)
   end
@@ -28,6 +41,6 @@ class AdminSerializer
   end
 
   def self.drop(drop)
-    CatalogSerializer.drop(drop).merge(quantity: drop.quantity, product: drop.product&.slice(:slug, :name, :stock_quantity))
+    CatalogSerializer.drop(drop).merge(quantity: drop.quantity, release_at: drop.release_at&.iso8601, product: drop.product&.slice(:slug, :name, :stock_quantity))
   end
 end
