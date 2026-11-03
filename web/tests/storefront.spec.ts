@@ -342,6 +342,20 @@ test("mobile hero separates art and caption; desktop gives art 60% with visible 
   }
 });
 
+test("a coming-soon drop shows no date or quantity and cannot be bought", async ({ page }) => {
+  await go(page, "/drop", "coming_soon");
+  await expect(page.locator(".product-state")).toContainText("COMING SOON");
+  await expect(page.getByText("The release date goes to the list first.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
+  await expect(page.getByText(/\d+ made/)).toHaveCount(0);
+  await expect(page.getByText(/ChST/)).toHaveCount(0);
+  await overflow(page);
+  await page.goto("/archive");
+  await expect(page.getByText("Drop 001 · Coming soon")).toBeVisible();
+  await page.goto("/info/faq");
+  await expect(page.getByText(/next release date has not been announced/)).toBeVisible();
+});
+
 test("gallery keeps one fixed frame on phones and still swipes", async ({ page }, info) => {
   for (const route of ["/drop", "/products/hafa-adai-from-tumon-bay"]) {
     await go(page, route);

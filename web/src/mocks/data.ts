@@ -9,16 +9,20 @@ const art = (slug: string, file: string, widths: number[], aspect: string, alt: 
 export const CORE = "hafa-adai-from-tumon-bay";
 export const MAP = "guahan-sunset-map";
 export const DROP = "drop-001-guahan-sunset-map";
+let announced = true;
+export function setMockAnnounced(value: boolean) {
+  announced = value;
+}
 export function dropSummary(state: DropState): DropSummary {
   return {
     slug: DROP,
     number: 1,
     name: "Guåhan Sunset Map",
     state,
-    release_at: "2026-12-05T00:00:00Z",
+    release_at: state === "upcoming" && !announced ? null : "2026-12-05T00:00:00Z",
     closes_at: state === "closed" ? "2026-12-06T00:00:00Z" : null,
     sold_out_at: state === "sold_out" ? "2026-12-05T02:00:00Z" : null,
-    quantity: 100,
+    quantity: state === "upcoming" && !announced ? null : 100,
     per_customer_limit: 2,
   };
 }

@@ -93,7 +93,9 @@ export function ProductCard({ product }: { product: Product }) {
             ? "DROP CLOSED"
             : product.drop
               ? product.drop.state === "upcoming"
-                ? `COMING ${releaseDate(product.drop.release_at).toUpperCase()}`
+                ? product.drop.release_at
+                  ? `COMING ${releaseDate(product.drop.release_at).toUpperCase()}`
+                  : "COMING SOON"
                 : `DROP ${dropNumber(product.drop.number)}`
               : product.specs?.piece_count != null
                 ? `${product.specs.piece_count} PIECES · CORE COLLECTION`

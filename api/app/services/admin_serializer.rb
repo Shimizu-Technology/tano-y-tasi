@@ -27,6 +27,6 @@ class AdminSerializer
   end
 
   def self.drop(drop)
-    CatalogSerializer.drop(drop).merge(product: drop.product&.slice(:slug, :name, :stock_quantity))
+    CatalogSerializer.drop(drop).merge(quantity: drop.quantity, product: drop.product&.slice(:slug, :name, :stock_quantity))
   end
 end

@@ -17,8 +17,8 @@ class CatalogSerializer
   end
 
   def self.drop(drop, with_product: false, detail: false)
-    data = drop.slice(:slug, :number, :name, :quantity, :per_customer_limit).symbolize_keys.merge(
-      state: drop.state, release_at: drop.release_at.iso8601, closes_at: drop.closes_at&.iso8601, sold_out_at: drop.sold_out_at&.iso8601)
+    data = drop.slice(:slug, :number, :name, :per_customer_limit).symbolize_keys.merge(
+      quantity: drop.public_quantity, state: drop.state, release_at: drop.release_at&.iso8601, closes_at: drop.closes_at&.iso8601, sold_out_at: drop.sold_out_at&.iso8601)
     data[:product] = product(drop.product, detail: detail) if with_product
     data
   end

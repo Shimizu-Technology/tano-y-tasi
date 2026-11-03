@@ -87,3 +87,13 @@ describe("admin inputs", () => {
     });
   });
 });
+
+describe("coming-soon drops", () => {
+  const base = { name: "Map", limit: 2, quantity: 500 };
+  it("accepts an empty release time", () => {
+    expect(validateDrop({ ...base, release: "", closes: "" })).toEqual({});
+  });
+  it("needs a release time before a close time", () => {
+    expect(validateDrop({ ...base, release: "", closes: "2027-01-02T10:00" }).closes_at).toMatch(/release time/);
+  });
+});

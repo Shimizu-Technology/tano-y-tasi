@@ -34,7 +34,9 @@ export function purchaseState(product: Product) {
   return {
     label:
       s === "upcoming"
-        ? `RELEASES ${releaseDate(product.drop!.release_at).toUpperCase()}`
+        ? product.drop?.release_at
+          ? `RELEASES ${releaseDate(product.drop.release_at).toUpperCase()}`
+          : "COMING SOON"
         : s === "closed"
           ? "DROP CLOSED"
           : "SOLD OUT",

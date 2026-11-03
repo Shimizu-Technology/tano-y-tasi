@@ -91,8 +91,8 @@ module Orders
 
     def validate_product!(product, quantity)
       drop = product.drop
-      if drop && (drop.release_at > Time.current || (drop.closes_at && drop.closes_at <= Time.current))
-        raise ApiError.new("drop_not_live", "This drop is not open for checkout.", details: { product_slug: product.slug, release_at: drop.release_at.iso8601 })
+      if drop && (!drop.released? || (drop.closes_at && drop.closes_at <= Time.current))
+        raise ApiError.new("drop_not_live", "This drop is not open for checkout.", details: { product_slug: product.slug, release_at: drop.release_at&.iso8601 })
       end
       if drop
         already = CustomerLimit.quantity(product, @email)

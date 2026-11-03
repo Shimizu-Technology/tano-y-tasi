@@ -5,7 +5,7 @@ module Api
 
       def storefront
         drops = public_drops.to_a
-        featured = drops.find { |drop| drop.state == "live" } || drops.select { |drop| drop.state == "upcoming" }.min_by(&:release_at)
+        featured = drops.find { |drop| drop.state == "live" } || upcoming(drops).first
         render json: { featured_drop: featured && CatalogSerializer.drop(featured, with_product: true),
           core_products: Product.visible.includes(:drop).where(kind: "core").map { |product| CatalogSerializer.product(product) }, server_time: Time.current.iso8601 }
       end
@@ -27,7 +27,7 @@ module Api
       def drops
         drops = public_drops.to_a
         render json: { current: drops.find { |drop| drop.state == "live" }&.then { |drop| CatalogSerializer.drop(drop, with_product: true) },
-          upcoming: drops.select { |drop| drop.state == "upcoming" }.sort_by(&:release_at).map { |drop| CatalogSerializer.drop(drop, with_product: true) },
+          upcoming: upcoming(drops).map { |drop| CatalogSerializer.drop(drop, with_product: true) },
           archive: drops.select { |drop| %w[sold_out closed].include?(drop.state) }.sort_by(&:release_at).reverse.map { |drop| CatalogSerializer.drop(drop, with_product: true) },
           server_time: Time.current.iso8601 }
       end
@@ -38,6 +38,11 @@ module Api
       end
 
       private
+
+      # Dated drops come first, soonest first; unannounced drops follow in number order.
+      def upcoming(drops)
+        drops.select { |drop| drop.state == "upcoming" }.sort_by { |drop| [ drop.release_at ? 0 : 1, drop.release_at.to_f, drop.number ] }
+      end
 
       def public_drops
         Drop.joins(:product).where.not(products: { status: "draft" }).includes(:product).order(:release_at)

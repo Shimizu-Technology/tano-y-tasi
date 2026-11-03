@@ -53,7 +53,7 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 
 ### Drops
 - `GET /drops`, `GET /drops/:slug`: summary plus `product` (slug, name, stock_quantity) and its computed `state`.
-- `PATCH /drops/:slug`: `{ name, release_at, closes_at, per_customer_limit, quantity }`.
+- `PATCH /drops/:slug`: `{ name, release_at, closes_at, per_customer_limit, quantity }`. A `null` `release_at` makes the drop coming soon. Admin responses always include the real `quantity`.
   - `quantity` is the announced edition size. Changing it doesn't move stock; use stock adjustments for that.
   - Returns `422` if `release_at` would be after `closes_at`.
 

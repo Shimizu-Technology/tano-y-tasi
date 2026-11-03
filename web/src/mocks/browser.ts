@@ -1,5 +1,6 @@
 import { setupWorker } from "msw/browser";
 import { handlers, configureMocks } from "./handlers";
+import { setMockAnnounced } from "./data";
 import { configureAdminMocks } from "./adminHandlers";
 import type { DropState } from "../types";
 export async function startMocks() {
@@ -12,12 +13,14 @@ export async function startMocks() {
     sessionStorage.setItem("tyt-mock-core", requestedCount);
   const coreCount = import.meta.env.DEV ? Number(sessionStorage.getItem("tyt-mock-core") || 1) : 1;
   const query = params.get("mockDrop");
-  const valid = ["upcoming", "live", "sold_out", "closed"];
+  const valid = ["coming_soon", "upcoming", "live", "sold_out", "closed"];
   if (query && valid.includes(query)) {
     if (sessionStorage.getItem("tyt-mock-state") !== query) sessionStorage.removeItem("tyt-mock-db");
     sessionStorage.setItem("tyt-mock-state", query);
   }
-  const state = (sessionStorage.getItem("tyt-mock-state") || "upcoming") as DropState;
+  const stored = sessionStorage.getItem("tyt-mock-state") || "upcoming";
+  setMockAnnounced(stored !== "coming_soon");
+  const state = (stored === "coming_soon" ? "upcoming" : stored) as DropState;
   let database;
   try {
     database = JSON.parse(sessionStorage.getItem("tyt-mock-db") || "null") ?? undefined;

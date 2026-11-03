@@ -144,7 +144,7 @@ function ProductView({
           <Gallery images={p.images} name={p.name} />
           <div className="product-info">
             {d && <p className="label product-state">
-              {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {d.state === "live" ? "AVAILABLE NOW" : d.state.replace("_", " ").toUpperCase()}
+              {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {d.state === "live" ? "AVAILABLE NOW" : d.state === "upcoming" && !d.release_at ? "COMING SOON" : d.state.replace("_", " ").toUpperCase()}
             </p>}
             <h1>{p.name}</h1>
             <p className="product-price">{money(p.price_cents)}</p>
@@ -152,10 +152,14 @@ function ProductView({
             {d && (
               <div className="drop-facts">
                 {d.state === "upcoming" ? (
-                  <>
-                    <ReleaseTimes iso={d.release_at} />
-                    <Countdown release={d.release_at} serverTime={serverTime} receivedAt={receivedAt} />
-                  </>
+                  d.release_at ? (
+                    <>
+                      <ReleaseTimes iso={d.release_at} />
+                      <Countdown release={d.release_at} serverTime={serverTime} receivedAt={receivedAt} />
+                    </>
+                  ) : (
+                    <p>The release date goes to the list first.</p>
+                  )
                 ) : d.state === "sold_out" ? (
                   <p>
                     Drop {dropNumber(d.number)} sold out{d.sold_out_at ? ` on ${releaseDate(d.sold_out_at)}` : ""}.
@@ -164,7 +168,7 @@ function ProductView({
                   <p>This drop has closed.</p>
                 ) : null}
                 <p>
-                  {d.quantity} made · Limit {d.per_customer_limit} per customer
+                  {d.quantity != null && `${d.quantity} made · `}Limit {d.per_customer_limit} per customer
                 </p>
                 <p className="muted small">One-time release. No restocks.</p>
               </div>

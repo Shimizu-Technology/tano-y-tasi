@@ -11,10 +11,10 @@ export interface DropSummary {
   number: number;
   name: string;
   state: DropState;
-  release_at: string;
+  release_at: string | null;
   closes_at: string | null;
   sold_out_at: string | null;
-  quantity: number;
+  quantity: number | null;
   per_customer_limit: number;
 }
 export interface Product {
@@ -99,7 +99,7 @@ export interface ErrorBody {
     available?: number;
     limit?: number;
     already_purchased?: number;
-    release_at?: string;
+    release_at?: string | null;
     retry?: "same_key" | "new_checkout";
   };
 }
