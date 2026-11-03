@@ -11,6 +11,12 @@ class EmailDelivery < ApplicationRecord
     resend_number.positive? ? "#{key}-resend-#{resend_number}" : key
   end
 
+  # Persists a new alert for this row, so a crash before sending leaves retryable
+  # work behind. The new key keeps Resend from treating it as the earlier email.
+  def requeue!
+    update!(status: "pending", resend_number: resend_number + 1, attempts: 0, outbound_payload: {}, last_error: nil, sent_at: nil)
+  end
+
   def deliver!(resend: false)
     if ActiveRecord::Base.connection.transaction_open?
       # Rails may invoke callbacks immediately for a nonjoinable test/fixture
@@ -22,7 +28,7 @@ class EmailDelivery < ApplicationRecord
     ProviderLease.with("email-delivery-#{id}") do
       reload
       return self if !resend && (%w[sent skipped].include?(status) || attempts >= 5)
-      update!(resend_number: attempts + 1, outbound_payload: {}) if resend
+      update!(resend_number: resend_number + 1, outbound_payload: {}) if resend
       unless ActiveModel::Type::Boolean.new.cast(ENV.fetch("EMAIL_DELIVERY_ENABLED", "false"))
         update!(status: "skipped", last_error: nil)
         return self

@@ -167,6 +167,15 @@ RSpec.describe "Stripe webhooks", type: :request do
     expect(PaymentEvent.where(event_id: "evt_retry")).not_to exist
   end
 
+  it "asks Stripe to retry while another read of this order is running" do
+    send_event
+    ProviderLease.create!(key: "payment-state-#{order.id}", holder: "other", expires_at: 1.minute.from_now)
+    stub_const("ProviderLease::WAIT", 0.seconds)
+    send_event("charge.refunded", id: "evt_busy", object: { id: "ch_test", payment_intent: "pi_test" })
+    expect(response).to have_http_status(:service_unavailable)
+    expect(PaymentEvent.where(event_id: "evt_busy")).not_to exist
+  end
+
   it "handles signed events with missing fields without an error" do
     send_event("checkout.session.completed", id: "evt_bare", object: { id: "cs_bare" })
     expect(response).to have_http_status(:ok)

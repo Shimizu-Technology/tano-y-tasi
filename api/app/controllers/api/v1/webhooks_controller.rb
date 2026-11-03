@@ -23,7 +23,7 @@ module Api
         render json: { received: true }
       rescue Stripe::SignatureVerificationError, JSON::ParserError
         render_error("malformed", "Invalid Stripe webhook signature or payload.", :bad_request)
-      rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+      rescue *Payments::SyncProviderState::RETRYABLE => error
         # Nothing was recorded, so Stripe's retry runs this again.
         Rails.logger.error("STRIPE_EVENT_RETRY error=#{error.class}")
         render_error("payment_unavailable", "Stripe is temporarily unavailable.", :service_unavailable)
@@ -70,7 +70,7 @@ module Api
       # The payment is safely recorded, so a failure here is left for hourly maintenance.
       def resolve_earlier_events(details)
         Payments::SyncProviderState.resolve_events(details[:order].reload) if details[:order]
-      rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+      rescue *Payments::SyncProviderState::RETRYABLE => error
         Rails.logger.warn("STRIPE_EVENT_DEFERRED error=#{error.class}")
       end
     end

@@ -5,7 +5,7 @@ namespace :maintenance do
     Payments::CloseReleasedSessions.call
     Order.where(provider_payment_intent_id: PaymentEvent.unresolved.select(:payment_intent_id)).find_each do |order|
       Payments::SyncProviderState.resolve_events(order)
-    rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+    rescue *Payments::SyncProviderState::RETRYABLE => error
       Rails.logger.warn("MAINTENANCE_SYNC_FAILED order_id=#{order.id} error=#{error.class}")
     end
     EmailDelivery.retryable.find_each(&:deliver!)

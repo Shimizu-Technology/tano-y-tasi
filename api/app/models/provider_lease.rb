@@ -5,8 +5,9 @@ class ProviderLease < ApplicationRecord
 
   class Busy < StandardError; end
 
-  # Longer than one Stripe call with its retries, so a live holder keeps its lease.
-  TTL = 5.minutes
+  # Must outlast everything one holder does. A refund makes up to four Stripe calls
+  # of at most two minutes each (see the timeouts in 00_runtime.rb), then sends email.
+  TTL = 15.minutes
   WAIT = 15.seconds
   POLL = 0.1
 

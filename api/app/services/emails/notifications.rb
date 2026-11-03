@@ -12,7 +12,8 @@ module Emails
       admin_emails.each do |email|
         existing = EmailDelivery.find_by(order: order, kind: "admin_attention", to: email)
         if existing
-          ActiveRecord.after_all_transactions_commit { existing.deliver!(resend: true) }
+          existing.requeue!
+          ActiveRecord.after_all_transactions_commit { existing.deliver! }
         else
           queue(order, "admin_attention", email)
         end

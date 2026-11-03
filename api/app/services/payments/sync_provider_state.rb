@@ -2,17 +2,34 @@ module Payments
   # Reads refunds and disputes straight from Stripe. Events can arrive late, repeat
   # or carry stale snapshots; the current state cannot. Call outside locks.
   class SyncProviderState
+    RETRYABLE = [ Stripe::StripeError, IOError, Timeout::Error, SocketError, ProviderLease::Busy ].freeze
     COUNTED_REFUNDS = %w[pending requires_action succeeded].freeze
+    FAILED_REFUNDS = %w[failed canceled].freeze
 
+    # The lease covers the read and the write, so an older read can't overwrite a newer one.
     def self.call(order)
       return order if order.provider != "stripe" || order.provider_payment_intent_id.blank?
-      filter = { payment_intent: order.provider_payment_intent_id, limit: 100 }
-      refunded = Stripe::Refund.list(filter).auto_paging_each.select { |refund| COUNTED_REFUNDS.include?(refund[:status]) }.sum { |refund| refund[:amount] }
-      dispute = Stripe::Dispute.list(filter).auto_paging_each.max_by { |item| item[:created].to_i }
-      ApplyRefund.call(order, refunded_cents: refunded)
-      apply_dispute(order, dispute && dispute[:status])
+      ProviderLease.with("payment-state-#{order.id}") do
+        filter = { payment_intent: order.provider_payment_intent_id, limit: 100 }
+        refunds = Stripe::Refund.list(filter).auto_paging_each.to_a
+        dispute = Stripe::Dispute.list(filter).auto_paging_each.max_by { |item| item[:created].to_i }
+        ApplyRefund.call(order, refunded_cents: refunds.select { |refund| COUNTED_REFUNDS.include?(refund[:status]) }.sum { |refund| refund[:amount] },
+          failed_refund_ids: refunds.select { |refund| FAILED_REFUNDS.include?(refund[:status]) }.map { |refund| refund[:id] })
+        complete_requests(order, refunds)
+        apply_dispute(order, dispute && dispute[:status])
+      end
       order.reload
     end
+
+    # Stripe knows about these refunds, so the admin's request is finished,
+    # even if its own response never came back.
+    def self.complete_requests(order, refunds)
+      order.refund_requests.open.each do |request|
+        refund = refunds.find { |item| item[:metadata] && item[:metadata][:refund_request_id] == request.id.to_s }
+        request.update!(status: "completed", provider_refund_id: refund[:id]) if refund
+      end
+    end
+    private_class_method :complete_requests
 
     # A dispute Stripe no longer returns keeps its last known status.
     def self.apply_dispute(order, status)

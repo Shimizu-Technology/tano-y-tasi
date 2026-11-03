@@ -38,7 +38,7 @@ RSpec.describe "Issuing refunds" do
       order.update!(provider: "stripe", provider_session_id: "cs_1")
       Payments::Complete.call(order, payment_intent_id: "pi_1")
       allow(Stripe::Refund).to receive(:list, &list)
-      allow(Stripe::Dispute).to receive(:list, &list)
+      allow(Stripe::Dispute).to receive(:list).and_return(Stripe::ListObject.construct_from(object: "list", data: [], has_more: false))
     end
 
     def stripe_accepts(amount)
@@ -91,16 +91,55 @@ RSpec.describe "Issuing refunds" do
       expect(order.refund_requests.open).not_to exist
     end
 
-    it "keeps a recorded refund when reading it back fails, for the webhook to repair" do
+    it "keeps the request open until the order reflects the refund, so a retry can't pay twice" do
       allow(Stripe::Refund).to receive(:create, &stripe_accepts(1000))
       calls = 0
       allow(Stripe::Refund).to receive(:list) do
         calls += 1
-        raise Stripe::APIConnectionError.new("offline") if calls > 1
+        raise Stripe::APIConnectionError.new("offline") if calls == 2
         list.call
       end
+      expect { Payments::IssueRefund.call(order, amount_cents: 1000) }.to raise_error(ApiError) { |error| expect(error.status).to eq(:service_unavailable) }
+      expect(order.refund_requests.last.status).to eq("open")
+      expect(Stripe::Refund).to have_received(:create).once
       Payments::IssueRefund.call(order, amount_cents: 1000)
+      expect(Stripe::Refund).to have_received(:create).once
+      expect(order.reload.refunded_cents).to eq(1000)
       expect(order.refund_requests.last.status).to eq("completed")
+    end
+
+    it "closes a request the webhook reconciled, and lets a retry finish on a refunded order" do
+      request = order.refund_requests.create!(amount_cents: 7000)
+      refunds << { id: "re_lost", object: "refund", amount: 7000, status: "succeeded", metadata: { refund_request_id: request.id.to_s } }
+      Payments::SyncProviderState.call(order)
+      expect(request.reload).to have_attributes(status: "completed", provider_refund_id: "re_lost")
+      expect(order.reload.status).to eq("refunded")
+
+      stranded = order.refund_requests.create!(amount_cents: 1)
+      refunds.first[:metadata][:refund_request_id] = stranded.id.to_s
+      expect(Stripe::Refund).not_to receive(:create)
+      Payments::IssueRefund.call(order)
+      expect(stranded.reload.status).to eq("completed")
+    end
+
+    it "alerts once about a refund that failed before it was ever counted" do
+      User.create!(clerk_id: "admin", email: "admin@example.com")
+      refunds << { id: "re_failed", object: "refund", amount: 1000, status: "failed" }
+      2.times { Payments::SyncProviderState.call(order) }
+      expect(order.reload).to have_attributes(status: "paid", attention_reason: "refund_failed", refunded_cents: 0, failed_refund_ids: [ "re_failed" ])
+      alert = order.email_deliveries.find_by!(kind: "admin_attention")
+      expect(alert.resend_number).to eq(0)
+
+      refunds << { id: "re_failed_2", object: "refund", amount: 500, status: "canceled" }
+      Payments::SyncProviderState.call(order)
+      expect(alert.reload).to have_attributes(status: "pending", resend_number: 1, attempts: 0)
+    end
+
+    it "serializes state reads, so a stale read can't overwrite a newer one" do
+      ProviderLease.create!(key: "payment-state-#{order.id}", holder: "other", expires_at: 1.minute.from_now)
+      stub_const("ProviderLease::WAIT", 0.seconds)
+      expect(Stripe::Refund).not_to receive(:list)
+      expect { Payments::SyncProviderState.call(order) }.to raise_error(ProviderLease::Busy)
     end
 
     it "refunds what a mismatched payment actually charged" do

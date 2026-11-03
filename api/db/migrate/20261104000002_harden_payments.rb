@@ -16,6 +16,7 @@ class HardenPayments < ActiveRecord::Migration[8.1]
     add_column :orders, :refunded_cents, :integer, null: false, default: 0
     add_column :orders, :refunded_at, :datetime
     add_column :orders, :dispute_status, :string
+    add_column :orders, :failed_refund_ids, :jsonb, null: false, default: []
     # Stays nullable for this release: the previous release keeps serving while the
     # pre-deploy migration runs and doesn't know this column. Enforced in a later migration.
     add_column :orders, :customer_key, :string
@@ -51,6 +52,7 @@ class HardenPayments < ActiveRecord::Migration[8.1]
     remove_index :orders, :customer_key
     remove_check_constraint :orders, name: "order_refund_valid"
     remove_column :orders, :customer_key
+    remove_column :orders, :failed_refund_ids
     remove_column :orders, :dispute_status
     remove_column :orders, :refunded_at
     remove_column :orders, :refunded_cents

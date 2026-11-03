@@ -265,6 +265,7 @@ CREATE TABLE public.orders (
     refunded_cents integer DEFAULT 0 NOT NULL,
     refunded_at timestamp(6) without time zone,
     dispute_status character varying,
+    failed_refund_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
     customer_key character varying,
     CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),

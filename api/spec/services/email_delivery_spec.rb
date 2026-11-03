@@ -107,7 +107,7 @@ RSpec.describe "Transactional email delivery", type: :request do
     post "/api/v1/admin/orders/#{@order.number}/email_deliveries/#{confirmation.id}/resend", headers: headers
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body.dig("email_delivery", "status")).to eq("sent")
-    expect(confirmation.idempotency_key).to eq("#{original}-resend-2")
+    expect(confirmation.idempotency_key).to eq("#{original}-resend-1")
     expect(confirmation.attempts).to eq(2)
     expect(Resend::Emails).to have_received(:send).twice
   end

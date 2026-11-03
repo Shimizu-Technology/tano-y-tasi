@@ -26,7 +26,7 @@ if provider == "stripe"
     raise "#{key} is required for Stripe" if ENV[key].blank?
   end
   Stripe.api_key = ENV.fetch("STRIPE_SECRET_KEY")
-  # Three attempts must fit well inside ProviderLease::TTL.
+  # Three attempts take at most two minutes, which bounds work under ProviderLease::TTL.
   Stripe.max_network_retries = 2
   Stripe.open_timeout = 10
   Stripe.read_timeout = 30

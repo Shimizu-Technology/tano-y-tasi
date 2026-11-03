@@ -766,7 +766,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
               <Money cents={refunded} />
             </dd>
           </dl>
-          {refundable > 0 && (
+          {(refundable > 0 || openRefund !== null) && (
             <>
               <Field
                 label={`Refund amount (USD), up to ${centsToDollars(refundable)}`}

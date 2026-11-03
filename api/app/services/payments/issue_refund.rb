@@ -5,14 +5,15 @@ module Payments
     def self.call(order, amount_cents: nil)
       ProviderLease.with("refund-#{order.id}") do
         order.reload
-        unless %w[paid needs_attention].include?(order.status) && order.paid_at
+        open = order.refund_requests.open.first
+        unless open || (%w[paid needs_attention].include?(order.status) && order.paid_at)
           raise ApiError.new("invalid_refund", "Only paid orders can be refunded.")
         end
-        request = request_for(order, amount_cents)
+        request = open_request(order, open, amount_cents)
         if order.provider == "stripe"
-          refund = provider_refund(order, request)
-          request.update!(status: "completed", provider_refund_id: refund[:id])
-          sync(order)
+          provider_refund(order, request)
+          # The request closes once the order reflects it, so nothing new starts before then.
+          raise ApiError.new("payment_unavailable", RETRY_MESSAGE, status: :service_unavailable) unless sync(order)
         else
           request.update!(status: "completed")
           ApplyRefund.call(order, refunded_cents: order.refunded_cents + request.amount_cents)
@@ -21,8 +22,7 @@ module Payments
       order.reload
     end
 
-    def self.request_for(order, amount_cents)
-      open = order.refund_requests.open.first
+    def self.open_request(order, open, amount_cents)
       if open
         return open if amount_cents.nil? || amount_cents == open.amount_cents
         raise ApiError.new("refund_in_progress", "A #{Emails::Template.money(open.amount_cents)} refund hasn't been confirmed yet. Retry that amount first.")
@@ -52,12 +52,13 @@ module Payments
       raise ApiError.new("payment_unavailable", RETRY_MESSAGE, status: :service_unavailable)
     end
 
-    # The refund exists at Stripe by now; its webhook repairs the order if this read fails.
     def self.sync(order)
       SyncProviderState.call(order)
-    rescue Stripe::StripeError, IOError, Timeout::Error, SocketError => error
+      true
+    rescue *SyncProviderState::RETRYABLE => error
       Rails.logger.warn("REFUND_SYNC_DEFERRED order_id=#{order.id} error=#{error.class}")
+      false
     end
-    private_class_method :request_for, :provider_refund, :sync
+    private_class_method :open_request, :provider_refund, :sync
   end
 end
