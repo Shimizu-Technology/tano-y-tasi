@@ -63,6 +63,19 @@ RSpec.describe "Admin API", type: :request do
     expect(StoreSetting.current.reload.contact_email).to eq("hello@example.com")
   end
 
+  it "closes open checkouts when the store closes" do
+    StoreSetting.current.update!(sales_open: true)
+    pending = Orders::Checkout.call(email: "open@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
+    pending.update!(provider: "stripe", provider_session_id: "cs_open")
+    stock = product.reload.stock_quantity
+    expect(Stripe::Checkout::Session).to receive(:expire).with("cs_open").and_return(Stripe::StripeObject.construct_from(status: "expired"))
+    patch "/api/v1/admin/store", params: { sales_open: false }, headers: headers, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(pending.reload).to have_attributes(status: "canceled")
+    expect(pending.provider_session_closed_at).to be_present
+    expect(product.reload.stock_quantity).to eq(stock + 1)
+  end
+
   it "shows the raw page body to admins, with the placeholder intact" do
     patch "/api/v1/admin/pages/returns", params: { body: "Write to {{contact_email}} anytime." }, headers: headers, as: :json
     expect(response.parsed_body.dig("page", "body")).to eq("Write to {{contact_email}} anytime.")

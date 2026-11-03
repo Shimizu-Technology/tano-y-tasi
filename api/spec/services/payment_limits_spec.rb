@@ -27,6 +27,18 @@ RSpec.describe "Drop limits across delayed payments" do
     expect(product.reload.stock_quantity).to eq(10)
   end
 
+  it "flags a payment that arrives after the store closed and takes no stock" do
+    expired = checkout
+    Orders::Release.call(expired, status: "expired")
+    pending = checkout
+    allow(StoreSetting).to receive(:sales_open?).and_return(false)
+    [ pending, expired ].each do |order|
+      Payments::Complete.call(order, payment_intent_id: "pi_#{order.id}")
+      expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "store_closed")
+    end
+    expect(product.reload.stock_quantity).to eq(10)
+  end
+
   it "treats Gmail dots and +tags as the same customer" do
     first = checkout
     Payments::Complete.call(first)

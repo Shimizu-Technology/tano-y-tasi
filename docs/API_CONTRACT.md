@@ -86,7 +86,7 @@ Home page payload in one request:
 ```json
 { "store": { "sales_open": false, "contact_email": "…", "tagline": "A piece of home.", "secondary_tagline": "…", "story": "…", "mission_lines": ["…"] } }
 ```
-While `sales_open` is false nothing is purchasable, a released drop stays `upcoming` with no date, and checkout returns `422 store_closed`.
+While `sales_open` is false nothing is purchasable, a released drop stays `upcoming` with no date, and checkout returns `422 store_closed`. Closing the store releases open checkouts and expires their Stripe sessions; a payment that still arrives becomes `needs_attention` with `attention_reason: store_closed`.
 
 ### `GET /api/v1/pages/:slug`
 `{ "page": { "slug": "returns", "title": "…", "body": "…", "updated_at": "…" } }`. Slugs: `shipping`, `returns`, `privacy`, `terms`. `body` uses a small Markdown subset: `## ` headings, `- ` lists, `**bold**`, `[text](url)`.

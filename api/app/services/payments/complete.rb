@@ -6,7 +6,7 @@ module Payments
       Orders::Inventory.with_locked_order(order) do |products|
         next if %w[paid refunded needs_attention].include?(order.status)
         holding = order.status == "pending_payment"
-        reason = problem || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
+        reason = problem || ("store_closed" unless StoreSetting.sales_open?) || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
         attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping, charged_cents: charged_cents }
         if reason
           if holding
