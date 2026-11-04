@@ -8,7 +8,7 @@ module Orders
           Inventory.change!(products.fetch(item.product_id), order, item.quantity, "release")
         end
         order.update!(status: status)
-        products.each_value { |product| Inventory.refresh_drop!(product) }
+        Inventory.refresh_drops!(products.values.map(&:drop_id))
       end
       order.reload
     end

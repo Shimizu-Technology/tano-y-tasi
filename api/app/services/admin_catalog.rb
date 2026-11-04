@@ -6,7 +6,7 @@ class AdminCatalog
   # /admin/products/new is the create screen, so no product can own that slug.
   RESERVED_SLUGS = %w[new].freeze
   IMAGE_KEYS = %w[role alt base widths aspect].freeze
-  DROP_TAKEN = "already has a product".freeze
+  FLAGS = %i[signature preorder].freeze
 
   def self.create_product(attributes)
     attributes = attributes.with_defaults(status: "draft", position: Product.maximum(:position).to_i + 1)
@@ -25,7 +25,7 @@ class AdminCatalog
     end
   end
 
-  # Turns kind + drop_slug into model attributes. Saving enforces one product per drop.
+  # Turns kind + drop_slug into model attributes.
   def self.placement(kind, drop_slug, product: nil)
     kind = drop_slug.present? ? "drop" : (product&.kind || "core") if kind.blank?
     case kind
@@ -43,12 +43,20 @@ class AdminCatalog
 
   def self.update_product(product, attributes)
     product.transaction do
+      previous_drop_id = product.drop_id
       product.update!(attributes)
-      # The drop's sold-out date has to describe the product it holds now.
-      Orders::Inventory.refresh_drop!(product) if product.saved_change_to_drop_id?
+      # The sold-out date describes what a drop has on sale now, so both ends of a move count.
+      if product.saved_change_to_drop_id? || product.saved_change_to_status? || product.saved_change_to_images?
+        Orders::Inventory.refresh_drops!([ previous_drop_id, product.drop_id ])
+      end
     end
-  rescue ActiveRecord::RecordNotUnique
-    invalid!(:drop_slug, DROP_TAKEN)
+  end
+
+  # A stray string would otherwise cast to true, and could put a product on preorder.
+  def self.check_flags!(attributes)
+    FLAGS.each do |key|
+      invalid!(key, "must be true or false") if attributes.key?(key) && ![ true, false ].include?(attributes[key])
+    end
   end
 
   # Keeps only image fields. Shape problems are reported here; each image's rules live on Product.
@@ -81,7 +89,6 @@ class AdminCatalog
       # A savepoint keeps a lost race from poisoning any surrounding transaction.
       ApplicationRecord.transaction(requires_new: true) { yield }
     rescue ActiveRecord::RecordNotUnique => error
-      invalid!(:drop_slug, DROP_TAKEN) if error.message.include?("one_product_per_drop")
       retry if (attempts += 1) < ATTEMPTS
       raise ApiError.new("busy", "Another save is still running. Try again in a moment.", status: :conflict)
     end

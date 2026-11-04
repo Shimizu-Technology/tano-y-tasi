@@ -15,7 +15,8 @@ import {
   type OrderSummary,
   type Page,
 } from "./adminApi";
-import { PlaceholderChecklist, ProductPlacement } from "./AdminCatalog";
+import { DropProducts, PlaceholderChecklist, ProductPlacement, SellingFields } from "./AdminCatalog";
+import { ProductionRuns } from "./AdminProduction";
 import { ImageManager, useImageManager } from "./AdminImages";
 import {
   centsToDollars,
@@ -25,6 +26,7 @@ import {
   guamToIso,
   validateDrop,
   validateProduct,
+  validateSelling,
   attentionReasons,
 } from "./adminUtils";
 
@@ -100,17 +102,17 @@ export function Heading({ eyebrow, title, action }: { eyebrow: string; title: st
     </div>
   );
 }
-function Chip({ value }: { value?: string | null }) {
+export function Chip({ value }: { value?: string | null }) {
   return (
     <span className={`admin-chip ${value?.replace(/[^a-z]/g, "-") ?? ""}`}>
       {value?.replaceAll("_", " ") ?? "—"}
     </span>
   );
 }
-function Money({ cents }: { cents: number }) {
+export function Money({ cents }: { cents: number }) {
   return <span className="admin-number">${centsToDollars(cents)}</span>;
 }
-function DateText({ value }: { value?: string | null }) {
+export function DateText({ value }: { value?: string | null }) {
   return <>{value ? datePreview(value, "Pacific/Guam") : "—"}</>;
 }
 export function Notice({ text, kind = "success" }: { text: string; kind?: "success" | "error" }) {
@@ -248,6 +250,10 @@ type ProductForm = {
   credit: string;
   story: string;
   placeholders: string[];
+  signature: boolean;
+  limit: string;
+  preorder: boolean;
+  preorderShips: string;
 };
 export function productForm(product: AdminProduct): ProductForm {
   return {
@@ -266,6 +272,10 @@ export function productForm(product: AdminProduct): ProductForm {
     credit: product.art?.credit ?? "",
     story: product.art?.story ?? "",
     placeholders: product.placeholders ?? [],
+    signature: product.signature ?? false,
+    limit: product.per_customer_limit == null ? "" : String(product.per_customer_limit),
+    preorder: product.preorder ?? false,
+    preorderShips: product.preorder_ships ?? "",
   };
 }
 function lineList(value: string) {
@@ -308,6 +318,10 @@ export function productPatch(form: ProductForm, initial: ProductForm) {
     { credit: form.credit, story: form.story },
     { credit: initial.credit, story: initial.story }
   );
+  add("signature", form.signature, initial.signature);
+  add("per_customer_limit", form.limit.trim() ? Number(form.limit) : null, initial.limit.trim() ? Number(initial.limit) : null);
+  add("preorder", form.preorder, initial.preorder);
+  add("preorder_ships", form.preorderShips.trim() || null, initial.preorderShips.trim() || null);
   // Ticking a box off and on again reorders the list without changing it.
   if (JSON.stringify([...form.placeholders].sort()) !== JSON.stringify([...initial.placeholders].sort()))
     patch.placeholders = form.placeholders;
@@ -319,6 +333,12 @@ type DropForm = {
   closes: string;
   limit: number;
   quantity: number;
+};
+const members = (drop: AdminDrop) => drop.products ?? (drop.product ? [drop.product] : []);
+// Null when the drop has no product to count.
+const dropStock = (drop: AdminDrop) => {
+  const list = members(drop);
+  return list.length ? list.reduce((sum, product) => sum + product.stock_quantity, 0) : null;
 };
 function dropForm(drop: AdminDrop): DropForm {
   return {
@@ -427,7 +447,7 @@ export function DashboardPage() {
                     </Link>
                     <Chip value={data.featured_drop.state} />
                     <p>
-                      {data.featured_drop.product?.stock_quantity ?? 0} in stock ·{" "}
+                      {dropStock(data.featured_drop) ?? 0} in stock ·{" "}
                       {data.featured_drop.quantity} announced
                     </p>
                   </div>
@@ -483,7 +503,10 @@ function OrderRows({ orders, listPath }: { orders: OrderSummary[]; listPath: str
                   <Chip value={order.status} />
                 </td>
                 <td>
-                  <Chip value={order.fulfillment_status} />
+                  <span className="admin-chips">
+                    <Chip value={order.fulfillment_status} />
+                    {!!order.preorder_item_count && <Chip value="preorder" />}
+                  </span>
                 </td>
                 <td>
                   <Money cents={order.total_cents} />
@@ -511,6 +534,7 @@ function OrderRows({ orders, listPath }: { orders: OrderSummary[]; listPath: str
             <div>
               <Chip value={order.status} />
               <Chip value={order.fulfillment_status} />
+              {!!order.preorder_item_count && <Chip value="preorder" />}
             </div>
             <small>
               <DateText value={order.created_at} />
@@ -664,6 +688,8 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
   // Stays the same across retries of one attempt, so a retry can't refund twice.
   const [refundKey, setRefundKey] = useState(() => crypto.randomUUID());
   const refund = refundDraft ?? centsToDollars(openRefund ?? refundable);
+  const preorderLines = order.items.filter((item) => item.preorder_ships);
+  const mixed = preorderLines.length > 0 && preorderLines.length < order.items.length;
   async function perform(path: string, method: "POST" | "PATCH", body?: unknown) {
     setSaving(true);
     setFailure("");
@@ -693,10 +719,11 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
         eyebrow="ORDER DETAIL"
         title={order.number}
         action={
-          <>
+          <div className="admin-chips">
             <Chip value={order.status} />
             <Chip value={order.fulfillment_status} />
-          </>
+            {preorderLines.length > 0 && <Chip value="preorder" />}
+          </div>
         }
       />
       <Notice text={message} />
@@ -717,7 +744,14 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
               <tbody>
                 {order.items.map((item, index) => (
                   <tr key={`${item.product_slug ?? item.name}-${index}`}>
-                    <td>{item.name}</td>
+                    <td>
+                      {item.name}
+                      {item.preorder_ships && (
+                        <span className="admin-preorder-line">
+                          <Chip value="preorder" /> {item.preorder_ships}
+                        </span>
+                      )}
+                    </td>
                     <td>{item.quantity}</td>
                     <td>
                       <Money cents={item.unit_price_cents} />
@@ -852,6 +886,17 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
             </>
           ) : (
             <>
+              {preorderLines.length > 0 && order.status === "paid" && (
+                <div className="admin-attention" role="note">
+                  <strong>Don't ship the preorder items early.</strong>
+                  <ul className="admin-preorder-list">
+                    {preorderLines.map((item, index) => (
+                      <li key={`${item.product_slug ?? item.name}-${index}`}>{item.name} × {item.quantity}: {item.preorder_ships}</li>
+                    ))}
+                  </ul>
+                  {mixed && <p>This order also has in-stock items. One fulfill action covers the whole order, so mark it fulfilled once everything has shipped.</p>}
+                </div>
+              )}
               <Field
                 label="Tracking number"
                 name="tracking_number"
@@ -878,13 +923,14 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
               <button
                 className="admin-button"
                 disabled={saving || order.status !== "paid"}
-                onClick={() =>
+                onClick={() => {
+                  if (preorderLines.length > 0 && !window.confirm("This order has preorder items. Has everything really shipped?")) return;
                   void perform(`${endpoint}/fulfill`, "POST", {
                     tracking_number: tracking || undefined,
                     tracking_url: url || undefined,
                     notify,
-                  })
-                }
+                  });
+                }}
               >
                 {saving ? "Saving…" : "Fulfill order"}
               </button>
@@ -993,7 +1039,11 @@ export function ProductsPage() {
                         <Link to={`/admin/products/${product.slug}`}>{product.name}</Link>
                       </td>
                       <td>
-                        <Chip value={product.status} />
+                        <span className="admin-chips">
+                          <Chip value={product.status} />
+                          {product.signature && <Chip value="signature" />}
+                          {product.preorder && <Chip value="preorder" />}
+                        </span>
                       </td>
                       <td>
                         <Money cents={product.price_cents} />
@@ -1010,7 +1060,11 @@ export function ProductsPage() {
                 <Link className="admin-card" key={product.slug} to={`/admin/products/${product.slug}`}>
                   <strong>{product.name}</strong>
                   <div>
-                    <Chip value={product.status} />
+                    <span className="admin-chips">
+                      <Chip value={product.status} />
+                      {product.signature && <Chip value="signature" />}
+                      {product.preorder && <Chip value="preorder" />}
+                    </span>
                     <Money cents={product.price_cents} />
                   </div>
                   <p>{product.stock_quantity} in stock</p>
@@ -1044,7 +1098,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
   const [delta, setDelta] = useState(""),
     [reason, setReason] = useState("");
   const [movements, setMovements] = useState<
-    { id: number | string; delta: number; reason: string; created_at: string }[]
+    { id: number | string; delta: number; reason: string; note?: string | null; created_at: string }[]
   >([]);
   const [saving, setSaving] = useState(false),
     [message, setMessage] = useState(""),
@@ -1054,17 +1108,19 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
   const [initial, setInitial] = useState<ProductForm>(form);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const images = useImageManager(product, reload);
-  useUnsaved((dirty || images.dirty || !!delta.trim() || !!reason.trim()) && !saving);
+  // A router allows one blocker at a time, so the production form reports up to this one.
+  const [runDirty, setRunDirty] = useState(false);
+  useUnsaved((dirty || images.dirty || runDirty || !!delta.trim() || !!reason.trim()) && !saving);
   useEffect(() => {
     api<{ inventory_movements: typeof movements }>(`/products/${product.slug}/inventory_movements`)
       .then((result) => setMovements(result.inventory_movements))
       .catch(() => {});
-  }, [api, product.slug]);
+  }, [api, product.slug, product.stock_quantity]);
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
   }
   async function save() {
-    const invalid = validateProduct(form);
+    const invalid = { ...validateProduct(form), ...validateSelling(form) };
     const invalidNumber = form.specs.find(
       (row) => row.originalType === "number" && (row.value.trim() === "" || !Number.isFinite(Number(row.value)))
     );
@@ -1198,6 +1254,12 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
               error={errors.position}
             />
           </div>
+          <SellingFields
+            form={form}
+            update={update}
+            errors={errors}
+            dropLimit={product.drop?.per_customer_limit}
+          />
           <h3>Specifications</h3>
           {form.specs.map((row, index) => (
             <div className="admin-spec-row" key={index}>
@@ -1328,7 +1390,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
                         {item.delta > 0 ? "+" : ""}
                         {item.delta}
                       </td>
-                      <td>{item.reason}</td>
+                      <td>{item.note || item.reason}</td>
                       <td>
                         <DateText value={item.created_at} />
                       </td>
@@ -1342,6 +1404,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
           )}
         </section>
       </div>
+      <ProductionRuns product={product} reload={reload} onDirty={setRunDirty} />
     </>
   );
 }
@@ -1369,6 +1432,7 @@ export function DropsPage() {
                     <th>State</th>
                     <th>Release (ChST)</th>
                     <th>Quantity</th>
+                    <th>Products</th>
                     <th>Stock</th>
                   </tr>
                 </thead>
@@ -1385,7 +1449,8 @@ export function DropsPage() {
                         {drop.release_at ? <DateText value={drop.release_at} /> : "Coming soon"}
                       </td>
                       <td>{drop.quantity}</td>
-                      <td>{drop.product?.stock_quantity ?? "—"}</td>
+                      <td>{members(drop).length}</td>
+                      <td>{dropStock(drop) ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1439,7 +1504,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
   const release = form.release ? guamToIso(form.release) : null,
     closes = form.closes ? guamToIso(form.closes) : null;
   const [currentTime] = useState(() => Date.now());
-  const state = !drop.product
+  const state = !members(drop).length
     ? "No product"
     : !form.release
     ? "Coming soon"
@@ -1449,7 +1514,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
         ? "Upcoming"
         : closes && currentTime >= Date.parse(closes)
           ? "Closed"
-          : (drop.product?.stock_quantity ?? 1) < 1
+          : (dropStock(drop) ?? 1) < 1
             ? "Sold out"
             : "Live";
   async function save() {
@@ -1533,7 +1598,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
             />
           </div>
           <p className="admin-help">
-            Quantity is the announced edition size. Adjust product stock separately.
+            Quantity is the announced edition size. Adjust product stock separately. The limit applies to each product here unless that product sets its own.
           </p>
           <Notice text={failure} kind="error" />
           <button className="admin-button" disabled={saving || !dirty} onClick={() => void save()}>
@@ -1555,17 +1620,10 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
             <dd>{release ? datePreview(release, "Pacific/Honolulu") : "—"}</dd>
             <dt>Close · ChST</dt>
             <dd>{closes ? datePreview(closes, "Pacific/Guam") : "No close"}</dd>
-            <dt>Product stock</dt>
-            <dd>{drop.product?.stock_quantity ?? "—"}</dd>
+            <dt>Total stock</dt>
+            <dd>{dropStock(drop) ?? "—"}</dd>
           </dl>
-          {!drop.product && (
-            <p className="admin-help admin-section">
-              No product yet, so this drop isn't on the site. Open a <Link to="/admin/products">product</Link> and choose this drop under "Where it's sold".
-            </p>
-          )}
-          {drop.product && (
-            <Link to={`/admin/products/${drop.product.slug}`}>Edit {drop.product.name} stock →</Link>
-          )}
+          <DropProducts drop={drop} reload={reload} />
         </section>
       </div>
     </>

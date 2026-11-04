@@ -1,6 +1,6 @@
 import { checkoutFix } from "./api";
 import { catalog, CORE, MAP } from "./mocks/data";
-import { money, countdown, purchaseState, releaseTimes, remainingMs, heroReleaseTime } from "./utils";
+import { dropItems, money, countdown, priceRange, purchaseState, releaseTimes, remainingMs, heroReleaseTime } from "./utils";
 import type { DropState } from "./types";
 it("formats the release date across the date line, Guam first", () => {
   const t = releaseTimes("2026-12-05T00:00:00Z");
@@ -56,4 +56,26 @@ it("keeps the hero release in Guam time across the date line", () => {
 it("shows Coming soon, not a date, for a drop with no release date", () => {
   const product = catalog("upcoming", { [MAP]: 100 }).find((item) => item.slug === MAP)!;
   expect(purchaseState({ ...product, drop: { ...product.drop!, release_at: null } })).toEqual({ label: "COMING SOON", disabled: true });
+});
+
+it("sells a purchasable preorder as PREORDER, and keeps other states as they are", () => {
+  const product = catalog("upcoming", { [CORE]: 40, [MAP]: 100 })[0];
+  const preorder = { ...product, availability: { ...product.availability, state: "preorder" as const, purchasable: true } };
+  expect(purchaseState(preorder)).toEqual({ label: "PREORDER", disabled: false });
+  expect(purchaseState({ ...preorder, availability: { ...preorder.availability, state: "sold_out", purchasable: false } })).toEqual({ label: "SOLD OUT", disabled: true });
+});
+it("words the limit for any product, not just a drop", () => {
+  expect(checkoutFix({ code: "limit_exceeded", message: "", details: { limit: 1, already_purchased: 1 } })).toEqual({
+    message: "This item is limited to 1 per customer. You've already reached it with this email.",
+    quantity: 0,
+  });
+});
+it("lists a drop's items, falling back to the lead for an older API", () => {
+  expect(dropItems({ product: "lead" })).toEqual(["lead"]);
+  expect(dropItems({ product: "lead", products: [] })).toEqual(["lead"]);
+  expect(dropItems({ product: "lead", products: ["lead", "next"] })).toEqual(["lead", "next"]);
+});
+it("shows one price, or where a range starts", () => {
+  expect(priceRange([{ price_cents: 4500 }, { price_cents: 4500 }])).toBe("$45");
+  expect(priceRange([{ price_cents: 5000 }, { price_cents: 4500 }])).toBe("From $45");
 });

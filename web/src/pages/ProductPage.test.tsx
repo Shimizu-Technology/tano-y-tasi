@@ -2,8 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ProductPage } from "./ProductPage";
-import { catalog, CORE, MAP } from "../mocks/data";
+import { DropPage, ProductPage } from "./ProductPage";
+import { catalog, CORE, DROP, dropSummary, MAP } from "../mocks/data";
+import type { Drop, ProductDetail } from "../types";
 
 it("hides unknown specs while keeping confirmed details and factual shipping available", async () => {
   vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
@@ -99,4 +100,81 @@ it("renders a new product that has only its required fields", () => {
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+describe("commerce states", () => {
+  const server_time = "2026-10-29T00:00:00Z";
+  const [core, map] = catalog("live", { [CORE]: 40, [MAP]: 100 });
+  beforeEach(() => vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} }));
+  afterEach(() => vi.unstubAllGlobals());
+  function showProduct(product: ProductDetail) {
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+    client.setQueryData(["product", product.slug], { product, server_time });
+    return render(
+      <QueryClientProvider client={client}><MemoryRouter initialEntries={[`/products/${product.slug}`]}>
+        <Routes><Route path="/products/:slug" element={<ProductPage />} /></Routes>
+      </MemoryRouter></QueryClientProvider>
+    );
+  }
+  function showDrop(drop: Drop) {
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+    client.setQueryData(["drop", drop.slug], { drop, server_time, receivedAt: Date.parse(server_time) });
+    return render(
+      <QueryClientProvider client={client}><MemoryRouter initialEntries={[`/drops/${drop.slug}`]}>
+        <Routes><Route path="/drops/:slug" element={<DropPage />} /></Routes>
+      </MemoryRouter></QueryClientProvider>
+    );
+  }
+  const preorder: ProductDetail = { ...core, preorder: true, preorder_ships: "Ships late January 2027", per_customer_limit: 2, max_per_order: 2,
+    availability: { ...core.availability, state: "preorder", purchasable: true } };
+
+  it("sells a preorder with its ship date and its limit", () => {
+    showProduct(preorder);
+    expect(screen.getByRole("button", { name: "PREORDER" })).toBeEnabled();
+    expect(screen.getByText("Ships late January 2027")).toBeVisible();
+    expect(screen.getByText("Limit 2 per customer")).toBeVisible();
+  });
+  it("doesn't promise a ship date once a preorder has sold out", () => {
+    showProduct({ ...preorder, max_per_order: 0, availability: { ...core.availability, state: "sold_out", purchasable: false } });
+    expect(screen.getByRole("button", { name: "SOLD OUT" })).toBeDisabled();
+    expect(screen.queryByText("Ships late January 2027")).not.toBeInTheDocument();
+  });
+  it("labels a signature product on its page", () => {
+    showProduct({ ...core, signature: true });
+    expect(screen.getByText("SIGNATURE")).toBeVisible();
+  });
+  it("shows a product's own limit in a drop, over the drop's", () => {
+    showProduct({ ...map, per_customer_limit: 1, max_per_order: 1 });
+    expect(screen.getByText(/Limit 1 per customer/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "DROP 001" })).toHaveAttribute("href", `/drops/${DROP}`);
+  });
+  it("keeps the product page for a drop with one product", () => {
+    showDrop({ ...dropSummary("live"), product: map, products: [map] });
+    expect(screen.getByRole("heading", { level: 1, name: map.name })).toBeVisible();
+    expect(screen.getByRole("button", { name: "ADD TO CART" })).toBeEnabled();
+    expect(document.querySelector(".core-collection")).not.toBeInTheDocument();
+  });
+  it("keeps the product page when an older API sends no products list", () => {
+    showDrop({ ...dropSummary("live"), product: map });
+    expect(screen.getByRole("button", { name: "ADD TO CART" })).toBeEnabled();
+  });
+  it("shows a drop with several products as a heading and a grid linking to each", () => {
+    const night = { ...map, slug: "night", name: "Night Map" };
+    showDrop({ ...dropSummary("live"), product: map, products: [map, night] });
+    expect(screen.getByRole("heading", { level: 1, name: "Guåhan Sunset Map" })).toBeVisible();
+    expect(screen.getByText("DROP 001 · AVAILABLE NOW")).toBeVisible();
+    expect(screen.getByText("100 made · 2 items")).toBeVisible();
+    expect(screen.getByRole("link", { name: /Night Map/ })).toHaveAttribute("href", "/products/night");
+    expect(screen.getByRole("link", { name: /Guåhan Sunset Map/ })).toHaveAttribute("href", `/products/${MAP}`);
+    expect(screen.queryByRole("button", { name: "ADD TO CART" })).not.toBeInTheDocument();
+  });
+  it("hides prices and offers the list for a coming-soon drop with several products", () => {
+    const summary = { ...dropSummary("upcoming"), release_at: null, quantity: null };
+    const item = { ...map, drop: summary, availability: { ...map.availability, state: "upcoming" as const, purchasable: false } };
+    showDrop({ ...summary, product: item, products: [item, { ...item, slug: "night", name: "Night Map" }] });
+    expect(screen.getByText("DROP 001 · COMING SOON")).toBeVisible();
+    expect(screen.getByText("The release date goes to the list first.")).toBeVisible();
+    expect(screen.queryByText("$45")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Email for drop alerts")).toBeVisible();
+  });
 });

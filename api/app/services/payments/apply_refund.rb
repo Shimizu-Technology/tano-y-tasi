@@ -13,7 +13,7 @@ module Payments
         reverse(order, amount) if amount < previous
         # A refund can fail before it was ever counted, so the total alone can't show it.
         flag_failure(order) if amount < previous || new_failures.any?
-        products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
+        Orders::Inventory.refresh_drops!(products.values.map(&:drop_id))
       end
       order.reload
     end

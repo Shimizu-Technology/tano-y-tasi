@@ -24,9 +24,14 @@ export interface Product {
   price_cents: number;
   currency: "USD";
   summary: string;
+  // Optional: the web app can deploy ahead of an API that doesn't send these yet.
+  signature?: boolean;
+  preorder?: boolean;
+  preorder_ships?: string | null;
+  per_customer_limit?: number | null;
   specs: { piece_count?: number; finished_size?: string };
   availability: {
-    state: "available" | "sold_out" | "upcoming" | "coming_soon" | "closed";
+    state: "available" | "preorder" | "sold_out" | "upcoming" | "coming_soon" | "closed";
     purchasable: boolean;
     remaining: number | null;
     low_stock: boolean;
@@ -54,6 +59,7 @@ export interface ProductDetail extends Product {
 }
 export interface Drop extends DropSummary {
   product: ProductDetail;
+  products?: ProductDetail[];
 }
 export interface StoreSettings {
   sales_open: boolean;
@@ -70,13 +76,14 @@ export interface StorePage {
   updated_at: string;
 }
 export interface Storefront {
-  featured_drop: (DropSummary & { product: Product }) | null;
+  featured_drop: (DropSummary & { product: Product; products?: Product[] }) | null;
   core_products: Product[];
   store?: StoreSettings;
   server_time: string;
 }
 export interface DropList extends DropSummary {
   product: Product;
+  products?: Product[];
 }
 export interface Drops {
   current: DropList | null;
@@ -94,7 +101,7 @@ export interface Order {
   number: string;
   status: OrderStatus;
   email_masked: string;
-  items: (CartItem & { name: string; unit_price_cents: number; image: Art })[];
+  items: (CartItem & { name: string; unit_price_cents: number; image: Art; preorder_ships?: string | null })[];
   subtotal_cents: number;
   total_cents: number;
   refunded_cents?: number;

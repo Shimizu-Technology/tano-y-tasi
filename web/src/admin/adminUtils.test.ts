@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 import { AdminApiError, authState, createAdminClient, fieldErrors, formError } from "./adminApi";
 import {
   centsToDollars,
+  dateOnly,
   dollarsToCents,
   guamInput,
+  margin,
   guamToIso,
   safeReturnPath,
   signInPath,
   validateDrop,
   validateProduct,
+  validateRun,
+  validateSelling,
 } from "./adminUtils";
 
 describe("admin access", () => {
@@ -99,5 +103,36 @@ describe("coming-soon drops", () => {
   });
   it("needs a release time before a close time", () => {
     expect(validateDrop({ ...base, release: "", closes: "2027-01-02T10:00" }).closes_at).toMatch(/release time/);
+  });
+});
+
+describe("how a product sells", () => {
+  const selling = { limit: "", preorder: false, preorderShips: "" };
+  it("treats an empty limit as none and wants a positive whole number otherwise", () => {
+    expect(validateSelling(selling)).toEqual({});
+    expect(validateSelling({ ...selling, limit: "2" })).toEqual({});
+    for (const limit of ["0", "-1", "1.5", "two"]) expect(validateSelling({ ...selling, limit })).toHaveProperty("per_customer_limit");
+  });
+  it("needs a ship date for a preorder only", () => {
+    expect(validateSelling({ ...selling, preorder: true, preorderShips: "   " })).toHaveProperty("preorder_ships");
+    expect(validateSelling({ ...selling, preorder: true, preorderShips: "Ships late January 2027" })).toEqual({});
+    expect(validateSelling({ ...selling, preorderShips: "x".repeat(121) })).toHaveProperty("preorder_ships");
+  });
+});
+describe("production runs", () => {
+  it("checks the quantity and the cost", () => {
+    expect(validateRun({ quantity: "500", unitCost: "7.20" })).toEqual({});
+    expect(validateRun({ quantity: "500", unitCost: "" })).toEqual({});
+    expect(validateRun({ quantity: "0", unitCost: "7.205" })).toEqual({ quantity: expect.any(String), unit_cost_cents: expect.any(String) });
+  });
+  it("works out a simple margin, and none without a cost or a price", () => {
+    expect(margin(4500, 720)).toBe(84);
+    expect(margin(4500, 5000)).toBe(-11);
+    expect(margin(4500, null)).toBeNull();
+    expect(margin(0, 720)).toBeNull();
+  });
+  it("shows an expected date as the day it was entered, whatever the time zone", () => {
+    expect(dateOnly("2027-01-15")).toBe("Jan 15, 2027");
+    expect(dateOnly(null)).toBe("—");
   });
 });

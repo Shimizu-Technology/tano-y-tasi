@@ -56,6 +56,29 @@ export function validateProduct(value: { name: string; price: string; summary: s
     errors.price = "Enter a valid dollar amount with up to two decimals.";
   return errors;
 }
+// How a product sells. The limit is text so that empty can mean "no limit of its own".
+export function validateSelling(value: { limit: string; preorder: boolean; preorderShips: string }) {
+  const errors: Record<string, string> = {};
+  if (value.limit.trim() && !/^[1-9]\d*$/.test(value.limit.trim())) errors.per_customer_limit = "Enter a whole number of at least 1, or leave it empty.";
+  if (value.preorder && !value.preorderShips.trim()) errors.preorder_ships = "Say when it ships, like \"Ships late January 2027\".";
+  if (value.preorderShips.trim().length > 120) errors.preorder_ships = "Keep this to 120 characters.";
+  return errors;
+}
+export function validateRun(value: { quantity: string; unitCost: string }) {
+  const errors: Record<string, string> = {};
+  if (!/^[1-9]\d*$/.test(value.quantity.trim())) errors.quantity = "Enter a whole number of at least 1.";
+  if (value.unitCost.trim() && dollarsToCents(value.unitCost) === null) errors.unit_cost_cents = "Enter a valid dollar amount with up to two decimals.";
+  return errors;
+}
+// What each unit leaves after its cost, at today's price. Shipping and fees aren't counted.
+export function margin(priceCents: number, unitCostCents: number | null) {
+  if (unitCostCents == null || priceCents <= 0) return null;
+  return Math.round(((priceCents - unitCostCents) / priceCents) * 100);
+}
+export function dateOnly(value: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" }).format(new Date(`${value}T00:00:00Z`));
+}
 export function validateDrop(value: {
   name: string;
   release: string;

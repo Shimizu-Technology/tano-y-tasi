@@ -62,6 +62,14 @@ it("escapes metadata and JSON without executable inline scripts or dollar-patter
   expect(JSON.parse(document.querySelector("script")!.textContent!).product.product.name).toBe(hostile);
   expect(document.title).toContain(hostile);
 });
+it("describes a drop with several products as the drop, without preloading one product's art", () => {
+  const several = { ...drop, products: [map, { ...map, slug: "other" }] };
+  const result = transformHtml(html, { ...snapshot(`/drops/${drop.slug}`), drop: { drop: several, server_time, receivedAt: snapshotTime } });
+  document.head.innerHTML = result.match(/<head>([\s\S]*)<\/head>/)![1];
+  expect(document.title).toBe(`${drop.name} — Tåno + Tåsi`);
+  expect(document.querySelector("[data-tyt-preload]")).toBeNull();
+  expect(document.querySelector('meta[property="og:type"]')).toHaveAttribute("content", "website");
+});
 it("leaves unknown routes and unmarked HTML unchanged", () => {
   expect(transformHtml(html, snapshot("/unknown"))).toBe(html);
   expect(transformHtml("<html></html>", snapshot())).toBe("<html></html>");

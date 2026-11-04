@@ -1,20 +1,42 @@
 class Product < ApplicationRecord
   INTEGER_MAX = 2_147_483_647
   IMAGE_ROLES = %w[hero gallery detail box lifestyle].freeze
+  PREORDER_SHIPS_MAX = 120
 
   belongs_to :drop, optional: true
   has_many :order_items, dependent: :restrict_with_exception
+  has_many :production_runs, dependent: :restrict_with_exception
   # Public pages always lead with artwork, so a product stays hidden until it has an image.
   scope :shown, -> { where.not(status: "draft").where("jsonb_array_length(products.images) > 0") }
-  scope :visible, -> { shown.order(:position, :id) }
+  # Signature products lead every public list; position orders the rest.
+  scope :visible, -> { shown.order(signature: :desc, position: :asc, id: :asc) }
+  normalizes :preorder_ships, with: ->(value) { value.strip.presence }
   validates :slug, :name, :summary, :description, presence: true
   validates :kind, inclusion: { in: %w[core drop] }
   validates :status, inclusion: { in: %w[draft active archived] }
   validates :stock_quantity, :price_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: INTEGER_MAX }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: -INTEGER_MAX, less_than_or_equal_to: INTEGER_MAX }
+  validates :per_customer_limit, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: INTEGER_MAX }, allow_nil: true
+  validates :signature, :preorder, inclusion: { in: [ true, false ], message: "must be true or false" }
+  validates :preorder_ships, length: { maximum: PREORDER_SHIPS_MAX }
+  validate :preorder_says_when_it_ships, if: -> { preorder_changed? || preorder_ships_changed? }
   validate :placement_consistent, if: -> { will_save_change_to_kind? || will_save_change_to_drop_id? }
   # Only checked when images change, so old data can never block a stock change or checkout.
   validate :images_valid, if: :images_changed?
+
+  # Mirrors the shown scope for products already in memory.
+  def shown?
+    status != "draft" && images.present?
+  end
+
+  def on_sale?
+    status == "active" && images.present?
+  end
+
+  # A product's own limit wins. Otherwise it follows its drop, and core products have none.
+  def effective_limit
+    per_customer_limit || drop&.per_customer_limit
+  end
 
   def availability(now: Time.current)
     state = if drop && !drop.released?(now: now)
@@ -26,11 +48,13 @@ class Product < ApplicationRecord
     elsif !StoreSetting.sales_open?
       # The merchant hasn't opened the store, so nothing is for sale yet.
       "coming_soon"
+    elsif preorder
+      "preorder"
     else
       "available"
     end
     low = stock_quantity <= 20 && state != "coming_soon"
-    { state: state, purchasable: state == "available", remaining: low ? stock_quantity : nil, low_stock: low }
+    { state: state, purchasable: %w[available preorder].include?(state), remaining: low ? stock_quantity : nil, low_stock: low }
   end
 
   private
@@ -40,9 +64,11 @@ class Product < ApplicationRecord
       errors.add(:drop_slug, "must name a drop")
     elsif kind == "core" && drop_id
       errors.add(:drop_slug, "must be empty for the always-available collection")
-    elsif drop_id && Product.where(drop_id: drop_id).where.not(id: id).exists?
-      errors.add(:drop_slug, AdminCatalog::DROP_TAKEN)
     end
+  end
+
+  def preorder_says_when_it_ships
+    errors.add(:preorder_ships, "must say when it ships") if preorder && preorder_ships.blank?
   end
 
   def images_valid

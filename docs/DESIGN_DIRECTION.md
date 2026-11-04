@@ -75,19 +75,23 @@ All home copy comes from `web/src/brand.ts` (tagline, mission lines, story parag
 7. **Footer.** A full-width `--color-paper-deep` band with the small rounded logo (served at 240/480/960px WebP, not the full-size original), "Made for Guåhan and everyone carrying it with them," links to Shipping and FAQ, and © year. Contact stays a route but is not linked until contact details are supplied.
 
 ### Shop
-Title `Shop` with a muted `1 item` / `N items` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
+A signature product comes first and reads `SIGNATURE · 100 PIECES` in the same quiet label under its card. It's a word, not a badge. Title `Shop` with a muted `1 item` / `N items` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
 
 ### Drop (`/drop` → current or next drop; `/drops/:slug` for any)
 - **Upcoming:** large artwork, `DROP 001 — GUÅHAN SUNSET MAP`, the release time in **ChST**, plus PT and HT on a second line, quantity ("100 made"), limit ("Limit 2 per customer"), price, a detail gallery, and the drop-alert form. The add-to-cart button is disabled and reads `RELEASES DEC 5`. A countdown is optional and must only show inside the final 48 hours.
 - **Live:** same layout; the button becomes `ADD TO CART`, and the state line shows "Available now" with the sun dot. Show a remaining count only when 20 or fewer are left ("Only 12 left"), and only from real data.
 - **Sold out:** artwork stays; the button is disabled `SOLD OUT`; a line reads "Drop 001 sold out on Dec 5." plus a drop-alert form for the next drop.
 - **Closed:** like sold out, with the reason "This drop has closed."
+- **Several products:** one product keeps the page above. With more, the page is the drop's own: breadcrumb, state label, the drop name as a 32px → 48px heading, its timing and facts, then the collection grid linking to each product. Each product's page carries its own buy button and limit. Home shows the lead's art, `2 items in this drop.` and one price or `From $45`.
 
 ### Product detail
 - Mobile: a horizontally swipeable gallery (CSS scroll-snap) with an `1 / 5` counter and `SWIPE TO EXPLORE` only when there are multiple images on mobile, then the info block, then a full-width sticky-bottom `ADD TO CART` bar once the main button scrolls out of view.
 - Desktop: two columns. The gallery on the left (about 60%) has a large lead image, then a two-column grid of the remaining images at their natural aspects; the info column on the right is sticky.
 - Info order: drop state label when applicable (core context is already in the breadcrumb), name (`title`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** ("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."). Hide unknown spec rows (`TBD` or `To be confirmed`) and omit internal preview notes.
 - Images open in a full-screen viewer with pinch/zoom on mobile. The map is high resolution, so let people inspect it.
+
+### Preorders
+The buy button reads `PREORDER`. `Preorder.` in green, then the merchant's ship text, sits above the buy button, on the cart line, on the payment page and on the order line. It's dropped once the product has sold out or closed. A cart mixing preorder and in-stock items adds one plain note: "This cart includes a preorder, so your whole order may ship together when the preorder is ready." No countdowns or urgency.
 
 ### Story
 Alternating image/text sections: the large logo emblem with the brand paragraph; the meaning of *tåno* and *tåsi* with map details; the upright, flat puzzle photo with "We start with puzzles of Guåhan…" and the collection CTA. One h1, no decorative kicker or unapproved founder placeholder. Keep it to one calm page; mobile uses a single column.

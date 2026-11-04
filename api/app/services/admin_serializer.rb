@@ -27,20 +27,27 @@ class AdminSerializer
   def self.order(order, detail: false)
     data = order.slice(:number, :token, :status, :fulfillment_status, :email, :total_cents, :currency, :created_at, :paid_at)
     data["item_count"] = order.order_items.sum(&:quantity)
+    data["preorder_item_count"] = order.order_items.select(&:preorder_ships).sum(&:quantity)
     if detail
       data.merge!(order.slice(:shipping, :provider, :provider_payment_intent_id, :tracking_number, :tracking_url, :fulfilled_at, :notes, :subtotal_cents, :attention_reason, :charged_cents, :refunded_cents, :refunded_at, :dispute_status))
       data["open_refund_cents"] = order.refund_requests.open.first&.amount_cents
-      data["items"] = order.order_items.map { |item| item.slice(:product_slug, :name, :quantity, :unit_price_cents, :image) }
+      data["items"] = order.order_items.map { |item| item.slice(:product_slug, :name, :quantity, :unit_price_cents, :image, :preorder_ships) }
       data["email_deliveries"] = order.email_deliveries.order(:id).map { |delivery| self.delivery(delivery) }
     end
     data
   end
 
   def self.product(product)
-    product.slice(:slug, :name, :summary, :description, :price_cents, :currency, :status, :position, :specs, :includes, :art, :placeholders, :images, :kind, :stock_quantity).merge("drop" => product.drop && drop(product.drop))
+    product.slice(:slug, :name, :summary, :description, :price_cents, :currency, :status, :position, :specs, :includes, :art, :placeholders, :images, :kind, :stock_quantity, :signature, :per_customer_limit, :preorder, :preorder_ships).merge("drop" => product.drop && drop(product.drop))
   end
 
   def self.drop(drop)
-    CatalogSerializer.drop(drop).merge(quantity: drop.quantity, release_at: drop.release_at&.iso8601, product: drop.product&.slice(:slug, :name, :stock_quantity))
+    CatalogSerializer.drop(drop).merge(quantity: drop.quantity, release_at: drop.release_at&.iso8601, product: drop.product&.slice(:slug, :name, :stock_quantity),
+      products: drop.products.map { |product| product.slice(:slug, :name, :stock_quantity, :status) })
+  end
+
+  # Admin only: what a run costs must never reach a public payload.
+  def self.production_run(run)
+    run.slice(:id, :quantity, :status, :supplier, :unit_cost_cents, :expected_at, :received_at, :stock_added, :notes, :created_at, :updated_at)
   end
 end

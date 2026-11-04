@@ -1,11 +1,28 @@
 class Drop < ApplicationRecord
-  has_one :product, dependent: :restrict_with_exception
+  has_many :products, -> { order(:position, :id) }, inverse_of: :drop, dependent: :restrict_with_exception
   validates :slug, :name, presence: true
 
   validates :quantity, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: Product::INTEGER_MAX }
   validates :per_customer_limit, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: Product::INTEGER_MAX }
   validate do
     errors.add(:release_at, "must not be after closes_at") if release_at && closes_at && release_at > closes_at
+  end
+
+  # The lead product: the only one in most drops, and the art for the drop as a whole.
+  def product
+    products.first
+  end
+
+  # What customers may see, in order. Drafts and products with no image stay private.
+  def shown_products
+    products.select(&:shown?)
+  end
+
+  # Sold out means every product on sale is gone. Drafts and archived products can't
+  # keep a drop open. If nothing is on sale, every product counts.
+  def out_of_stock?
+    counted = products.select(&:on_sale?).presence || products.to_a
+    counted.any? && counted.all? { |product| product.stock_quantity.zero? }
   end
 
   # Without a release date the drop is announced as "coming soon": visible, never purchasable.
@@ -24,15 +41,15 @@ class Drop < ApplicationRecord
 
   # Quantity stays private until the merchant confirms it. Zero means it isn't decided yet.
   def public_quantity
-    quantity unless quantity.zero? || (product && Array(product.placeholders).include?("drop.quantity"))
+    quantity unless quantity.zero? || products.any? { |product| Array(product.placeholders).include?("drop.quantity") }
   end
 
   def state(now: Time.current)
     return "upcoming" unless released?(now: now)
     return "closed" if closes_at && closes_at <= now
-    return "sold_out" if product && product.stock_quantity.zero?
+    return "sold_out" if out_of_stock?
     # A drop can't be live until the merchant opens the store and attaches a product.
-    return "upcoming" unless product && StoreSetting.sales_open?
+    return "upcoming" unless products.any? && StoreSetting.sales_open?
     "live"
   end
 end

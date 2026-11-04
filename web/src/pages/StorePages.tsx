@@ -7,7 +7,7 @@ import { PageBody } from "../components/PageBody";
 import { ArtImage } from "../components/ArtImage";
 import { Emblem } from "../components/Emblem";
 import { Failure, Loading, Meta } from "../components/Shared";
-import { dropNumber, releaseTimes, releaseDate } from "../utils";
+import { dropItems, dropNumber, releaseTimes, releaseDate } from "../utils";
 import { ProductCollection } from "../components/ProductCollection";
 import type { Art } from "../types";
 const flatPuzzle: Art = {
@@ -199,6 +199,7 @@ function FAQ() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   const drop = q.data?.featured_drop;
   const times = drop?.release_at ? releaseTimes(drop.release_at) : null;
+  const limits = drop ? new Set(dropItems(drop).map((product) => product.per_customer_limit ?? drop.per_customer_limit)) : new Set<number>();
   return (
     <div className="page narrow info-page">
       <Meta title="FAQ" />
@@ -215,7 +216,7 @@ function FAQ() {
               : q.isError ? <p>Release details are unavailable. <button className="inline-link" onClick={() => void q.refetch()}>Try again</button></p>
                 : <p>The next release date has not been announced. Join the list and you'll hear first.</p>}
         </section>
-        {drop && <section><h2>How many can I buy?</h2><p>Drop {dropNumber(drop.number)} is limited to {drop.per_customer_limit} per customer.</p></section>}
+        {drop && <section><h2>How many can I buy?</h2><p>{limits.size === 1 ? `Drop ${dropNumber(drop.number)} is limited to ${[...limits][0]} per customer.` : `Each item in Drop ${dropNumber(drop.number)} has its own limit per customer, shown on its page.`}</p></section>}
       </div>
       <Link className="text-link" to="/shop">Back to the collection <ArrowRight aria-hidden="true" /></Link>
     </div>

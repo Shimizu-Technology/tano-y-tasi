@@ -1,6 +1,7 @@
 import { api, ApiError, API_URL } from "../api";
 import { configureMocks } from "./handlers";
-import { CORE, MAP, DROP } from "./data";
+import { configureAdminMocks } from "./adminHandlers";
+import { CORE, MAP, MAP_NIGHT, DROP, PREORDER, PREORDER_SHIPS } from "./data";
 const items = [{ product_slug: MAP, quantity: 1 }];
 const start = (email = "guest@example.com", key = crypto.randomUUID()) => api.checkout(email, items, key);
 beforeEach(() => configureMocks({ state: "live" }));
@@ -128,7 +129,7 @@ it("matches Rails limit-error details exactly", async () => {
   } catch (error) {
     expect((error as ApiError).body).toEqual({
       code: "limit_exceeded",
-      message: "This drop is limited to 2 per customer.",
+      message: "Guåhan Sunset Map is limited to 2 per customer.",
       details: { product_slug: MAP, limit: 2, already_purchased: 2 },
     });
   }
@@ -169,4 +170,95 @@ it("matches Rails stock and drop error details", async () => {
   await expect(
     api.checkout("guest@example.com", [{ product_slug: CORE, quantity: 2 }], crypto.randomUUID())
   ).rejects.toMatchObject({ body: { code: "insufficient_stock", details: { product_slug: CORE, available: 1 } } });
+});
+
+describe("commerce model mocks", () => {
+  const admin = (path: string, method = "GET", body?: unknown) =>
+    fetch(`${API_URL}/api/v1/admin${path}`, {
+      method,
+      headers: { Authorization: "Bearer tyt-admin-test-auth", "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const buy = (slug: string, quantity = 1, email = "guest@example.com") => api.checkout(email, [{ product_slug: slug, quantity }], crypto.randomUUID());
+  afterEach(() => configureAdminMocks());
+
+  it("sells a preorder with its limit, and snapshots the ship date on the order", async () => {
+    configureAdminMocks("ok", "ok", { preorder: true });
+    configureMocks({ state: "live", extras: { preorder: true } });
+    const { product } = await api.product(PREORDER);
+    expect(product).toMatchObject({ preorder: true, preorder_ships: PREORDER_SHIPS, per_customer_limit: 2, max_per_order: 2, availability: { state: "preorder", purchasable: true } });
+    const { order } = await buy(PREORDER, 2);
+    await admin(`/products/${PREORDER}`, "PATCH", { preorder_ships: "Ships in March 2027" });
+    expect((await api.product(PREORDER)).product.preorder_ships).toBe("Ships in March 2027");
+    expect((await api.order(order.token)).order.items[0].preorder_ships).toBe(PREORDER_SHIPS);
+    await expect(buy(PREORDER)).rejects.toMatchObject({ body: { code: "limit_exceeded", message: "Hagåtña Sunrise is limited to 2 per customer." } });
+  });
+
+  it("holds a preorder back when the store is closed or the units run out", async () => {
+    configureAdminMocks("ok", "ok", { preorder: true });
+    configureMocks({ state: "live", extras: { preorder: true }, database: { stock: { [CORE]: 40, [MAP]: 100, [PREORDER]: 0 }, orders: {}, attempts: {}, subscribers: [], sequence: 100000 } });
+    expect((await api.product(PREORDER)).product.availability).toMatchObject({ state: "sold_out", purchasable: false });
+  });
+
+  it("serves a drop's several products, lead first, and sells it out only when all are gone", async () => {
+    configureAdminMocks("ok", "ok", { dropItems: 2 });
+    configureMocks({ state: "live", extras: { dropItems: 2 }, database: { stock: { [CORE]: 40, [MAP]: 0, [MAP_NIGHT]: 1 }, orders: {}, attempts: {}, subscribers: [], sequence: 100000 } });
+    const { drop } = await api.drop(DROP);
+    expect(drop.products!.map((p) => p.slug)).toEqual([MAP, MAP_NIGHT]);
+    expect(drop.state).toBe("live");
+    expect((await api.storefront()).featured_drop!.products!.map((p) => p.slug)).toEqual([MAP, MAP_NIGHT]);
+    await buy(MAP_NIGHT);
+    expect((await api.drop(DROP)).drop.state).toBe("sold_out");
+    expect((await api.drops()).archive.map((d) => d.slug)).toEqual([DROP]);
+  });
+
+  it("attaches a second product to a drop through the admin", async () => {
+    configureAdminMocks();
+    configureMocks({ state: "live" });
+    const response = await admin(`/products/${CORE}`, "PATCH", { kind: "drop", drop_slug: DROP });
+    expect(response.status).toBe(200);
+    const { drops } = await (await admin("/drops")).json();
+    expect(drops[0].products.map((p: { slug: string }) => p.slug)).toEqual([CORE, MAP]);
+    expect((await api.drop(DROP)).drop.products!.map((p) => p.slug)).toEqual([CORE, MAP]);
+    expect((await api.storefront()).core_products).toHaveLength(0);
+  });
+
+  it("leads with signature products", async () => {
+    configureAdminMocks("ok", "ok", { preorder: true });
+    configureMocks({ state: "upcoming", extras: { preorder: true } });
+    await admin(`/products/${PREORDER}`, "PATCH", { signature: true });
+    const { core_products } = await api.storefront();
+    expect(core_products.map((p) => p.slug)).toEqual([PREORDER, CORE]);
+    expect(core_products[0].signature).toBe(true);
+  });
+
+  it("runs production: add, edit, receive once, and cancel, with stock reaching the storefront", async () => {
+    configureAdminMocks();
+    configureMocks({ state: "upcoming", database: { stock: { [CORE]: 5, [MAP]: 100 }, orders: {}, attempts: {}, subscribers: [], sequence: 100000 } });
+    expect((await api.product(CORE)).product.availability.remaining).toBe(5);
+    const base = `/products/${CORE}/production_runs`;
+    expect((await admin(base, "POST", { quantity: 0 })).status).toBe(422);
+    const created = await admin(base, "POST", { quantity: 500, supplier: " Shenzhen ", unit_cost_cents: 720, expected_at: "2027-01-15" });
+    expect(created.status).toBe(201);
+    const { production_run: run } = await created.json();
+    expect(run).toMatchObject({ status: "ordered", supplier: "Shenzhen", stock_added: null });
+    expect((await (await admin(`${base}/${run.id}`, "PATCH", { quantity: 400 })).json()).production_run.quantity).toBe(400);
+    expect((await admin(`${base}/${run.id}/receive`, "POST", { stock_added: 401 })).status).toBe(422);
+    for (let i = 0; i < 2; i++) {
+      const received = await (await admin(`${base}/${run.id}/receive`, "POST", { stock_added: 100 })).json();
+      expect(received.production_run).toMatchObject({ status: "received", stock_added: 100 });
+      expect(received.product.stock_quantity).toBe(140);
+    }
+    const { inventory_movements } = await (await admin(`/products/${CORE}/inventory_movements`)).json();
+    expect(inventory_movements).toHaveLength(1);
+    expect(inventory_movements[0]).toMatchObject({ delta: 100, reason: "production_received" });
+    expect((await admin(`${base}/${run.id}/cancel`, "POST", {})).status).toBe(422);
+    const second = (await (await admin(base, "POST", { quantity: 5 })).json()).production_run;
+    expect((await (await admin(`${base}/${second.id}/cancel`, "POST", {})).json()).production_run.status).toBe("canceled");
+    expect((await admin(`${base}/${second.id}/receive`, "POST", {})).status).toBe(422);
+    const { production_runs } = await (await admin(base)).json();
+    expect(production_runs.map((item: { id: number }) => item.id)).toEqual([second.id, run.id]);
+    // The storefront's count moves too, so low stock no longer shows.
+    expect((await api.product(CORE)).product.availability).toMatchObject({ remaining: null, low_stock: false });
+  });
 });

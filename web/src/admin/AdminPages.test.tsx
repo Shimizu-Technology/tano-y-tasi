@@ -48,6 +48,10 @@ describe("product spec editing", () => {
     position: 1,
     currency: "USD",
     stock_quantity: 100,
+    signature: false,
+    per_customer_limit: null,
+    preorder: false,
+    preorder_ships: null,
     kind: "drop",
     specs: { piece_count: 500, dimensions: { width: 16, height: 20 }, tags: ["map", "guam"], box: null, glossy: false, cut: "Classic" },
     includes: [],
@@ -83,5 +87,12 @@ describe("product spec editing", () => {
     const patch = productPatch({ ...initial, specs }, initial) as { specs: Record<string, unknown> };
     expect(patch.specs.dimensions).toEqual({ width: 18, height: 24 });
     expect(patch.specs).not.toHaveProperty("tags");
+  });
+
+  it("patches only the selling fields that changed, with an empty limit as none", () => {
+    const initial = productForm({ ...product, per_customer_limit: 2 });
+    expect(productPatch(initial, initial)).toEqual({});
+    expect(productPatch({ ...initial, signature: true, limit: "" }, initial)).toEqual({ signature: true, per_customer_limit: null });
+    expect(productPatch({ ...initial, preorder: true, preorderShips: " Ships in May " }, initial)).toEqual({ preorder: true, preorder_ships: "Ships in May" });
   });
 });

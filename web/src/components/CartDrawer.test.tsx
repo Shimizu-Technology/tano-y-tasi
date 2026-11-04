@@ -7,7 +7,7 @@ import { useCart } from "../cart";
 import { api, ApiError } from "../api";
 import { readAttempt } from "../checkoutState";
 import { configureMocks } from "../mocks/handlers";
-import { CORE, MAP } from "../mocks/data";
+import { CORE, MAP, PREORDER } from "../mocks/data";
 function show(slug = CORE, quantity = 1) {
   useCart.getState().clear();
   useCart.getState().add(slug, quantity, 10);
@@ -99,4 +99,14 @@ it("keeps the cart and shows a safe error for an untrusted payment URL", async (
   expect(await screen.findByRole("alert")).toHaveTextContent("We couldn’t open a secure payment page.");
   expect(useCart.getState().items[0].quantity).toBe(1);
   expect(readAttempt()?.orderToken).toBe("token");
+});
+it("labels a preorder line with its ship date, and warns only when the cart is mixed", async () => {
+  configureMocks({ state: "live", extras: { preorder: true } });
+  const alone = show(PREORDER, 1);
+  expect(await screen.findByText("Ships late January 2027")).toBeVisible();
+  expect(screen.queryByText(/may ship together/)).not.toBeInTheDocument();
+  void alone;
+  useCart.getState().add(CORE, 1, 10);
+  expect(await screen.findByText(/your whole order may ship together/)).toBeVisible();
+  expect(screen.getAllByText("Preorder.")).toHaveLength(1);
 });

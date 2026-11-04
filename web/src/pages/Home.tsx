@@ -9,7 +9,7 @@ import { Emblem } from "../components/Emblem";
 import { MissionMarquee, SunHillMark } from "../components/MissionMarquee";
 import { ProductCollection } from "../components/ProductCollection";
 import { Failure, Loading, Meta, Signup } from "../components/Shared";
-import { dropNumber, heroReleaseTime, money } from "../utils";
+import { dropItems, dropNumber, heroReleaseTime, priceRange } from "../utils";
 import type { Art, Storefront } from "../types";
 import "./home.css";
 
@@ -53,14 +53,15 @@ function Hero({ drop, coreSummary }: { drop: Drop | null; coreSummary?: string }
 function DropFeature({ drop }: { drop: Drop }) {
   const soon = comingSoon(drop);
   const upcoming = drop.state === "upcoming";
+  const items = dropItems(drop);
   return (
     <section className="home-section home-drop" aria-labelledby="home-drop-title" data-drop-state={soon ? "coming_soon" : drop.state}>
       <ArtImage art={drop.product.image} sizes="(min-width: 900px) 45vw, 100vw" />
       <div>
         <p className="label">DROP {dropNumber(drop.number)}{soon && " · COMING SOON"}</p>
         <h2 id="home-drop-title">{drop.name}</h2>
-        <p>{drop.product.summary}</p>
-        {!soon && <p className="home-drop-price">{money(drop.product.price_cents)}</p>}
+        <p>{items.length > 1 ? `${items.length} items in this drop.` : drop.product.summary}</p>
+        {!soon && <p className="home-drop-price">{priceRange(items)}</p>}
         <p className="home-drop-status">
           {soon ? "The release date goes to the list first." : `Drop ${dropNumber(drop.number)} · ${dropStatus(drop)}`}
         </p>

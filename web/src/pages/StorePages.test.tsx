@@ -72,11 +72,17 @@ it.each([1, 2])("uses a plain Shop heading and a neutral item count for %i produ
   expect(screen.getByText(`${count} ${count === 1 ? "item" : "items"}`)).toBeVisible();
 });
 it("answers FAQ release times and limits from the current payload", () => {
-  show("/info/faq", { ...storefront, featured_drop: { ...storefront.featured_drop!, number: 7, per_customer_limit: 3 } });
+  show("/info/faq", { ...storefront, featured_drop: { ...storefront.featured_drop!, number: 7, per_customer_limit: 3, product: { ...products[1], per_customer_limit: 3 } } });
   expect(screen.getByText(/Drop 007 releases Sat, Dec 5, 10:00 AM ChST/)).toHaveTextContent("Fri, Dec 4, 4:00 PM PT · Fri, Dec 4, 2:00 PM HT");
   expect(screen.getByText("Drop 007 is limited to 3 per customer.")).toBeVisible();
   expect(screen.getByText("No. Drops are one-time releases and never restock.")).toBeVisible();
   expect(screen.getByText(/about 30 minutes/)).toBeVisible();
+});
+it("doesn't state one limit for a whole drop when its items differ", () => {
+  const items = [{ ...products[1], per_customer_limit: 3 }, { ...products[1], slug: "other", per_customer_limit: 1 }];
+  show("/info/faq", { ...storefront, featured_drop: { ...storefront.featured_drop!, number: 7, product: items[0], products: items } });
+  expect(screen.getByText("Each item in Drop 007 has its own limit per customer, shown on its page.")).toBeVisible();
+  expect(screen.queryByText(/is limited to/)).not.toBeInTheDocument();
 });
 it("does not invent a release or a customer limit without an announced drop", () => {
   show("/info/faq", { ...storefront, featured_drop: null });

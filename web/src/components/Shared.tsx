@@ -76,7 +76,32 @@ export function Failure({ error, retry }: { error: Error; retry: () => void }) {
     </section>
   );
 }
+// The line under a product card: what's going on with it, then what it is.
+function cardLabel(product: Product) {
+  const { state } = product.availability;
+  const status =
+    state === "coming_soon"
+      ? "COMING SOON"
+      : state === "sold_out"
+        ? "SOLD OUT"
+        : state === "closed"
+          ? "DROP CLOSED"
+          : state === "preorder"
+            ? "PREORDER"
+            : product.drop
+              ? product.drop.state === "upcoming"
+                ? product.drop.release_at
+                  ? `COMING ${releaseDate(product.drop.release_at).toUpperCase()}`
+                  : "COMING SOON"
+                : `DROP ${dropNumber(product.drop.number)}`
+              : null;
+  const pieces = product.specs?.piece_count != null ? `${product.specs.piece_count} PIECES` : null;
+  if (product.signature) return ["SIGNATURE", status ?? pieces].filter(Boolean).join(" · ");
+  return status ?? (pieces ? `${pieces} · CORE COLLECTION` : "CORE COLLECTION");
+}
 export function ProductCard({ product }: { product: Product }) {
+  // The price of an unannounced drop isn't confirmed yet.
+  const unannounced = product.drop?.state === "upcoming" && !product.drop.release_at;
   return (
     <Link className="product-card" to={`/products/${product.slug}`}>
       <div className="tile">
@@ -84,25 +109,9 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
       <div className="card-caption">
         <p>{product.name}</p>
-        <span className="price">{money(product.price_cents)}</span>
+        {!unannounced && <span className="price">{money(product.price_cents)}</span>}
       </div>
-      <p className="label muted">
-        {product.availability.state === "coming_soon"
-          ? "COMING SOON"
-          : product.availability.state === "sold_out"
-          ? "SOLD OUT"
-          : product.availability.state === "closed"
-            ? "DROP CLOSED"
-            : product.drop
-              ? product.drop.state === "upcoming"
-                ? product.drop.release_at
-                  ? `COMING ${releaseDate(product.drop.release_at).toUpperCase()}`
-                  : "COMING SOON"
-                : `DROP ${dropNumber(product.drop.number)}`
-              : product.specs?.piece_count != null
-                ? `${product.specs.piece_count} PIECES · CORE COLLECTION`
-                : "CORE COLLECTION"}
-      </p>
+      <p className="label muted">{cardLabel(product)}</p>
     </Link>
   );
 }

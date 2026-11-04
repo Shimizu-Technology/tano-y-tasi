@@ -156,6 +156,7 @@ CREATE TABLE public.inventory_movements (
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     note text,
+    production_run_id bigint,
     CONSTRAINT inventory_movement_valid CHECK (((balance >= 0) AND (delta <> 0)))
 );
 
@@ -194,6 +195,7 @@ CREATE TABLE public.order_items (
     image jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
+    preorder_ships character varying,
     CONSTRAINT item_amounts_valid CHECK (((quantity > 0) AND (unit_price_cents >= 0)))
 );
 
@@ -363,6 +365,46 @@ ALTER SEQUENCE public.payment_events_id_seq OWNED BY public.payment_events.id;
 
 
 --
+-- Name: production_runs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.production_runs (
+    id bigint NOT NULL,
+    product_id bigint NOT NULL,
+    quantity integer NOT NULL,
+    status character varying DEFAULT 'ordered'::character varying NOT NULL,
+    supplier character varying,
+    unit_cost_cents integer,
+    expected_at date,
+    received_at timestamp(6) without time zone,
+    stock_added integer,
+    notes text,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT production_run_valid CHECK (((quantity > 0) AND ((status)::text = ANY ((ARRAY['ordered'::character varying, 'received'::character varying, 'canceled'::character varying])::text[])) AND ((unit_cost_cents IS NULL) OR (unit_cost_cents >= 0)) AND ((stock_added IS NULL) OR (stock_added >= 0)) AND (((status)::text = 'received'::text) = (received_at IS NOT NULL)) AND (((status)::text = 'received'::text) = (stock_added IS NOT NULL))))
+);
+
+
+--
+-- Name: production_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.production_runs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: production_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.production_runs_id_seq OWNED BY public.production_runs.id;
+
+
+--
 -- Name: products; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -386,7 +428,13 @@ CREATE TABLE public.products (
     "position" integer DEFAULT 0 NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
+    signature boolean DEFAULT false NOT NULL,
+    per_customer_limit integer,
+    preorder boolean DEFAULT false NOT NULL,
+    preorder_ships character varying,
+    CONSTRAINT preorder_says_when_it_ships CHECK (((NOT preorder) OR (COALESCE(btrim((preorder_ships)::text), ''::text) <> ''::text))),
     CONSTRAINT product_drop_consistent CHECK (((((kind)::text = 'drop'::text) AND (drop_id IS NOT NULL)) OR (((kind)::text = 'core'::text) AND (drop_id IS NULL)))),
+    CONSTRAINT product_limit_valid CHECK (((per_customer_limit IS NULL) OR (per_customer_limit > 0))),
     CONSTRAINT product_price_valid CHECK (((price_cents >= 0) AND ((currency)::text = 'USD'::text))),
     CONSTRAINT product_states_valid CHECK ((((kind)::text = ANY (ARRAY[('core'::character varying)::text, ('drop'::character varying)::text])) AND ((status)::text = ANY (ARRAY[('draft'::character varying)::text, ('active'::character varying)::text, ('archived'::character varying)::text])))),
     CONSTRAINT stock_nonnegative CHECK ((stock_quantity >= 0))
@@ -631,6 +679,13 @@ ALTER TABLE ONLY public.payment_events ALTER COLUMN id SET DEFAULT nextval('publ
 
 
 --
+-- Name: production_runs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.production_runs ALTER COLUMN id SET DEFAULT nextval('public.production_runs_id_seq'::regclass);
+
+
+--
 -- Name: products id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -735,6 +790,14 @@ ALTER TABLE ONLY public.pages
 
 ALTER TABLE ONLY public.payment_events
     ADD CONSTRAINT payment_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: production_runs production_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.production_runs
+    ADD CONSTRAINT production_runs_pkey PRIMARY KEY (id);
 
 
 --
@@ -934,6 +997,13 @@ CREATE UNIQUE INDEX index_payment_events_on_event_id ON public.payment_events US
 
 
 --
+-- Name: index_production_runs_on_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_production_runs_on_product_id ON public.production_runs USING btree (product_id);
+
+
+--
 -- Name: index_products_on_drop_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -969,6 +1039,13 @@ CREATE UNIQUE INDEX index_users_on_clerk_id ON public.users USING btree (clerk_i
 
 
 --
+-- Name: one_movement_per_production_run; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX one_movement_per_production_run ON public.inventory_movements USING btree (production_run_id) WHERE (production_run_id IS NOT NULL);
+
+
+--
 -- Name: one_open_refund_request; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -980,13 +1057,6 @@ CREATE UNIQUE INDEX one_open_refund_request ON public.refund_requests USING btre
 --
 
 CREATE UNIQUE INDEX one_pending_admin_invitation ON public.admin_invitations USING btree (email) WHERE ((accepted_at IS NULL) AND (revoked_at IS NULL));
-
-
---
--- Name: one_product_per_drop; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX one_product_per_drop ON public.products USING btree (drop_id) WHERE (drop_id IS NOT NULL);
 
 
 --
@@ -1041,6 +1111,14 @@ ALTER TABLE ONLY public.inventory_movements
 
 
 --
+-- Name: production_runs fk_rails_6a13b4e701; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.production_runs
+    ADD CONSTRAINT fk_rails_6a13b4e701 FOREIGN KEY (product_id) REFERENCES public.products(id);
+
+
+--
 -- Name: products fk_rails_87af88941b; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1062,6 +1140,14 @@ ALTER TABLE ONLY public.refund_requests
 
 ALTER TABLE ONLY public.email_deliveries
     ADD CONSTRAINT fk_rails_8e555e3c0e FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
+
+
+--
+-- Name: inventory_movements fk_rails_a194b8f569; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventory_movements
+    ADD CONSTRAINT fk_rails_a194b8f569 FOREIGN KEY (production_run_id) REFERENCES public.production_runs(id);
 
 
 --
@@ -1095,6 +1181,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261104000004'),
 ('20261104000003'),
 ('20261104000002'),
 ('20261104000001'),

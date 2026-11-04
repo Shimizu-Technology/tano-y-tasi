@@ -3,7 +3,7 @@ module Api
     module Admin
       class DropsController < BaseController
         def index
-          render json: { drops: Drop.includes(:product).order(:number).map { |drop| AdminSerializer.drop(drop) } }
+          render json: { drops: Drop.includes(:products).order(:number).map { |drop| AdminSerializer.drop(drop) } }
         end
 
         def show

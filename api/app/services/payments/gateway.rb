@@ -30,7 +30,7 @@ module Payments
         shipping_address_collection: { allowed_countries: %w[US GU PR] },
         line_items: order.order_items.order(:id).map do |item|
           { quantity: item.quantity, price_data: { currency: order.currency.downcase,
-            unit_amount: item.unit_price_cents, product_data: { name: item.name } } }
+            unit_amount: item.unit_price_cents, product_data: { name: item.name, description: item.preorder_ships&.then { |ships| "Preorder. #{ships}" } }.compact } }
         end
       }, { idempotency_key: "tano-y-tasi-order-#{order.token}" })
       { id: session.id, url: session.url, expires_at: expires_at }

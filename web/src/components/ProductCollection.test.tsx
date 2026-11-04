@@ -28,3 +28,28 @@ it.each([2, 3, 4])("selects the pair/grid layout for %i products", (count) => {
   expect(container.querySelectorAll(".product-card")).toHaveLength(count);
   expect(container.querySelector(".collection-feature")).not.toBeInTheDocument();
 });
+function showList(products: typeof product[]) {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <ProductCollection products={products} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+}
+it("labels a signature product in the feature row and on a card", () => {
+  const signature = { ...product, signature: true };
+  const feature = showList([signature]);
+  expect(screen.getByText("SIGNATURE")).toBeVisible();
+  feature.unmount();
+  showList([signature, { ...product, slug: "other" }]);
+  expect(screen.getByText("SIGNATURE · 100 PIECES")).toBeVisible();
+  expect(screen.getByText("100 PIECES · CORE COLLECTION")).toBeVisible();
+});
+it("keeps the status beside the signature label, and marks a preorder", () => {
+  const preorder = { ...product, preorder: true, availability: { ...product.availability, state: "preorder" as const, purchasable: true } };
+  const soldOut = { ...product, slug: "gone", signature: true, availability: { ...product.availability, state: "sold_out" as const, purchasable: false } };
+  showList([preorder, soldOut]);
+  expect(screen.getByText("PREORDER")).toBeVisible();
+  expect(screen.getByText("SIGNATURE · SOLD OUT")).toBeVisible();
+});

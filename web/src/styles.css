@@ -782,6 +782,29 @@ dialog::backdrop {
   margin-top: 24px;
   max-width: 40ch;
 }
+.preorder-note {
+  font-size: 14px;
+  margin-top: 8px;
+}
+.preorder-note strong {
+  font-weight: 600;
+  color: var(--color-green);
+}
+.drop-page > h1 {
+  margin-top: 16px;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.drop-page > .drop-facts {
+  margin-bottom: 40px;
+}
+@media (min-width: 900px) {
+  .drop-page > h1 {
+    font-size: 48px;
+  }
+}
 .drop-facts {
   border-top: 1px solid var(--color-line);
   margin-top: 24px;

@@ -29,7 +29,7 @@ export function releaseDate(iso: string) {
   );
 }
 export function purchaseState(product: Product) {
-  if (product.availability.purchasable) return { label: "ADD TO CART", disabled: false };
+  if (product.availability.purchasable) return { label: product.availability.state === "preorder" ? "PREORDER" : "ADD TO CART", disabled: false };
   const s = product.availability.state;
   return {
     label:
@@ -44,6 +44,16 @@ export function purchaseState(product: Product) {
           : "SOLD OUT",
     disabled: true,
   };
+}
+// Every product in a drop. An API that predates `products` sends the lead alone.
+export function dropItems<T>(drop: { product: T; products?: T[] }): T[] {
+  return drop.products?.length ? drop.products : [drop.product];
+}
+// One price when a drop's items share it, otherwise where they start.
+export function priceRange(products: Pick<Product, "price_cents">[]) {
+  const prices = products.map((product) => product.price_cents);
+  const lowest = Math.min(...prices);
+  return lowest === Math.max(...prices) ? money(lowest) : `From ${money(lowest)}`;
 }
 export function remainingMs(release: string, serverTime: string, receivedAt: number, now = Date.now()) {
   return Date.parse(release) - (Date.parse(serverTime) + (now - receivedAt));

@@ -5,7 +5,7 @@ module Api
         before_action :find_product, except: [ :index, :create ]
 
         def index
-          render json: { products: Product.includes(:drop).order(:position, :id).map { |product| AdminSerializer.product(product) } }
+          render json: { products: Product.includes(drop: :products).order(:position, :id).map { |product| AdminSerializer.product(product) } }
         end
 
         def show
@@ -36,13 +36,13 @@ module Api
         end
 
         def inventory_movements
-          render json: { inventory_movements: InventoryMovement.where(product: @product).order(id: :desc).limit(50).map { |movement| movement.slice(:id, :delta, :balance, :reason, :note, :order_id, :created_at) } }
+          render json: { inventory_movements: InventoryMovement.where(product: @product).order(id: :desc).limit(50).map { |movement| movement.slice(:id, :delta, :balance, :reason, :note, :order_id, :production_run_id, :created_at) } }
         end
 
         private
 
         def content
-          params.permit(:name, :summary, :description, :price_cents, :status, :position, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []).to_h
+          params.permit(:name, :summary, :description, :price_cents, :status, :position, :signature, :per_customer_limit, :preorder, :preorder_ships, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []).to_h.tap { |values| AdminCatalog.check_flags!(values) }
         end
 
         def find_product

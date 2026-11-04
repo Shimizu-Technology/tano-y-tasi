@@ -1,8 +1,8 @@
 import { http, HttpResponse } from "msw";
-import { adminHandlers, mockAdminProducts } from "./adminHandlers";
-import { catalog, CORE, MAP, DROP, dropSummary, mockSalesOpen } from "./data";
+import { adminHandlers, mockAdminDrops, mockAdminProducts, onAdminStockChange } from "./adminHandlers";
+import { catalog, CORE, extraProducts, MAP, DROP, dropSummary, mockSalesOpen, MAP_NIGHT, MAP_TIDES, type MockExtras } from "./data";
 import { mockStore, mockPages } from "./store";
-import type { CartItem, CheckoutResult, DropState, Order, ProductDetail, Product } from "../types";
+import type { CartItem, CheckoutResult, DropState, DropSummary, Order, ProductDetail, Product } from "../types";
 interface StoredOrder {
   order: Order;
   email: string;
@@ -18,6 +18,7 @@ let db: Database;
 let persist: ((db: Database) => void) | undefined;
 let state: DropState = "upcoming";
 let coreCount = 1;
+let extras: MockExtras = {};
 let paymentFailures: ("same_key" | "new_checkout")[] = [];
 const fresh = (): Database => ({
   stock: { [CORE]: 40, [MAP]: 100 },
@@ -30,6 +31,7 @@ export function configureMocks(
   options: {
     state?: DropState;
     coreCount?: number;
+    extras?: MockExtras;
     database?: Database;
     save?: (db: Database) => void;
     paymentFailures?: ("same_key" | "new_checkout")[];
@@ -38,12 +40,18 @@ export function configureMocks(
   paymentFailures = [...(options.paymentFailures ?? [])];
   state = options.state ?? "upcoming";
   coreCount = options.coreCount === 2 || options.coreCount === 3 ? options.coreCount : 1;
+  extras = options.extras ?? {};
   db = options.database ?? fresh();
   for (let i = 2; i <= coreCount; i++) db.stock[`${CORE}-mock-${i}`] ??= 40;
+  for (const product of extraProducts(state, {}, extras)) db.stock[product.slug] ??= 25;
   persist = options.save;
-  if (state === "sold_out") db.stock[MAP] = 0;
+  if (state === "sold_out") for (const slug of [MAP, MAP_NIGHT, MAP_TIDES]) if (slug in db.stock) db.stock[slug] = 0;
 }
 configureMocks();
+// Stock the admin adds, by adjustment or by receiving a run, reaches the storefront.
+onAdminStockChange((slug, delta) => {
+  if (db.stock[slug] !== undefined) db.stock[slug] += delta;
+});
 const save = () => persist?.(db);
 function release(order: Order) {
   for (const item of order.items) db.stock[item.product_slug] = (db.stock[item.product_slug] ?? 0) + item.quantity;
@@ -57,15 +65,14 @@ function expire() {
   }
   save();
 }
-function products() {
-  expire();
-  const items = catalog(state === "live" && db.stock[MAP] === 0 ? "sold_out" : state, db.stock);
+function rawProducts() {
+  const items = [...catalog(state, db.stock), ...extraProducts(state, db.stock, extras)];
   for (let i = 2; i <= coreCount; i++) {
     const slug = `${CORE}-mock-${i}`;
     const copy = catalog(state, { ...db.stock, [CORE]: db.stock[slug] })[0];
     items.push({ ...copy, slug, name: `Tumon Bay — Mock ${i}` });
   }
-  return withAdminEdits(items);
+  return items;
 }
 // What the admin saved shows on the storefront, as it would with the real API.
 function withAdminEdits(items: ProductDetail[]) {
@@ -73,25 +80,59 @@ function withAdminEdits(items: ProductDetail[]) {
     const saved = mockAdminProducts().find((p) => p.slug === item.slug);
     if (!saved?.images.length) return item;
     return { ...item, name: saved.name, summary: saved.summary, description: saved.description, price_cents: saved.price_cents,
-      images: saved.images, image: saved.images[0], alt_image: saved.images[1] ?? null };
+      images: saved.images, image: saved.images[0], alt_image: saved.images[1] ?? null,
+      kind: saved.kind as ProductDetail["kind"], drop: saved.drop ? ({ slug: saved.drop.slug } as DropSummary) : null,
+      signature: saved.signature, preorder: saved.preorder, preorder_ships: saved.preorder_ships, per_customer_limit: saved.per_customer_limit };
   });
   const added = mockAdminProducts()
     .filter((p) => !items.some((item) => item.slug === p.slug) && p.status !== "draft" && p.images.length > 0)
     .map((p): ProductDetail => {
-      const count = (db.stock[p.slug] ??= p.stock_quantity);
-      const purchasable = p.kind === "core" && count > 0 && mockSalesOpen();
-      const stateName = p.kind === "drop" ? "upcoming" : count === 0 ? "sold_out" : purchasable ? "available" : "coming_soon";
+      db.stock[p.slug] ??= p.stock_quantity;
       return { slug: p.slug, name: p.name, kind: p.kind as ProductDetail["kind"], price_cents: p.price_cents, currency: "USD", summary: p.summary, description: p.description,
-        availability: { state: stateName, purchasable, remaining: count <= 20 ? count : null, low_stock: count > 0 && count <= 20 },
-        drop: null, image: p.images[0], alt_image: p.images[1] ?? null, images: p.images, specs: p.specs as ProductDetail["specs"], includes: p.includes,
-        art: p.art, per_customer_limit: null, max_per_order: purchasable ? Math.min(10, count) : 0, placeholders: p.placeholders };
+        availability: { state: "closed", purchasable: false, remaining: null, low_stock: false },
+        drop: p.drop ? ({ slug: p.drop.slug } as DropSummary) : null, image: p.images[0], alt_image: p.images[1] ?? null, images: p.images, specs: p.specs as ProductDetail["specs"], includes: p.includes,
+        art: p.art, signature: p.signature, preorder: p.preorder, preorder_ships: p.preorder_ships, per_customer_limit: p.per_customer_limit, max_per_order: 0, placeholders: p.placeholders };
     });
   return [...edited, ...added];
 }
-function drop() {
-  const p = products()[1];
-  const actualState = state === "live" && db.stock[MAP] === 0 ? "sold_out" : state;
-  return { ...dropSummary(actualState), product: { ...p, drop: dropSummary(actualState) } };
+// The seed drop follows ?mockDrop. A drop made in the admin follows its own dates, as the real API does.
+function dropFor(slug: string, members: ProductDetail[]): DropSummary | null {
+  const out = members.every((p) => (db.stock[p.slug] ?? 0) === 0);
+  if (slug === DROP) return dropSummary(state === "live" && out ? "sold_out" : state);
+  const saved = mockAdminDrops().find((d) => d.slug === slug);
+  if (!saved) return null;
+  const released = !!saved.release_at && Date.parse(saved.release_at) <= Date.now();
+  const closed = !!saved.closes_at && Date.parse(saved.closes_at) <= Date.now();
+  const dropState: DropState = !released ? "upcoming" : closed ? "closed" : out ? "sold_out" : mockSalesOpen() ? "live" : "upcoming";
+  return { slug, number: saved.number, name: saved.name, state: dropState, release_at: saved.release_at, closes_at: saved.closes_at, sold_out_at: null,
+    quantity: saved.quantity > 0 ? saved.quantity : null, per_customer_limit: saved.per_customer_limit };
+}
+function products() {
+  expire();
+  const items = withAdminEdits(rawProducts());
+  const drops = new Map<string, DropSummary | null>();
+  for (const slug of new Set(items.flatMap((p) => (p.drop ? [p.drop.slug] : []))))
+    drops.set(slug, dropFor(slug, items.filter((p) => p.drop?.slug === slug)));
+  return items
+    .map((item): ProductDetail => {
+      const drop = item.drop ? drops.get(item.drop.slug) ?? null : null;
+      const count = db.stock[item.slug] ?? 0;
+      const limit = item.per_customer_limit ?? (item.kind === "drop" ? drop?.per_customer_limit ?? null : null);
+      const stateName = drop && drop.state !== "live" ? drop.state : count === 0 ? "sold_out" : !mockSalesOpen() ? "coming_soon" : item.preorder ? "preorder" : "available";
+      const purchasable = stateName === "available" || stateName === "preorder";
+      return { ...item, drop, per_customer_limit: limit,
+        availability: { state: stateName, purchasable, remaining: count <= 20 ? count : null, low_stock: count > 0 && count <= 20 },
+        max_per_order: purchasable ? Math.min(limit ?? 10, 10, count) : 0 };
+    })
+    .sort((a, b) => Number(!!b.signature) - Number(!!a.signature));
+}
+function publicDrops() {
+  const all = products();
+  const slugs = [...new Set(all.flatMap((p) => (p.drop ? [p.drop.slug] : [])))];
+  return slugs.map((slug) => {
+    const members = all.filter((p) => p.drop?.slug === slug);
+    return { ...members[0].drop!, product: members[0], products: members };
+  }).sort((a, b) => a.number - b.number);
 }
 const error = (code: string, message: string, status = 422, details: Record<string, unknown> = {}) =>
   HttpResponse.json({ error: { code, message, details } }, { status });
@@ -131,6 +172,10 @@ function listProduct(p: ProductDetail): Product {
     price_cents: p.price_cents,
     currency: p.currency,
     summary: p.summary,
+    signature: p.signature ?? false,
+    preorder: p.preorder ?? false,
+    preorder_ships: p.preorder ? p.preorder_ships : null,
+    per_customer_limit: p.per_customer_limit,
     specs: { piece_count: p.specs.piece_count, finished_size: p.specs.finished_size },
     availability: p.availability,
     drop: p.drop,
@@ -138,14 +183,18 @@ function listProduct(p: ProductDetail): Product {
     alt_image: p.alt_image,
   };
 }
+function listDrop(d: ReturnType<typeof publicDrops>[number]) {
+  return { ...d, product: listProduct(d.product), products: d.products.map(listProduct) };
+}
 const now = () => new Date().toISOString();
 const path = (p: string) => `*/api/v1${p}`;
 export const handlers = [
   ...adminHandlers,
   http.get(path("/storefront"), () => {
-    const d = drop();
+    const drops = publicDrops();
+    const d = drops.find((item) => item.state === "live") ?? drops.find((item) => item.state === "upcoming");
     return HttpResponse.json({
-      featured_drop: ["upcoming", "live"].includes(d.state) ? { ...d, product: listProduct(d.product) } : null,
+      featured_drop: d ? listDrop(d) : null,
       core_products: products()
         .filter((p) => p.kind === "core")
         .map(listProduct),
@@ -174,20 +223,18 @@ export const handlers = [
       : error("not_found", "We couldn't find that.", 404);
   }),
   http.get(path("/drops"), () => {
-    const detail = drop();
-    const d = { ...detail, product: listProduct(detail.product) };
+    const drops = publicDrops().map(listDrop);
     return HttpResponse.json({
-      current: d.state === "live" ? d : null,
-      upcoming: d.state === "upcoming" ? [d] : [],
-      archive: ["sold_out", "closed"].includes(d.state) ? [d] : [],
+      current: drops.find((d) => d.state === "live") ?? null,
+      upcoming: drops.filter((d) => d.state === "upcoming"),
+      archive: drops.filter((d) => ["sold_out", "closed"].includes(d.state)),
       server_time: now(),
     });
   }),
-  http.get(path("/drops/:slug"), ({ params }) =>
-    params.slug === DROP
-      ? HttpResponse.json({ drop: drop(), server_time: now() })
-      : error("not_found", "We couldn't find that.", 404)
-  ),
+  http.get(path("/drops/:slug"), ({ params }) => {
+    const drop = publicDrops().find((d) => d.slug === params.slug);
+    return drop ? HttpResponse.json({ drop, server_time: now() }) : error("not_found", "We couldn't find that.", 404);
+  }),
   http.post(path("/checkout"), async ({ request }) => {
     if (!mockSalesOpen()) return error("store_closed", "The store isn't open for orders yet. Join the list and you'll hear first.");
     let body: { email?: unknown; idempotency_key?: unknown; items?: unknown };
@@ -237,24 +284,21 @@ export const handlers = [
       const p = all.find((p) => p.slug === item.product_slug);
       const detail = { product_slug: item.product_slug };
       if (!p) return error("unknown_product", "This product is unavailable.");
-      if (p.kind === "drop" && ["upcoming", "closed"].includes(state))
+      if (p.drop && ["upcoming", "closed"].includes(p.drop.state))
         return error("drop_not_live", "This drop is not open for checkout.", 422, {
           ...detail,
           release_at: p.drop!.release_at,
         });
-      const limit = p.per_customer_limit ?? 10;
-      const purchased =
-        p.kind === "drop"
-          ? Object.values(db.orders)
-              .filter((o) => o.email === email && ["paid", "pending_payment"].includes(o.order.status))
-              .reduce(
-                (n, o) =>
-                  n + o.order.items.filter((i) => i.product_slug === p.slug).reduce((s, i) => s + i.quantity, 0),
-                0
-              )
-          : 0;
-      if (p.kind === "drop" && item.quantity + purchased > limit)
-        return error("limit_exceeded", `This drop is limited to ${limit} per customer.`, 422, {
+      const limit = p.per_customer_limit;
+      const purchased = Object.values(db.orders)
+        .filter((o) => o.email === email && ["paid", "pending_payment"].includes(o.order.status))
+        .reduce(
+          (n, o) =>
+            n + o.order.items.filter((i) => i.product_slug === p.slug).reduce((s, i) => s + i.quantity, 0),
+          0
+        );
+      if (limit != null && item.quantity + purchased > limit)
+        return error("limit_exceeded", `${p.name} is limited to ${limit} per customer.`, 422, {
           ...detail,
           limit,
           already_purchased: purchased,
@@ -272,7 +316,7 @@ export const handlers = [
     const token = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
     const orderItems = items.map((i) => {
       const p = all.find((p) => p.slug === i.product_slug)!;
-      return { ...i, name: p.name, unit_price_cents: p.price_cents, image: p.image };
+      return { ...i, name: p.name, unit_price_cents: p.price_cents, image: p.image, preorder_ships: p.preorder ? p.preorder_ships : null };
     });
     const total = orderItems.reduce((s, i) => s + i.quantity * i.unit_price_cents, 0);
     const order: Order = {
