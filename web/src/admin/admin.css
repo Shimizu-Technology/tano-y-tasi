@@ -66,20 +66,20 @@
 .admin-button { min-height: 44px; padding: 10px 16px; background: var(--color-ink); color: var(--color-paper); display: inline-flex; gap: 8px; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .admin-button.secondary { color: var(--color-ink); background: transparent; border: 1px solid var(--color-ink); }
 .admin-button:disabled { opacity: .5; cursor: not-allowed; }
-.admin-text-button { min-height: 40px; display: inline-flex; align-items: center; gap: 7px; text-decoration: underline; font-size: 13px; font-weight: 600; }
+.admin-text-button { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; text-decoration: underline; font-size: 13px; font-weight: 600; }
 .admin-text-button:disabled { opacity: .45; }
 .admin-pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 28px 0; }
 .admin-pagination button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--color-line); }
 .admin-pagination button:disabled { opacity: .4; }
 .admin-count, .admin-help, .admin-loading { color: var(--color-ink-muted); font-size: 13px; margin-bottom: 14px; }
-.admin-back { display: inline-block; margin-bottom: 20px; font-size: 13px; }
+.admin-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 8px; font-size: 13px; }
 .admin-notice { display: flex; align-items: center; gap: 8px; border: 1px solid var(--color-line); background: var(--color-paper-raised); padding: 12px 14px; margin-bottom: 20px; font-size: 13px; }
 .admin-notice.error { border-color: var(--color-sun); }
 .admin-panel .admin-field { margin-bottom: 16px; }
 .admin-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .admin-inline-form { display: flex; gap: 12px; align-items: end; }
 .admin-inline-form .admin-field { flex: 1; margin-bottom: 0; }
-.admin-spec-row { display: grid; grid-template-columns: 1fr 1fr 40px; gap: 8px; margin-bottom: 8px; }
+.admin-spec-row { display: grid; grid-template-columns: 1fr 1fr 44px; gap: 8px; margin-bottom: 8px; }
 .admin-spec-row button { border: 1px solid var(--color-line); }
 .admin-checkbox { display: flex; align-items: center; gap: 8px; margin: 12px 0 18px; font-size: 13px; }
 .admin-checkbox input { width: 18px; height: 18px; }
@@ -113,3 +113,30 @@
 .admin-attention .admin-button{justify-self:start}
 .admin-page-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
 .admin-page-list a{display:flex;align-items:center;min-height:44px}
+.admin-heading-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.admin-heading-actions a{min-height:44px;display:inline-flex;align-items:center;font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.admin-narrow{max-width:720px}
+.admin-checklist{border:0;padding:0;margin:24px 0}
+.admin-checklist legend{padding:0;margin-bottom:10px;font-size:15px;font-weight:700}
+.admin-checklist > div{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0 16px}
+.admin-checklist label{min-height:44px;display:flex;align-items:center;gap:10px;font-size:13px}
+.admin-checklist input{width:18px;height:18px;flex:none;accent-color:var(--color-ink)}
+.admin-checklist .admin-help{margin:8px 0 0}
+.admin-image-empty{border:1px dashed var(--color-line);padding:16px;margin-bottom:16px;font-size:13px}
+.admin-image-list,.admin-upload-list{list-style:none;padding:0;margin:0 0 16px;display:grid;gap:12px}
+.admin-image-row{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;padding-bottom:12px;border-bottom:1px solid var(--color-line)}
+.admin-image-preview{position:relative;align-self:start}
+.admin-image-preview img{width:96px;height:96px;object-fit:contain;background:var(--color-tile);display:block}
+.admin-image-preview span{position:absolute;top:0;left:0;min-width:24px;height:24px;display:grid;place-items:center;background:var(--color-ink);color:var(--color-paper);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.admin-panel .admin-image-fields .admin-field{margin-bottom:10px}
+.admin-image-actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+.admin-image-actions button{width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--color-line)}
+.admin-image-actions button:disabled{opacity:.35;cursor:not-allowed}
+.admin-upload-list li{display:grid;gap:6px;padding:12px;border:1px solid var(--color-line);font-size:13px;min-width:0}
+.admin-upload-list li.failed{border-color:var(--color-sun)}
+.admin-upload-list strong{overflow-wrap:anywhere}
+.admin-upload-list progress{width:100%;height:8px;accent-color:var(--color-green)}
+.admin-upload-actions,.admin-image-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.admin-image-buttons{margin-bottom:8px}
+.admin-image-buttons .admin-button{flex:1 1 140px}
+@media(max-width: 767px) { .admin-image-row { grid-template-areas: "preview actions" "fields fields"; align-items: start; } .admin-image-preview { grid-area: preview; } .admin-image-fields { grid-area: fields; } .admin-image-actions { grid-area: actions; grid-column: auto; } .admin-heading:has(.admin-button) { flex-wrap: wrap; } }

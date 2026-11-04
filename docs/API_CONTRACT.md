@@ -16,7 +16,7 @@ Status codes: `400` malformed, `404` not found, `409` idempotency conflict, `422
 ```json
 { "role": "hero", "alt": "…", "base": "/images/products/guahan-sunset-map/artwork", "widths": [640, 1280, 2000, 2800], "aspect": "509:640" }
 ```
-The client builds `srcset` from `${base}-${w}.webp`. Roles are `hero`, `gallery`, `detail`, `box`, `lifestyle`. Order is meaningful.
+The client builds `srcset` from `${base}-${w}.webp`. `base` is a site path under `/images/` or, for images uploaded in the admin, an absolute URL on the media bucket. Roles are `hero`, `gallery`, `detail`, `box`, `lifestyle`. Order is meaningful.
 
 ### Product (list item)
 ```json
@@ -69,7 +69,7 @@ Summary `specs` contains `piece_count` and `finished_size` when set, across stor
   "per_customer_limit": 2
 }
 ```
-Drop `state` is `upcoming`, `live`, `sold_out` or `closed`. It is derived server-side from `release_at`, `closes_at`, and stock (counting active reservations). `release_at` is `null` for a drop that is coming soon: its state is `upcoming`, it is not purchasable, and clients show "Coming soon" instead of a date. `quantity` is `null` until the merchant confirms it (while `drop.quantity` is in the product's placeholders).
+Drop `state` is `upcoming`, `live`, `sold_out` or `closed`. It is derived server-side from `release_at`, `closes_at`, and stock (counting active reservations). `release_at` is `null` for a drop that is coming soon: its state is `upcoming`, it is not purchasable, and clients show "Coming soon" instead of a date. `quantity` is `null` until the merchant confirms it (while `drop.quantity` is in the product's placeholders, or the quantity is 0). A drop with no product is not public.
 
 ## Endpoints
 
@@ -93,6 +93,8 @@ While `sales_open` is false nothing is purchasable, a released drop stays `upcom
 
 ### `GET /api/v1/products?kind=core|drop`
 `{ "products": [ … ] }`. Excludes drafts.
+
+**A product with no images isn't public.** Whatever its status, it's left out of every list, its drop is left out too, its detail pages return `404`, and checkout answers `422 unknown_product`. Every public `image` is therefore always present.
 
 ### `GET /api/v1/products/:slug`
 `{ "product": { …detail… }, "server_time": "…" }`

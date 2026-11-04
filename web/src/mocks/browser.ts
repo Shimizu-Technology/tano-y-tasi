@@ -7,7 +7,8 @@ export async function startMocks() {
   const params = new URLSearchParams(location.search);
   const adminMode = params.get("mockAdmin");
   if (adminMode && ["ok", "expired", "forbidden", "unavailable"].includes(adminMode)) sessionStorage.setItem("tyt-mock-admin-mode", adminMode);
-  configureAdminMocks(sessionStorage.getItem("tyt-mock-admin-mode") || "ok");
+  // mockUpload=fail-once refuses the next image PUT, unconfigured answers uploads with 503, offline drops the connection.
+  configureAdminMocks(sessionStorage.getItem("tyt-mock-admin-mode") || "ok", params.get("mockUpload") ?? "ok");
   const requestedCount = params.get("mockCore");
   if (import.meta.env.DEV && requestedCount && ["1", "2", "3"].includes(requestedCount))
     sessionStorage.setItem("tyt-mock-core", requestedCount);

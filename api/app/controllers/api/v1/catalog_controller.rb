@@ -45,7 +45,7 @@ module Api
       end
 
       def public_drops
-        Drop.joins(:product).where.not(products: { status: "draft" }).includes(:product).order(:release_at)
+        Drop.joins(:product).merge(Product.shown).includes(:product).order(:release_at)
       end
     end
   end

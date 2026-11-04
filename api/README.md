@@ -31,6 +31,7 @@ Always check the connected database with `rails runner` before **each** `db:` co
 - `DATABASE_URL`: CI/production connection string. CI must target `tano_y_tasi_test`. `PGHOST` and `PGPORT` configure local sockets.
 - `EXPECTED_DATABASE_NAME`: production database allowlist containing one exact database name. `bin/release-migrate` requires it and aborts unless the connected name matches exactly. Set this explicitly when hosting assigns a different name.
 - `RAILS_MAX_THREADS`: connection pool (local default 20) and Puma thread count (default 3). Set 3 on Render; concurrency specs need at least 13 connections.
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET`: product image uploads. Local work doesn't need them; uploads then return `503 storage_unavailable`.
 - `SECRET_KEY_BASE`: required for production. `FORCE_SSL` / `ASSUME_SSL` default true in production and parse explicit booleans; set according to the hosting proxy.
 
 Throttles use bounded, process-local memory: checkout 10/min/IP and subscribers 5/min/IP. Use an edge/global throttle when running multiple processes. Rails trusts only its default trusted proxies; configure deployment forwarding carefully rather than trusting arbitrary forwarded IPs.
@@ -115,6 +116,8 @@ Set the following environment variables in Render (also documented in `.env.exam
 | `RESEND_API_KEY` | Resend secret; required when email delivery is enabled. |
 | `MAILER_FROM_EMAIL` | Explicit verified sender, e.g. `Tåno + Tåsi <orders@shimizu-technology.com>`. |
 | `EMAIL_DELIVERY_ENABLED` | Explicit boolean; blueprint defaults to `false` and records `skipped` until enabled. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Secret IAM credentials for presigning product image uploads. The user only needs `s3:PutObject` on `products/*`. |
+| `AWS_REGION`, `AWS_S3_BUCKET` | `ap-southeast-1`, `tano-y-tasi-media`. They also set which image URLs are accepted. Missing values return `503 storage_unavailable` on upload; boot is unaffected. |
 | `RAILS_MAX_THREADS` | `3` on Render; local tests use 20 for concurrency coverage. |
 | `FORCE_SSL` | `true` behind Render; `/up` is excluded from redirect. |
 | `ASSUME_SSL` | `true` behind Render's TLS proxy. |

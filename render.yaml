@@ -58,6 +58,14 @@ services:
         sync: false
       - key: MAILER_FROM_EMAIL
         sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: ap-southeast-1
+      - key: AWS_S3_BUCKET
+        value: tano-y-tasi-media
   # Hourly upkeep: expired holds, unclosed Stripe sessions, failed emails, stale
   # leases. Hourly keeps Neon's scale-to-zero useful; it needs the same secrets.
   - type: cron

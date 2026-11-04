@@ -12,11 +12,12 @@ Rails.application.routes.draw do
           post :mark_paid, on: :member
           post "email_deliveries/:id/resend", to: "orders#resend", on: :member
         end
-        resources :products, param: :slug, only: [ :index, :show, :update ] do
+        resources :products, param: :slug, only: [ :index, :show, :create, :update ] do
           post :stock_adjustments, on: :member
           get :inventory_movements, on: :member
         end
-        resources :drops, param: :slug, only: [ :index, :show, :update ]
+        resources :drops, param: :slug, only: [ :index, :show, :create, :update ]
+        resources :uploads, only: :create
         resource :store, only: [ :show, :update ], controller: "store"
         resources :pages, param: :slug, only: [ :index, :show, :update ]
         resources :subscribers, only: :index

@@ -211,11 +211,13 @@ function ProductView({
                   </ul>
                 </details>
               )}
-              <details>
-                <summary>The art<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
-                <p>{p.art.story}</p>
-                {!p.placeholders.includes("art.credit") && <p className="muted small">{p.art.credit}</p>}
-              </details>
+              {(p.art.story || (p.art.credit && !p.placeholders.includes("art.credit"))) && (
+                <details>
+                  <summary>The art<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
+                  {p.art.story && <p>{p.art.story}</p>}
+                  {!p.placeholders.includes("art.credit") && p.art.credit && <p className="muted small">{p.art.credit}</p>}
+                </details>
+              )}
               <details>
                 <summary>Shipping<Plus className="accordion-plus" aria-hidden="true" /><Minus className="accordion-minus" aria-hidden="true" /></summary>
                 <p>

@@ -15,6 +15,8 @@ import {
   type OrderSummary,
   type Page,
 } from "./adminApi";
+import { PlaceholderChecklist, ProductPlacement } from "./AdminCatalog";
+import { ImageManager, useImageManager } from "./AdminImages";
 import {
   centsToDollars,
   datePreview,
@@ -245,7 +247,7 @@ type ProductForm = {
   includes: string;
   credit: string;
   story: string;
-  placeholders: string;
+  placeholders: string[];
 };
 export function productForm(product: AdminProduct): ProductForm {
   return {
@@ -263,7 +265,7 @@ export function productForm(product: AdminProduct): ProductForm {
     includes: (product.includes ?? []).join("\n"),
     credit: product.art?.credit ?? "",
     story: product.art?.story ?? "",
-    placeholders: (product.placeholders ?? []).join("\n"),
+    placeholders: product.placeholders ?? [],
   };
 }
 function lineList(value: string) {
@@ -306,7 +308,9 @@ export function productPatch(form: ProductForm, initial: ProductForm) {
     { credit: form.credit, story: form.story },
     { credit: initial.credit, story: initial.story }
   );
-  add("placeholders", lineList(form.placeholders), lineList(initial.placeholders));
+  // Ticking a box off and on again reorders the list without changing it.
+  if (JSON.stringify([...form.placeholders].sort()) !== JSON.stringify([...initial.placeholders].sort()))
+    patch.placeholders = form.placeholders;
   return patch;
 }
 type DropForm = {
@@ -958,7 +962,15 @@ export function ProductsPage() {
   const resource = useResource<{ products: AdminProduct[] }>("/products");
   return (
     <>
-      <Heading eyebrow="CATALOG" title="Products" />
+      <Heading
+        eyebrow="CATALOG"
+        title="Products"
+        action={
+          <Link className="admin-button" to="/admin/products/new">
+            <Plus size={16} aria-hidden="true" /> New product
+          </Link>
+        }
+      />
       <Result resource={resource}>
         {(data) => (
           <>
@@ -1041,7 +1053,8 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
     [errors, setErrors] = useState<Record<string, string>>({});
   const [initial, setInitial] = useState<ProductForm>(form);
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
-  useUnsaved((dirty || !!delta.trim() || !!reason.trim()) && !saving);
+  const images = useImageManager(product, reload);
+  useUnsaved((dirty || images.dirty || !!delta.trim() || !!reason.trim()) && !saving);
   useEffect(() => {
     api<{ inventory_movements: typeof movements }>(`/products/${product.slug}/inventory_movements`)
       .then((result) => setMovements(result.inventory_movements))
@@ -1117,7 +1130,16 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
   }
   return (
     <>
-      <Heading eyebrow="PRODUCT EDITOR" title={product.name} action={<Chip value={product.status} />} />
+      <Heading
+        eyebrow="PRODUCT EDITOR"
+        title={product.name}
+        action={
+          <div className="admin-heading-actions">
+            <Chip value={product.status} />
+            {product.status !== "draft" && product.images.length > 0 && <Link to={`/products/${product.slug}`}>View on site</Link>}
+          </div>
+        }
+      />
       <Notice text={message} />
       <div className="admin-detail-grid">
         <section className="admin-panel">
@@ -1260,12 +1282,7 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             value={form.story}
             onChange={(value) => update("story", value)}
           />
-          <TextArea
-            label="Placeholders (one per line)"
-            name="placeholders"
-            value={form.placeholders}
-            onChange={(value) => update("placeholders", value)}
-          />
+          <PlaceholderChecklist value={form.placeholders} onChange={(value) => update("placeholders", value)} />
           {errors.specs && <p className="admin-field-error">{errors.specs}</p>}
           <Notice text={formFailure} kind="error" />
           <button className="admin-button" disabled={saving || !dirty} onClick={() => void save()}>
@@ -1274,16 +1291,8 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
         </section>
         <section className="admin-panel">
           <h2>Images</h2>
-          <p className="admin-help">Images are read only in this phase.</p>
-          <div className="admin-images">
-            {(product.images ?? []).map((image, index) => (
-              <img
-                key={index}
-                src={`${image.base}-${image.widths?.[0] ?? 640}.webp`}
-                alt={image.alt ?? product.name}
-              />
-            ))}
-          </div>
+          <ImageManager manager={images} />
+          <ProductPlacement product={product} reload={reload} />
           <h2 className="admin-subheading">Stock</h2>
           <p className="admin-stock">{product.stock_quantity} units</p>
           <div className="admin-form-grid">
@@ -1340,7 +1349,15 @@ export function DropsPage() {
   const resource = useResource<{ drops: AdminDrop[] }>("/drops");
   return (
     <>
-      <Heading eyebrow="RELEASES" title="Drops" />
+      <Heading
+        eyebrow="RELEASES"
+        title="Drops"
+        action={
+          <Link className="admin-button" to="/admin/drops/new">
+            <Plus size={16} aria-hidden="true" /> New drop
+          </Link>
+        }
+      />
       <Result resource={resource}>
         {(data) => (
           <>
@@ -1422,7 +1439,9 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
   const release = form.release ? guamToIso(form.release) : null,
     closes = form.closes ? guamToIso(form.closes) : null;
   const [currentTime] = useState(() => Date.now());
-  const state = !form.release
+  const state = !drop.product
+    ? "No product"
+    : !form.release
     ? "Coming soon"
     : !release
       ? "Invalid release"
@@ -1539,6 +1558,11 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
             <dt>Product stock</dt>
             <dd>{drop.product?.stock_quantity ?? "—"}</dd>
           </dl>
+          {!drop.product && (
+            <p className="admin-help admin-section">
+              No product yet, so this drop isn't on the site. Open a <Link to="/admin/products">product</Link> and choose this drop under "Where it's sold".
+            </p>
+          )}
           {drop.product && (
             <Link to={`/admin/products/${drop.product.slug}`}>Edit {drop.product.name} stock →</Link>
           )}

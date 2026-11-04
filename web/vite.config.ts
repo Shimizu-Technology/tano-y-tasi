@@ -25,6 +25,8 @@ export default defineConfig(({ command, mode }) => {
         },
       },
     ],
+    // Its encoder finds its .wasm next to the module, which dependency pre-bundling would break.
+    optimizeDeps: { exclude: ["@jsquash/webp"] },
     server: { port: Number(process.env.E2E_PORT || 5181), strictPort: true },
     preview: { port: 4181, strictPort: true },
     test: {

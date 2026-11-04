@@ -27,6 +27,8 @@ Open one of these URLs to choose the drop state:
 
 The state is remembered in `sessionStorage`. Changing it resets the mock inventory and orders. The in-memory mock database is saved to this tab's session storage so checkout redirects and reloads retain reservations and orders. Start a fresh tab session or clear the `tyt-mock-*` session keys to reset the fixture. It is a development simulation, not shared inventory across tabs or users.
 
+The admin mocks hold what you create and upload in memory until the page reloads, and show it on the storefront pages reached in the same session (use **View on site**). `/admin?mockUpload=fail-once` refuses the next image PUT, and `?mockUpload=unconfigured` answers uploads with `503 storage_unavailable`.
+
 With mocks enabled in Vite development mode, `?mockCore=1|2|3` previews the collection layouts on Home and Shop. For example, `/shop?mockDrop=upcoming&mockCore=2`. Counts 2 and 3 add duplicated artwork with distinct `-mock-2` / `-mock-3` slugs and names explicitly marked “Mock”. Product links and checkout use those mock slugs. The count persists in this tab's session storage; use `?mockCore=1` to restore the seed. This count override is ignored by production builds, which cannot enable either development flag.
 
 One core product uses a feature row (7:5 image/info split at desktop, stacked on phones). Two products use full-width cards below 600px and equal columns above it; three or more retain the 2-column mobile / 3-column desktop grid. Featured specs come from the existing product-detail endpoint.

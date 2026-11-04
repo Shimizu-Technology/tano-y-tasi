@@ -2,6 +2,7 @@ require "rails_helper"
 require_relative "../support/admin_auth"
 
 RSpec.describe "Admin API", type: :request do
+  STORAGE_ENV = { "AWS_ACCESS_KEY_ID" => "test-only-key", "AWS_SECRET_ACCESS_KEY" => "test-only-secret", "AWS_REGION" => "ap-southeast-1", "AWS_S3_BUCKET" => "tano-y-tasi-media" }.freeze
   include_context "admin auth"
   let!(:order) { make_order }
   let!(:product) { order.order_items.first.product }
@@ -23,10 +24,12 @@ RSpec.describe "Admin API", type: :request do
     [ :post, "/orders/ORDER/refund", { refund_key: "attempt-one" } ],
     [ :post, "/orders/ORDER/email_deliveries/DELIVERY/resend", {} ],
     [ :get, "/products", {} ], [ :get, "/products/PRODUCT", {} ],
+    [ :post, "/products", { name: "New puzzle", summary: "A piece of home.", description: "Made for Guåhan.", price_cents: 2500 } ],
     [ :patch, "/products/PRODUCT", { summary: "Updated summary" } ],
     [ :post, "/products/PRODUCT/stock_adjustments", { delta: 2, reason: "Restock" } ],
     [ :get, "/products/PRODUCT/inventory_movements", {} ],
-    [ :get, "/drops", {} ], [ :get, "/drops/DROP", {} ], [ :patch, "/drops/DROP", { name: "Updated drop" } ],
+    [ :get, "/drops", {} ], [ :get, "/drops/DROP", {} ], [ :post, "/drops", { name: "Next drop", quantity: 100 } ], [ :patch, "/drops/DROP", { name: "Updated drop" } ],
+    [ :post, "/uploads", { product_slug: "PRODUCT", widths: [ 640 ], content_type: "image/webp" } ],
     [ :get, "/store", {} ], [ :patch, "/store", { tagline: "Home." } ],
     [ :get, "/pages", {} ], [ :get, "/pages/PAGE", {} ], [ :patch, "/pages/PAGE", { title: "Returns" } ],
     [ :get, "/subscribers", {} ], [ :get, "/subscribers.csv", {} ],
@@ -35,22 +38,24 @@ RSpec.describe "Admin API", type: :request do
   ]
   endpoints.each do |verb, path, body|
     describe "#{verb.upcase} #{path}" do
+      let(:payload) { body.transform_values { |value| value == "PRODUCT" ? product.slug : value } }
       let(:url) do
         "/api/v1/admin#{path}".sub("ORDER", order.number).sub("PRODUCT", product.slug).sub("DROP", drop.slug).sub("USER", other_admin.id.to_s).sub("INVITATION", invitation.id.to_s).sub("DELIVERY", delivery.id.to_s).sub("PAGE", "returns")
       end
       it "returns 401 without a token" do
-        public_send(verb, url, params: body, **(verb == :get ? {} : { as: :json }))
+        public_send(verb, url, params: payload, **(verb == :get ? {} : { as: :json }))
         expect(response).to have_http_status(:unauthorized)
         expect(response.parsed_body.dig("error", "code")).to eq("unauthenticated")
       end
       it "returns 403 for a verified non-admin identity" do
         stub_identity("user_shopper", email: "shopper@example.com")
-        public_send(verb, url, params: body, headers: { "Authorization" => "Bearer #{session_token('user_shopper')}" }, **(verb == :get ? {} : { as: :json }))
+        public_send(verb, url, params: payload, headers: { "Authorization" => "Bearer #{session_token('user_shopper')}" }, **(verb == :get ? {} : { as: :json }))
         expect(response).to have_http_status(:forbidden)
       end
       it "succeeds for an active admin" do
-        public_send(verb, url, params: body, headers: headers, **(verb == :get ? {} : { as: :json }))
-        expect(response).to have_http_status(verb == :post && path == "/invitations" ? :created : :ok), response.body
+        stub_const("ENV", ENV.to_h.merge(STORAGE_ENV))
+        public_send(verb, url, params: payload, headers: headers, **(verb == :get ? {} : { as: :json }))
+        expect(response).to have_http_status(verb == :post && %w[/invitations /products /drops /uploads].include?(path) ? :created : :ok), response.body
       end
     end
   end
@@ -173,7 +178,7 @@ RSpec.describe "Admin API", type: :request do
   it "edits product content without changing inventory, images, identity, or order prices" do
     patch "/api/v1/admin/products/#{product.slug}", headers: headers, as: :json, params: {
       price_cents: 4900, specs: { material: "Cardboard" }, includes: [ "Puzzle" ], art: { credit: "Christian", story: "Guåhan", evil: true }, placeholders: [],
-      stock_quantity: 0, slug: "changed", kind: "drop", images: []
+      stock_quantity: 0, slug: "changed"
     }
     expect(response).to have_http_status(:ok)
     expect(product.reload).to have_attributes(price_cents: 4900, stock_quantity: 49, specs: { "material" => "Cardboard" }, art: { "credit" => "Christian", "story" => "Guåhan" })

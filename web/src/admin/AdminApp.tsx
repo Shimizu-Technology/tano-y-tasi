@@ -30,6 +30,7 @@ import {
   AdminsPage,
 } from "./AdminPages";
 import { StorePage, StorePageEditor } from "./AdminStore";
+import { NewDropPage, NewProductPage } from "./AdminCatalog";
 import "./admin.css";
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -208,7 +209,10 @@ function AdminGate({ identity }: { identity: Identity }) {
         try {
           return await client<T>(path, options);
         } catch (cause) {
-          if (authState(cause) !== "other") setError(cause);
+          const state = authState(cause);
+          // A failed save stays on its form, so a dropped connection never costs unsaved work.
+          const saving = !!options?.method && options.method !== "GET";
+          if (state === "expired" || state === "denied" || (state === "retry" && !saving)) setError(cause);
           throw cause;
         }
       },
@@ -412,8 +416,9 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
   const title = nav.find((item) => item.path === `/admin/${section}`)?.label ?? "Dashboard";
   let page = <DashboardPage />;
   if (section === "orders") page = location.pathname.split("/")[3] ? <OrderPage /> : <OrdersPage />;
-  if (section === "products") page = location.pathname.split("/")[3] ? <ProductPage /> : <ProductsPage />;
-  if (section === "drops") page = location.pathname.split("/")[3] ? <DropPage /> : <DropsPage />;
+  const subpage = location.pathname.split("/")[3];
+  if (section === "products") page = subpage === "new" ? <NewProductPage /> : subpage ? <ProductPage /> : <ProductsPage />;
+  if (section === "drops") page = subpage === "new" ? <NewDropPage /> : subpage ? <DropPage /> : <DropsPage />;
   if (section === "subscribers") page = <SubscribersPage />;
   if (section === "store") page = location.pathname.split("/")[3] === "pages" ? <StorePageEditor /> : <StorePage />;
   if (section === "admins") page = <AdminsPage currentUser={user} />;

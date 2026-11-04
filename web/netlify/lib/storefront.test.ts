@@ -164,3 +164,12 @@ it("ignores malformed or mismatched snapshots", () => {
     expect(document.getElementById("tyt-initial-data")).toBeNull();
   }
 });
+
+it("preloads a product image stored on the media bucket under its absolute URL", () => {
+  const base = "https://tano-y-tasi-media.s3.ap-southeast-1.amazonaws.com/products/new-puzzle/abc123";
+  const art = { role: "hero", alt: "New puzzle", base, widths: [640, 1280], aspect: "4:3" };
+  const product = { ...core, slug: "new-puzzle", image: art, images: [art] };
+  const result = transformHtml(html, { ...snapshot("/products/new-puzzle"), product: { product, server_time } });
+  expect(result).toContain(`imagesrcset="${base}-640.webp 640w, ${base}-1280.webp 1280w"`);
+  expect(result).toContain("/images/og/brand.jpg");
+});

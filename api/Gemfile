@@ -24,3 +24,5 @@ end
 gem "jwt", "= 3.3.0"
 
 gem "resend", "= 1.17.0"
+
+gem "aws-sdk-s3", require: false
