@@ -150,7 +150,9 @@ export function useImageManager(product: AdminProduct, onSaved: () => void) {
       try {
         const trimmed = items.map((item) => ({ ...item, alt: item.alt.trim() }));
         await api(`/products/${product.slug}`, { method: "PATCH", body: { images: trimmed.map(plain) } });
-        setItems(trimmed);
+        // Anything changed while this was saving stays in the list, and stays unsaved.
+        const sent = new Map(items.map((item) => [item.key, item.alt]));
+        setItems((current) => current.map((item) => (sent.get(item.key) === item.alt ? { ...item, alt: item.alt.trim() } : item)));
         setSaved(trimmed);
         setMessage("Images saved.");
         onSaved();
