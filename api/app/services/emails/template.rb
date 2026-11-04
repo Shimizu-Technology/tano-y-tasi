@@ -20,7 +20,11 @@ module Emails
       link = admin ? "#{frontend_url}/admin/orders/#{order.number}" : "#{frontend_url}/orders/#{order.token}"
       title = subject(delivery.kind, order)
       items = order.order_items.order(:id)
-      lines = items.map { |item| "#{item.name} × #{item.quantity} — #{money(item.quantity * item.unit_price_cents)}" }
+      # Once it has shipped, the promised date is history.
+      lines = items.map do |item|
+        line = "#{item.name} × #{item.quantity} — #{money(item.quantity * item.unit_price_cents)}"
+        item.preorder_ships.present? && delivery.kind != "order_shipped" ? "#{line} — Preorder. #{item.preorder_ships}" : line
+      end
       tracking = if delivery.kind == "order_shipped"
         [ order.tracking_number.presence && "Tracking number: #{order.tracking_number}", order.tracking_url.presence ].compact
       else
@@ -52,7 +56,8 @@ module Emails
       "session_mismatch" => "This payment came from a different Stripe checkout session than the order expected.",
       "store_closed" => "This payment arrived after the store was closed.",
       "drop_withdrawn" => "This payment arrived after the drop was moved back to Coming soon.",
-      "customer_limit_exceeded" => "This payment would put the customer over the drop's limit.",
+      "drop_closed" => "This late payment arrived after the drop had closed.",
+      "customer_limit_exceeded" => "This payment would put the customer over the product's per-customer limit.",
       "stock_unavailable" => "This late payment arrived after the stock was gone.",
       "refund_failed" => "A refund on this order failed at Stripe, so the customer still hasn't been paid back."
     }.freeze

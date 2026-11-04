@@ -15,6 +15,10 @@ Rails.application.routes.draw do
         resources :products, param: :slug, only: [ :index, :show, :create, :update ] do
           post :stock_adjustments, on: :member
           get :inventory_movements, on: :member
+          resources :production_runs, only: [ :index, :create, :update ] do
+            post :receive, on: :member
+            post :cancel, on: :member
+          end
         end
         resources :drops, param: :slug, only: [ :index, :show, :create, :update ]
         resources :uploads, only: :create

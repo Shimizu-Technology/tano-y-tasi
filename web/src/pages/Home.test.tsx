@@ -148,3 +148,12 @@ it.each([null, "upcoming", "live", "sold_out", "closed"] as const)("the edge pre
   expect(hero.getAttribute("loading")).toBe("eager");
   expect(preload.getAttribute("fetchpriority")).toBe("high");
 });
+
+it("presents a drop with several items as a whole", () => {
+  const next = { ...products[1], slug: "other", price_cents: 5000 };
+  const { container } = show(storefront({ ...dropSummary("live"), product: products[1], products: [products[1], next] }));
+  const section = container.querySelector<HTMLElement>(".home-drop")!;
+  expect(within(section).getByText("2 items in this drop.")).toBeVisible();
+  expect(within(section).getByText("From $45")).toBeVisible();
+  expect(within(section).getByRole("link", { name: /VIEW THE DROP/ })).toHaveAttribute("href", "/drop");
+});

@@ -61,7 +61,7 @@ export function checkoutFix(error: ErrorBody): { message: string; quantity?: num
       const allowance = left === 0
         ? "You've already reached it with this email."
         : `You can order ${left} more with this email.`;
-      return { message: `This drop is limited to ${limit} per customer. ${allowance}`, quantity: left };
+      return { message: `This item is limited to ${limit} per customer. ${allowance}`, quantity: left };
     }
     case "insufficient_stock":
       return { message: `Only ${error.details?.available ?? 0} available.`, quantity: error.details?.available ?? 0 };

@@ -31,6 +31,8 @@ The admin mocks hold what you create and upload in memory until the page reloads
 
 With mocks enabled in Vite development mode, `?mockCore=1|2|3` previews the collection layouts on Home and Shop. For example, `/shop?mockDrop=upcoming&mockCore=2`. Counts 2 and 3 add duplicated artwork with distinct `-mock-2` / `-mock-3` slugs and names explicitly marked “Mock”. Product links and checkout use those mock slugs. The count persists in this tab's session storage; use `?mockCore=1` to restore the seed. This count override is ignored by production builds, which cannot enable either development flag.
 
+`?mockPreorder=1` adds "Hagåtña Sunrise", a preorder limited to 2 per customer, and a mixed order (TYT-100002) to the admin. `?mockDropItems=2` or `3` puts that many products in Drop 001, so `/drop` shows the grid. Both persist in this tab's session storage until you set `?mockPreorder=0` or `?mockDropItems=1`.
+
 One core product uses a feature row (7:5 image/info split at desktop, stacked on phones). Two products use full-width cards below 600px and equal columns above it; three or more retain the 2-column mobile / 3-column desktop grid. Featured specs come from the existing product-detail endpoint.
 
 Archivo's variable font is preloaded and its face declarations load from the HTML head. Initial rendering waits for the body, title and wide display/wordmark faces. Screenshot capture also waits for `document.fonts.ready` and verifies an actual loaded Archivo face.

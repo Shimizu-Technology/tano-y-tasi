@@ -52,6 +52,7 @@ export function OrderPage() {
   if (q.isError) return <Failure error={q.error} retry={() => void q.refetch()} />;
   const o = q.data.order;
   const recover = ["canceled", "expired"].includes(o.status);
+  const preorder = o.items.some((item) => item.preorder_ships);
   return (
     <div className="page order-page narrow">
       <Meta title={o.status === "paid" ? "Thank you" : "Your order"} />
@@ -62,7 +63,7 @@ export function OrderPage() {
       </p>
       <p className="muted">
         {o.status === "paid"
-          ? "A piece of home is headed your way."
+          ? preorder ? "Your preorder is confirmed. It ships on the date shown below." : "A piece of home is headed your way."
           : recover
             ? "Your reservation has ended. We’ve restored your cart so you can pick up where you left off."
             : o.status === "pending_payment"
@@ -134,6 +135,7 @@ export function OrderSummary({ order: o }: { order: Order }) {
             <p className="muted small">
               Quantity {i.quantity} · {money(i.unit_price_cents)} each
             </p>
+            {i.preorder_ships && <p className="preorder-note"><strong>Preorder.</strong> {i.preorder_ships}</p>}
           </div>
           <span className="price">{money(i.quantity * i.unit_price_cents)}</span>
         </div>

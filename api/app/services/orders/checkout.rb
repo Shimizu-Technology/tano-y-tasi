@@ -73,7 +73,8 @@ module Orders
         products.each do |product|
           quantity = quantity_for(product)
           order.order_items.create!(product: product, product_slug: product.slug, name: product.name,
-            quantity: quantity, unit_price_cents: product.price_cents, image: product.images.first || {})
+            quantity: quantity, unit_price_cents: product.price_cents, image: product.images.first || {},
+            preorder_ships: product.preorder ? product.preorder_ships : nil)
           Inventory.change!(product, order, -quantity, "reserve")
         end
         order
@@ -91,11 +92,9 @@ module Orders
       if drop && (!drop.released? || (drop.closes_at && drop.closes_at <= Time.current))
         raise ApiError.new("drop_not_live", "This drop is not open for checkout.", details: { product_slug: product.slug, release_at: drop.release_at&.iso8601 })
       end
-      if drop
-        already = CustomerLimit.quantity(product, @email)
-        if already + quantity > drop.per_customer_limit
-          raise ApiError.new("limit_exceeded", "This drop is limited to #{drop.per_customer_limit} per customer.", details: { product_slug: product.slug, limit: drop.per_customer_limit, already_purchased: already })
-        end
+      if CustomerLimit.exceeded?(product, @email, quantity)
+        limit = product.effective_limit
+        raise ApiError.new("limit_exceeded", "#{product.name} is limited to #{limit} per customer.", details: { product_slug: product.slug, limit: limit, already_purchased: CustomerLimit.quantity(product, @email) })
       end
       if product.stock_quantity.zero?
         raise ApiError.new("sold_out", "#{product.name} just sold out.", details: { product_slug: product.slug, available: 0 })

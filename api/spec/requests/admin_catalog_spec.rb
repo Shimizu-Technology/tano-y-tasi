@@ -59,14 +59,14 @@ RSpec.describe "Admin catalog", type: :request do
       expect(error["details"]).to have_key("price_cents")
     end
 
-    it "can start in a free drop, but not in a taken or unknown one" do
+    it "can start in a drop that already holds a product, but not in an unknown one" do
       drop = create(:drop)
       post "/api/v1/admin/products", params: new_product.merge(kind: "drop", drop_slug: drop.slug), headers: headers, as: :json
       expect(response.parsed_body["product"]).to include("kind" => "drop")
       expect(response.parsed_body.dig("product", "drop", "slug")).to eq(drop.slug)
       post "/api/v1/admin/products", params: new_product.merge(kind: "drop", drop_slug: drop.slug), headers: headers, as: :json
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(error.dig("details", "drop_slug")).to eq([ "already has a product" ])
+      expect(response).to have_http_status(:created)
+      expect(drop.reload.products.size).to eq(2)
       post "/api/v1/admin/products", params: new_product.merge(kind: "drop", drop_slug: "missing"), headers: headers, as: :json
       expect(error["details"]).to have_key("drop_slug")
       post "/api/v1/admin/products", params: new_product.merge(kind: "drop"), headers: headers, as: :json
@@ -105,10 +105,12 @@ RSpec.describe "Admin catalog", type: :request do
       expect(core.reload.drop_id).to eq(other.id)
     end
 
-    it "keeps one product per drop and refuses contradictions" do
+    it "attaches a second product to a drop and refuses contradictions" do
       patch "/api/v1/admin/products/#{core.slug}", params: { kind: "drop", drop_slug: drop.slug }, headers: headers, as: :json
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(error.dig("details", "drop_slug")).to eq([ "already has a product" ])
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.dig("product", "drop", "products").map { |item| item["slug"] }).to contain_exactly(map.slug, core.slug)
+      patch "/api/v1/admin/products/#{core.slug}", params: { kind: "core" }, headers: headers, as: :json
+      expect(core.reload).to have_attributes(kind: "core", drop_id: nil)
       patch "/api/v1/admin/products/#{core.slug}", params: { kind: "core", drop_slug: drop.slug }, headers: headers, as: :json
       expect(error["details"]).to have_key("drop_slug")
       patch "/api/v1/admin/products/#{core.slug}", params: { kind: "drop" }, headers: headers, as: :json
@@ -116,10 +118,14 @@ RSpec.describe "Admin catalog", type: :request do
       expect(core.reload).to have_attributes(kind: "core", drop_id: nil)
     end
 
-    it "answers a lost one-per-drop race with the same field error" do
-      allow_any_instance_of(Product).to receive(:update!).and_raise(ActiveRecord::RecordNotUnique, "one_product_per_drop")
-      patch "/api/v1/admin/products/#{core.slug}", params: { kind: "drop", drop_slug: drop.slug }, headers: headers, as: :json
-      expect(error.dig("details", "drop_slug")).to eq([ "already has a product" ])
+    it "refreshes the sold-out date of the drop a product leaves" do
+      other = create(:product, :limited, drop: drop, stock_quantity: 0)
+      patch "/api/v1/admin/products/#{map.slug}", params: { kind: "core" }, headers: headers, as: :json
+      expect(drop.reload.sold_out_at).to be_present
+      expect(drop.out_of_stock?).to be(true)
+      patch "/api/v1/admin/products/#{map.slug}", params: { kind: "drop", drop_slug: drop.slug }, headers: headers, as: :json
+      expect(drop.reload.sold_out_at).to be_nil
+      expect(other.reload.drop).to eq(drop)
     end
 
     it "clears a sold-out date left by the drop's previous product" do
@@ -345,6 +351,14 @@ RSpec.describe "Admin catalog", type: :request do
       end
     end
   end
+
+  it "reports a drop out of stock by the products actually on sale" do
+    drop = create(:drop)
+    create(:product, :limited, drop: drop, stock_quantity: 0)
+    create(:product, :limited, drop: drop, stock_quantity: 500, status: "archived")
+    get "/api/v1/admin/drops/#{drop.slug}", headers: headers
+    expect(response.parsed_body["drop"]).to include("state" => "sold_out", "out_of_stock" => true)
+  end
 end
 
 RSpec.describe "Admin catalog concurrency" do
@@ -382,13 +396,9 @@ RSpec.describe "Admin catalog concurrency" do
     expect(drops.map(&:slug)).to all(match(/\Adrop-\d{3}-race-\d\z/))
   end
 
-  it "lets only one product take a free drop at once" do
+  it "lets several products join a drop at once" do
     drop = Drop.create!(slug: "drop-900-race", number: 900, name: "Race", quantity: 0)
-    results = race(4) do |index|
-      AdminCatalog.create_product({ name: "Race #{index}", summary: "s", description: "d", price_cents: 1, kind: "drop", drop: drop }.with_indifferent_access).slug
-    rescue ActiveRecord::RecordInvalid, ApiError => error
-      error.class
-    end
-    expect(results.count { |result| result.is_a?(String) }).to eq(1)
+    results = race(4) { |index| AdminCatalog.create_product({ name: "Race #{index}", summary: "s", description: "d", price_cents: 1, kind: "drop", drop: drop }.with_indifferent_access).slug }
+    expect(drop.products.reload.map(&:slug)).to match_array(results)
   end
 end

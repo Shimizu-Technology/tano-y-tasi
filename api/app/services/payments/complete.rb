@@ -6,7 +6,7 @@ module Payments
       Orders::Inventory.with_locked_order(order) do |products|
         next if %w[paid refunded needs_attention].include?(order.status)
         holding = order.status == "pending_payment"
-        reason = problem || ("store_closed" unless StoreSetting.sales_open?) || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && stock_reason(order, products))
+        reason = problem || ("store_closed" unless StoreSetting.sales_open?) || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && (closed_reason(order, products) || stock_reason(order, products)))
         attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping, charged_cents: charged_cents }
         if reason
           if holding
@@ -22,7 +22,7 @@ module Payments
           end
           order.update!(attributes.merge(status: "paid"))
         end
-        products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
+        Orders::Inventory.refresh_drops!(products.values.map(&:drop_id))
       end
       order.reload
     end
@@ -32,17 +32,20 @@ module Payments
       "drop_withdrawn" if order.order_items.any? { |item| (drop = products.fetch(item.product_id).drop) && !drop.released? }
     end
 
+    # A checkout that held its stock before the close is honored. A payment that has
+    # lost its hold would be a new sale from a drop that has ended.
+    def self.closed_reason(order, products)
+      "drop_closed" if order.order_items.any? { |item| (closes_at = products.fetch(item.product_id).drop&.closes_at) && closes_at <= Time.current }
+    end
+
     def self.over_limit_reason(order, products)
-      over = order.order_items.any? do |item|
-        product = products.fetch(item.product_id)
-        product.drop && Orders::CustomerLimit.quantity(product, order.email, excluding_order: order) + item.quantity > product.drop.per_customer_limit
-      end
+      over = order.order_items.any? { |item| Orders::CustomerLimit.exceeded?(products.fetch(item.product_id), order.email, item.quantity, excluding_order: order) }
       "customer_limit_exceeded" if over
     end
 
     def self.stock_reason(order, products)
       "stock_unavailable" if order.order_items.any? { |item| products.fetch(item.product_id).stock_quantity < item.quantity }
     end
-    private_class_method :withdrawn_reason, :over_limit_reason, :stock_reason
+    private_class_method :withdrawn_reason, :closed_reason, :over_limit_reason, :stock_reason
   end
 end

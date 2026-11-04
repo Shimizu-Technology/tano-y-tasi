@@ -32,9 +32,12 @@ export function serializeData(data: InitialData): string {
 export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT_SITE_URL): string {
   const route = matchRoute(data.pathname);
   if (!route || !html.includes("<!-- tyt:meta:start -->")) return html;
-  const product = data.product?.product ?? data.drop?.drop?.product;
+  const drop = data.drop?.drop;
+  // A drop with several products is a collection page, not the page of its lead product.
+  const several = (drop?.products?.length ?? 1) > 1;
+  const product = data.product?.product ?? (several ? undefined : drop?.product);
   const titles = { home: "A Piece of Home.", shop: "Shop", drop: "Drops", product: "Puzzle", archive: "Archive", story: "Our Story", info: { shipping: "Shipping", returns: "Returns & refunds", privacy: "Privacy policy", terms: "Terms", faq: "FAQ", contact: "Contact" }[route.slug ?? ""] ?? "Information" };
-  const title = `${product?.name ?? titles[route.kind]} — Tåno + Tåsi`;
+  const title = `${product?.name ?? (several ? drop?.name : undefined) ?? titles[route.kind]} — Tåno + Tåsi`;
   const description = product?.summary ?? DESCRIPTION;
   const canonical = new URL(data.pathname, siteUrl).href;
   // Only the bundled catalog has generated OG derivatives. New catalog items use the brand fallback.

@@ -15,14 +15,20 @@ export function ProductCollection({ products }: { products: Product[] }) {
 
 function FeaturedProduct({ product }: { product: Product }) {
   const specs = product.specs;
+  const state = product.availability.state;
+  const status = [
+    product.signature && "SIGNATURE",
+    state === "preorder" && "PREORDER",
+    state === "sold_out" && "SOLD OUT",
+    state === "coming_soon" && "COMING SOON",
+  ].filter(Boolean).join(" · ");
   return (
     <article className="collection-feature core-collection">
       <Link className="feature-art" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
         <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
       </Link>
       <div className="feature-info">
-        {product.availability.state === "sold_out" && <p className="label muted">SOLD OUT</p>}
-        {product.availability.state === "coming_soon" && <p className="label muted">COMING SOON</p>}
+        {status && <p className="label muted">{status}</p>}
         {specLine(specs) && <p className="small muted">{specLine(specs)}</p>}
         <h2>{product.name}</h2>
         <p className="price">{money(product.price_cents)}</p>

@@ -59,7 +59,7 @@ module Api
             end
             items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), @order, -item.quantity, "attention_resolved") }
             @order.update!(status: "paid", attention_reason: nil)
-            products.each_value { |product| Orders::Inventory.refresh_drop!(product) }
+            Orders::Inventory.refresh_drops!(products.values.map(&:drop_id))
           end
           render_order
         end

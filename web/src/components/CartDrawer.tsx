@@ -30,6 +30,8 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
     0
   );
   const loading = products.some((p) => p.isPending || p.isFetching);
+  const known = products.flatMap((q) => (q.data ? [q.data.product] : []));
+  const mixed = known.some((p) => p.preorder) && known.some((p) => !p.preorder);
   const savedAttempt = readAttempt();
   const canRetry =
     savedAttempt?.fingerprint === checkoutFingerprint(email, cart.items) &&
@@ -121,6 +123,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                         {p?.name ?? (query.isPending ? "Loading…" : item.product_slug)}
                       </Link>
                       {p && <p className="price">{money(p.price_cents)}</p>}
+                      {p?.preorder && p.preorder_ships && <p className="preorder-note"><strong>Preorder.</strong> {p.preorder_ships}</p>}
                       <div className="cart-line-controls">
                         <Quantity
                           value={item.quantity}
@@ -214,6 +217,7 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
                 <span>{loading ? "Checking…" : money(subtotal)}</span>
               </div>
               <p className="muted small">Shipping calculated at checkout.</p>
+              {mixed && <p className="small">This cart includes a preorder, so your whole order may ship together when the preorder is ready.</p>}
               <label htmlFor="checkout-email">Email address</label>
               <input
                 id="checkout-email"

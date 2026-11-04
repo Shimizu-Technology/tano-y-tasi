@@ -9,6 +9,11 @@ const art = (slug: string, file: string, widths: number[], aspect: string, alt: 
 export const CORE = "hafa-adai-from-tumon-bay";
 export const MAP = "guahan-sunset-map";
 export const DROP = "drop-001-guahan-sunset-map";
+// Only in the catalog when asked for: ?mockPreorder=1 and ?mockDropItems=2 or 3.
+export const PREORDER = "hagatna-sunrise";
+export const PREORDER_SHIPS = "Ships late January 2027";
+export const MAP_NIGHT = "guahan-night-map";
+export const MAP_TIDES = "guahan-tide-map";
 let salesOpen = true;
 export function setMockSalesOpen(value: boolean) {
   salesOpen = value;
@@ -73,6 +78,23 @@ const mapImages = [
     "detail"
   ),
 ];
+export interface MockExtras {
+  preorder?: boolean;
+  dropItems?: number;
+}
+// Extra products use the seed artwork, under their own names and slugs.
+export function extraProducts(state: DropState, stock: Record<string, number>, { preorder = false, dropItems = 1 }: MockExtras): ProductDetail[] {
+  const [core, map] = catalog(state, { ...stock });
+  const copy = (base: ProductDetail, slug: string, name: string, patch: Partial<ProductDetail> = {}): ProductDetail => ({ ...base, slug, name, ...patch });
+  return [
+    ...(preorder ? [copy(core, PREORDER, "Hagåtña Sunrise", {
+      summary: "Sunrise over Hagåtña Bay, 500 pieces.", price_cents: 4000,
+      preorder: true, preorder_ships: PREORDER_SHIPS, per_customer_limit: 2,
+    })] : []),
+    ...(dropItems >= 2 ? [copy(map, MAP_NIGHT, "Guåhan Night Map", { price_cents: 5000 })] : []),
+    ...(dropItems >= 3 ? [copy(map, MAP_TIDES, "Guåhan Tide Map", { price_cents: 5500 })] : []),
+  ];
+}
 export function catalog(state: DropState, stock: Record<string, number>): ProductDetail[] {
   const make = (slug: string, name: string, kind: "core" | "drop", price: number, images: Art[]): ProductDetail => {
     const count = stock[slug] ?? 0;

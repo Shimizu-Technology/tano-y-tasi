@@ -6,10 +6,11 @@ import { api } from "../api";
 import { useCart } from "../cart";
 import { useOpenCart } from "../components/Layout";
 import { Gallery } from "../components/Gallery";
+import { ProductCollection } from "../components/ProductCollection";
 import { VillageFinder } from "../components/village/VillageFinder";
 import { Countdown, Failure, Loading, Meta, Quantity, ReleaseTimes, Signup } from "../components/Shared";
-import { dropNumber, money, purchaseState, releaseDate } from "../utils";
-import type { Drop, ProductDetail } from "../types";
+import { dropItems, dropNumber, money, purchaseState, releaseDate } from "../utils";
+import type { Drop, DropSummary, ProductDetail } from "../types";
 export function ProductPage() {
   const { slug } = useParams();
   const q = useQuery({ queryKey: ["product", slug], queryFn: () => api.product(slug!) });
@@ -53,6 +54,8 @@ export function DropPage() {
       </div>
     );
   const d = q.data.drop;
+  const items = dropItems(d);
+  if (items.length > 1) return <DropCollection drop={d} items={items} serverTime={q.data.server_time} receivedAt={q.data.receivedAt} />;
   return (
     <ProductView
       key={d.slug}
@@ -61,6 +64,57 @@ export function DropPage() {
       serverTime={q.data.server_time}
       receivedAt={q.data.receivedAt}
     />
+  );
+}
+const dropStateLabel = (d: DropSummary) =>
+  d.state === "live" ? "AVAILABLE NOW" : d.state === "upcoming" && !d.release_at ? "COMING SOON" : d.state.replace("_", " ").toUpperCase();
+function DropStatus({ drop: d }: { drop: DropSummary }) {
+  return (
+    <p className="label product-state">
+      {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {dropStateLabel(d)}
+    </p>
+  );
+}
+function DropTiming({ drop: d, serverTime, receivedAt }: { drop: DropSummary; serverTime: string; receivedAt: number }) {
+  if (d.state === "upcoming")
+    return d.release_at ? (
+      <>
+        <ReleaseTimes iso={d.release_at} />
+        <Countdown release={d.release_at} serverTime={serverTime} receivedAt={receivedAt} />
+      </>
+    ) : (
+      <p>The release date goes to the list first.</p>
+    );
+  if (d.state === "sold_out")
+    return <p>Drop {dropNumber(d.number)} sold out{d.sold_out_at ? ` on ${releaseDate(d.sold_out_at)}` : ""}.</p>;
+  return d.state === "closed" ? <p>This drop has closed.</p> : null;
+}
+// A drop with several products: its heading, then a card for each. Limits and details live on each product.
+function DropCollection({ drop: d, items, serverTime, receivedAt }: { drop: Drop; items: ProductDetail[]; serverTime: string; receivedAt: number }) {
+  return (
+    <>
+      <Meta title={`Drop ${dropNumber(d.number)} — ${d.name}`} />
+      <div className="page drop-page">
+        <div className="product-breadcrumb label">
+          <Link to="/archive">THE DROPS</Link>
+          <span> / </span>
+          <span>DROP {dropNumber(d.number)}</span>
+        </div>
+        <DropStatus drop={d} />
+        <h1>{d.name}</h1>
+        <div className="drop-facts">
+          <DropTiming drop={d} serverTime={serverTime} receivedAt={receivedAt} />
+          <p>{d.quantity != null && `${d.quantity} made · `}{items.length} items</p>
+          <p className="muted small">One-time release. No restocks.</p>
+        </div>
+        <ProductCollection products={items} />
+      </div>
+      {d.state !== "live" && (
+        <div className="section">
+          <Signup source="drop" dropSlug={d.slug} />
+        </div>
+      )}
+    </>
   );
 }
 function ProductView({
@@ -84,6 +138,7 @@ function ProductView({
   const d = drop ?? p.drop;
   const location = useLocation();
   const purchase = purchaseState(p);
+  const limit = p.per_customer_limit;
   const inCart = items.find((i) => i.product_slug === p.slug)?.quantity ?? 0;
   const max = p.max_per_order;
   const room = Math.max(0, max - inCart);
@@ -138,44 +193,31 @@ function ProductView({
         <div className="product-breadcrumb label">
           <Link to={d ? "/archive" : "/shop"}>{d ? "THE DROPS" : "CORE COLLECTION"}</Link>
           <span> / </span>
-          <span>{d ? `DROP ${dropNumber(d.number)}` : p.name}</span>
+          {d && !drop ? <Link to={`/drops/${d.slug}`}>DROP {dropNumber(d.number)}</Link> : <span>{d ? `DROP ${dropNumber(d.number)}` : p.name}</span>}
         </div>
         <div className="product-layout">
           <Gallery images={p.images} name={p.name} />
           <div className="product-info">
-            {d && <p className="label product-state">
-              {d.state === "live" && <span className="live-dot" />}DROP {dropNumber(d.number)} · {d.state === "live" ? "AVAILABLE NOW" : d.state === "upcoming" && !d.release_at ? "COMING SOON" : d.state.replace("_", " ").toUpperCase()}
-            </p>}
+            {d ? <DropStatus drop={d} /> : p.signature && <p className="label product-state">SIGNATURE</p>}
             <h1>{p.name}</h1>
             {/* The price of an unannounced drop isn't confirmed, as on the home page. */}
             {!(d?.state === "upcoming" && !d.release_at) && <p className="product-price">{money(p.price_cents)}</p>}
             <p className="product-description">{p.description}</p>
             {d && (
               <div className="drop-facts">
-                {d.state === "upcoming" ? (
-                  d.release_at ? (
-                    <>
-                      <ReleaseTimes iso={d.release_at} />
-                      <Countdown release={d.release_at} serverTime={serverTime} receivedAt={receivedAt} />
-                    </>
-                  ) : (
-                    <p>The release date goes to the list first.</p>
-                  )
-                ) : d.state === "sold_out" ? (
-                  <p>
-                    Drop {dropNumber(d.number)} sold out{d.sold_out_at ? ` on ${releaseDate(d.sold_out_at)}` : ""}.
-                  </p>
-                ) : d.state === "closed" ? (
-                  <p>This drop has closed.</p>
-                ) : null}
+                <DropTiming drop={d} serverTime={serverTime} receivedAt={receivedAt} />
                 <p>
-                  {d.quantity != null && `${d.quantity} made · `}Limit {d.per_customer_limit} per customer
+                  {d.quantity != null && `${d.quantity} made · `}Limit {limit ?? d.per_customer_limit} per customer
                 </p>
                 <p className="muted small">One-time release. No restocks.</p>
               </div>
             )}
-            {p.availability.state === "available" && p.availability.low_stock && (p.availability.remaining ?? 0) > 0 && (
+            {!d && limit != null && <p className="small">Limit {limit} per customer</p>}
+            {p.availability.purchasable && p.availability.low_stock && (p.availability.remaining ?? 0) > 0 && (
               <p className="small">Only {p.availability.remaining} left</p>
+            )}
+            {p.preorder && p.preorder_ships && !["sold_out", "closed"].includes(p.availability.state) && (
+              <p className="preorder-note"><strong>Preorder.</strong> {p.preorder_ships}</p>
             )}
             <div className="buy-controls">
               {!purchase.disabled && room > 0 && (
@@ -187,7 +229,7 @@ function ProductView({
             </div>
             {inCart > 0 && !purchase.disabled && (
               <p className="muted small">
-                {inCart} in your cart{d ? ` · Limit ${d.per_customer_limit}` : ""}
+                {inCart} in your cart{limit != null ? ` · Limit ${limit}` : ""}
               </p>
             )}
             <div className="accordions">

@@ -1,6 +1,20 @@
 require "rails_helper"
 
 RSpec.describe Payments::Gateway do
+  it "names the ship date on a preorder's Stripe line, from the order's snapshot, and leaves other lines alone" do
+    preorder = create(:product, preorder: true, preorder_ships: "Ships late January 2027")
+    in_stock = create(:product)
+    order = Orders::Checkout.call(email: "a@example.com", idempotency_key: "stripe-preorder", items: [ { product_slug: preorder.slug, quantity: 1 }, { product_slug: in_stock.slug, quantity: 1 } ]).order
+    preorder.update!(preorder_ships: "Ships in March 2027")
+    order.update!(provider: "stripe", provider_session_expires_at: 31.minutes.from_now.change(usec: 0))
+    expect(Stripe::Checkout::Session).to receive(:create) do |options, _request_options|
+      lines = options[:line_items].map { |line| line.dig(:price_data, :product_data) }
+      expect(lines).to contain_exactly({ name: preorder.name, description: "Preorder. Ships late January 2027" }, { name: in_stock.name })
+      Stripe::StripeObject.construct_from(id: "cs_preorder", url: "https://checkout.stripe.com/c/pay/cs_preorder")
+    end
+    described_class.create_session(order)
+  end
+
   it "creates a Stripe session with snapshots, shipping territories and order-scoped idempotency" do
     product = create(:product)
     order = Orders::Checkout.call(email: "a@example.com", idempotency_key: "stripe-options", items: [ { product_slug: product.slug, quantity: 1 } ]).order

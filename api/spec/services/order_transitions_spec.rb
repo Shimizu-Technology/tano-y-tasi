@@ -91,7 +91,7 @@ RSpec.describe "Order transitions" do
 
   it "rolls back the event together with failed stock transitions" do
     order
-    allow(Orders::Inventory).to receive(:refresh_drop!).and_raise("forced failure")
+    allow(Orders::Inventory).to receive(:refresh_drops!).and_raise("forced failure")
     expect { Payments::ProcessEvent.call(provider: "simulated", event_id: "rollback", event_type: "checkout.session.completed", order: order) }.to raise_error("forced failure")
     expect(PaymentEvent.count).to eq(0)
     expect(order.reload.status).to eq("pending_payment")

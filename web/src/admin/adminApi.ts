@@ -28,6 +28,7 @@ export type OrderSummary = {
   total_cents: number;
   currency: string;
   item_count: number;
+  preorder_item_count?: number;
   created_at: string;
   paid_at?: string | null;
 };
@@ -50,6 +51,7 @@ export type OrderDetail = OrderSummary & {
     quantity: number;
     unit_price_cents: number;
     image?: unknown;
+    preorder_ships?: string | null;
   }[];
   shipping?: OrderShipping | null;
   subtotal_cents: number;
@@ -83,12 +85,29 @@ export type AdminProduct = {
   currency: string;
   stock_quantity: number;
   kind: string;
+  signature: boolean;
+  per_customer_limit: number | null;
+  preorder: boolean;
+  preorder_ships: string | null;
   specs: Record<string, unknown>;
   includes: string[];
   art: { credit: string; story: string };
   placeholders: string[];
   images: AdminImage[];
-  drop?: { slug: string; name: string } | null;
+  drop?: { slug: string; name: string; number?: number; per_customer_limit?: number; products?: DropMember[] } | null;
+};
+export type DropMember = { slug: string; name: string; stock_quantity: number; status?: string };
+export type ProductionRun = {
+  id: number | string;
+  quantity: number;
+  status: "ordered" | "received" | "canceled";
+  supplier: string | null;
+  unit_cost_cents: number | null;
+  expected_at: string | null;
+  received_at: string | null;
+  stock_added: number | null;
+  notes: string | null;
+  created_at: string;
 };
 export type AdminDrop = {
   slug: string;
@@ -99,7 +118,10 @@ export type AdminDrop = {
   closes_at: string | null;
   per_customer_limit: number;
   quantity: number;
-  product?: { slug: string; name: string; stock_quantity: number } | null;
+  product?: DropMember | null;
+  products?: DropMember[];
+  // The server's answer, counting only products on sale: a preview can't work this out from stock alone.
+  out_of_stock?: boolean;
 };
 export type StoreSettings = {
   sales_open: boolean;

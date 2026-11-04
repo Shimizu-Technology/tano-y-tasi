@@ -14,8 +14,12 @@ Brand story (Christian's words; use sparingly, never above every buy button):
 
 ## Business model
 
-- **Core collection:** always-available puzzles, restocked when they sell out.
-- **Monthly drop:** one-time, limited-quantity releases at an announced date and time. **Drops do not restock.** When a drop sells out or closes, it moves to the Archive and stays visible.
+- **Manufacturing:** Christian manufactures in China, with a minimum of 500 units per design, ordered about 60 days ahead. The specifics aren't decided, so the merchant sets them in the admin: nothing below is hardcoded.
+- **Core collection:** always-available puzzles, restocked when they sell out. A **signature** product, probably the GUAM map, sorts first and carries a quiet label. Several are allowed.
+- **Drops:** one-time, limited-quantity releases at an announced date and time, monthly or quarterly. A drop can hold several products. **Drops do not restock.** When every product in a drop is gone or the drop closes, it moves to the Archive and stays visible.
+- **Limits:** any product can have a per-customer limit. Otherwise it follows its drop's limit, and core products have none. A limit counts all of a customer's orders for that product.
+- **Preorders:** a product can sell before it arrives, with the units the merchant allots and free text saying when it ships. The order keeps the ship text it was sold with. A cart can mix preorder and in-stock items, as one order with one fulfillment for now.
+- **Production runs:** each factory order is recorded on its product, with its quantity, supplier, cost per unit and expected date. Receiving a run adds its stock once.
 - Later (not in this proof of concept): wholesale to ABC Stores, Guam mall/airport shops, ABC Hawaii; TikTok Shop; Amazon.
 
 ## Audience
@@ -58,12 +62,22 @@ Guam is ChST, UTC+10, with no daylight saving time. Always show Guam time first,
 - Drops are one-time only.
 - Shipping/fulfillment and unit economics are deferred for the proof of concept.
 
+## Room for sizes later (not built)
+
+Apparel will need sizes. Variants aren't built, and nothing here should assume them yet. They would slot in like this:
+
+- A `product_variants` table belongs to a product: `sku` (unique), `options` (such as `{ "size": "M" }`), `stock_quantity`, an optional `price_cents` that overrides the product's, and `position`. Every existing product would get one default variant, so one code path serves both.
+- Stock moves to the variant. Row locks, `reserve` and `release`, inventory movements and production runs would all refer to a variant, in place of a product.
+- `order_items` gain a `product_variant_id` and a snapshot of the SKU and option labels, alongside the existing name and price snapshots. Older rows keep working with it null.
+- A purchase limit stays on the product, across its variants. The API adds `variants` to product detail and takes `variant_sku` in a cart line. Preorder settings stay on the product at first.
+
 ## Open questions (do not block the build)
 
 - Final domain: shoptanoytasi.com vs tanoytasi.com.
 - Wordmark: decided. The header uses Christian's distressed "TÅNO + TÅSI · Island Supply Co" wordmark image and the rounded brown/green/teal logo is the emblem (home hero, Story, footer). Revisit only if Christian asks.
 - Rights confirmation for the GUAM sign photo and the map illustration's source.
 - Real prices, quantities, piece counts and sizes for the map puzzle.
+- Which product is the signature puzzle, how often drops run, what limits apply, and how a cart mixing preorder and in-stock items should ship.
 
 ## Acceptance for this phase
 

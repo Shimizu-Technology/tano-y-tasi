@@ -1,8 +1,8 @@
 import { http, HttpResponse } from "msw";
-import { catalog, CORE, MAP, DROP, dropSummary } from "./data";
+import { catalog, CORE, extraProducts, MAP, DROP, dropSummary, PREORDER, PREORDER_SHIPS, type MockExtras } from "./data";
 import { mockPages, mockStore, updateMockStore } from "./store";
 import type { StoreSettings } from "../types";
-import type { AdminDrop, AdminImage, AdminProduct, OrderDetail, OrderSummary } from "../admin/adminApi";
+import type { AdminDrop, AdminImage, AdminProduct, OrderDetail, OrderSummary, ProductionRun } from "../admin/adminApi";
 
 const prefix = "*/api/v1/admin";
 const now = "2026-10-29T00:00:00Z";
@@ -13,7 +13,8 @@ type MockAdmin = {
   invitations: { id: number; email: string; created_at: string }[];
   users: { id: number; email: string; name: string; role: string; active: boolean }[];
   subscribers: { email: string; source: string; drop_slug: string | null; created_at: string }[];
-  movements: Record<string, { id: number; delta: number; reason: string; created_at: string }[]>;
+  movements: Record<string, { id: number; delta: number; reason: string; note?: string; created_at: string }[]>;
+  runs: Record<string, ProductionRun[]>;
 };
 const BUCKET = "https://tano-y-tasi-media.s3.ap-southeast-1.amazonaws.com";
 // The real file bytes, so uploaded images render through the same URLs they would in production.
@@ -21,22 +22,37 @@ const objects = new Map<string, ArrayBuffer>();
 let mode = "ok";
 let uploadMode = "ok";
 let db: MockAdmin;
+let runSequence = 1;
 export const mockAdminProducts = () => db.products;
-export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok") {
+export const mockAdminDrops = () => db.drops;
+let stockListener: (slug: string, delta: number) => void = () => {};
+export function onAdminStockChange(listener: typeof stockListener) {
+  stockListener = listener;
+}
+export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok", extras: MockExtras = {}) {
   mode = nextMode;
   uploadMode = nextUploadMode;
-  const products = catalog("upcoming", { [CORE]: 40, [MAP]: 100 }).map((product) => ({
+  const seed = catalog("upcoming", { [CORE]: 40, [MAP]: 100 });
+  const products = [...seed, ...extraProducts("upcoming", {}, extras)].map((product, index) => ({
     ...product,
     status: "active",
-    position: product.kind === "core" ? 1 : 2,
-    stock_quantity: product.kind === "core" ? 40 : 100,
+    position: index + 1,
+    stock_quantity: product.slug === CORE ? 40 : product.slug === MAP ? 100 : 25,
     specs: product.specs as Record<string, string | number | boolean>,
+    signature: false,
+    preorder: product.preorder ?? false,
+    preorder_ships: product.preorder_ships ?? null,
+    per_customer_limit: product.kind === "drop" ? null : product.per_customer_limit,
     drop: product.drop ? { slug: product.drop.slug, name: product.drop.name } : null,
   })) as AdminProduct[];
+  const members = products
+    .filter((product) => product.kind === "drop")
+    .map((product) => ({ slug: product.slug, name: product.name, stock_quantity: product.stock_quantity, status: product.status }));
   const drop = {
     ...dropSummary("upcoming"),
     release_at: "2026-12-05T00:00:37Z",
-    product: { slug: MAP, name: products[1].name, stock_quantity: 100 },
+    product: members[0],
+    products: members,
   } as AdminDrop;
   const order: OrderDetail = {
     number: "TYT-100001",
@@ -47,6 +63,7 @@ export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok") {
     total_cents: 4500,
     currency: "USD",
     item_count: 1,
+    preorder_item_count: 0,
     created_at: now,
     paid_at: now,
     subtotal_cents: 4500,
@@ -93,14 +110,30 @@ export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok") {
       },
     ],
   };
+  // A mixed cart: one preorder line and one in stock, under a single fulfill action.
+  const mixed: OrderDetail = {
+    ...order,
+    number: "TYT-100002",
+    token: "mock-preorder-token",
+    item_count: 3,
+    preorder_item_count: 2,
+    total_cents: 11500,
+    subtotal_cents: 11500,
+    items: [
+      { product_slug: PREORDER, name: "Hagåtña Sunrise", quantity: 2, unit_price_cents: 4000, image: products[0].images[0], preorder_ships: PREORDER_SHIPS },
+      { product_slug: CORE, name: products[0].name, quantity: 1, unit_price_cents: 3500, image: products[0].images[0], preorder_ships: null },
+    ],
+    email_deliveries: [],
+  };
   db = {
     products,
     drops: [drop],
-    orders: [order],
+    orders: extras.preorder ? [mixed, order] : [order],
     invitations: [{ id: 10, email: "pending@example.com", created_at: now }],
     users: [{ id: 1, email: "admin@example.com", name: "Admin Example", role: "admin", active: true }],
     subscribers: [{ email: "fan@example.com", source: "drop", drop_slug: DROP, created_at: now }],
-    movements: { [CORE]: [], [MAP]: [] },
+    movements: Object.fromEntries(products.map((product) => [product.slug, []])),
+    runs: Object.fromEntries(products.map((product) => [product.slug, []])),
   };
 }
 configureAdminMocks();
@@ -146,15 +179,36 @@ function placement(product: AdminProduct, body: { kind?: string; drop_slug?: str
   }
   const drop = db.drops.find((d) => d.slug === body.drop_slug);
   if (!drop) return fail("Drop slug must name a drop", { drop_slug: "Must name a drop" });
-  if (drop.product && drop.product.slug !== product.slug)
-    return fail("Drop slug already has a product", { drop_slug: "Already has a product" });
   return { kind, drop };
 }
+// A drop's product list, in position order, as the serializer returns it.
+function syncDrops() {
+  for (const drop of db.drops) {
+    drop.products = db.products
+      .filter((product) => product.drop?.slug === drop.slug)
+      .sort((a, b) => a.position - b.position)
+      .map((product) => ({ slug: product.slug, name: product.name, stock_quantity: product.stock_quantity, status: product.status }));
+    drop.product = drop.products[0] ?? null;
+  }
+}
 function applyPlacement(product: AdminProduct, target: { kind: string; drop: AdminDrop | null }) {
-  for (const drop of db.drops) if (drop.product?.slug === product.slug) drop.product = null;
   product.kind = target.kind;
   product.drop = target.drop && { slug: target.drop.slug, name: target.drop.name };
-  if (target.drop) target.drop.product = { slug: product.slug, name: product.name, stock_quantity: product.stock_quantity };
+}
+function moveStock(product: AdminProduct, delta: number, reason: string, note?: string) {
+  product.stock_quantity += delta;
+  db.movements[product.slug].unshift({ id: Date.now() + db.movements[product.slug].length, delta, reason, note, created_at: new Date().toISOString() });
+  stockListener(product.slug, delta);
+  syncDrops();
+}
+function runProblems(body: Partial<ProductionRun>, run?: ProductionRun) {
+  const errors: Record<string, string> = {};
+  const quantity = body.quantity ?? run?.quantity;
+  if (!Number.isInteger(quantity) || quantity! < 1) errors.quantity = "Must be greater than 0";
+  if (run?.status === "received" && body.quantity !== undefined && body.quantity !== run.quantity) errors.quantity = "Can't change once a run is received";
+  if (body.unit_cost_cents != null && (!Number.isInteger(body.unit_cost_cents) || body.unit_cost_cents < 0)) errors.unit_cost_cents = "Must be 0 or more";
+  if (body.expected_at && !/^\d{4}-\d{2}-\d{2}$/.test(body.expected_at)) errors.expected_at = "Isn't a valid date";
+  return errors;
 }
 const validBase = (base: unknown) =>
   typeof base === "string" && (base.startsWith("/images/") || base.startsWith(`${BUCKET}/products/`)) && !base.includes("..");
@@ -179,6 +233,7 @@ const orderSummary = (order: OrderDetail): OrderSummary => ({
   total_cents: order.total_cents,
   currency: order.currency,
   item_count: order.item_count,
+  preorder_item_count: order.preorder_item_count,
   created_at: order.created_at,
   paid_at: order.paid_at,
 });
@@ -330,6 +385,10 @@ export const adminHandlers = [
       position: Math.max(0, ...db.products.map((p) => p.position)) + 1,
       stock_quantity: 0,
       kind: "core",
+      signature: body.signature ?? false,
+      per_customer_limit: body.per_customer_limit ?? null,
+      preorder: body.preorder ?? false,
+      preorder_ships: body.preorder_ships ?? null,
       specs: body.specs ?? {},
       includes: body.includes ?? [],
       art: body.art ?? { credit: "", story: "" },
@@ -342,6 +401,8 @@ export const adminHandlers = [
     applyPlacement(product, target);
     db.products.push(product);
     db.movements[product.slug] = [];
+    db.runs[product.slug] = [];
+    syncDrops();
     return HttpResponse.json({ product }, { status: 201 });
   }),
   http.get(
@@ -372,7 +433,13 @@ export const adminHandlers = [
       return fail("Description is required.", { description: "Description is required." });
     if (body.price_cents !== undefined && body.price_cents < 0)
       return fail("Price must be nonnegative.", { price_cents: "Price must be nonnegative." });
+    if (body.per_customer_limit != null && (!Number.isInteger(body.per_customer_limit) || body.per_customer_limit < 1))
+      return fail("Limit must be at least 1.", { per_customer_limit: "Must be greater than 0" });
+    const preorder = body.preorder ?? product.preorder;
+    const ships = (body.preorder_ships === undefined ? product.preorder_ships : body.preorder_ships)?.trim();
+    if (preorder && !ships) return fail("Preorder ships must say when it ships.", { preorder_ships: "Must say when it ships" });
     Object.assign(product, body);
+    syncDrops();
     return HttpResponse.json({ product });
   }),
   http.post(`${prefix}/products/:slug/stock_adjustments`, async ({ request, params }) => {
@@ -388,16 +455,74 @@ export const adminHandlers = [
       product.stock_quantity + body.delta < 0
     )
       return fail("Invalid stock adjustment.", { delta: "Adjustment must leave stock at zero or above." });
-    product.stock_quantity += body.delta;
-    db.movements[product.slug].unshift({
-      id: Date.now(),
-      delta: body.delta,
-      reason: body.reason,
-      created_at: new Date().toISOString(),
-    });
-    const holder = db.drops.find((drop) => drop.product?.slug === product.slug);
-    if (holder) holder.product!.stock_quantity = product.stock_quantity;
+    moveStock(product, body.delta, "admin_adjustment", body.reason);
     return HttpResponse.json({ product });
+  }),
+  http.get(`${prefix}/products/:slug/production_runs`, ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    return HttpResponse.json({ production_runs: [...(db.runs[String(params.slug)] ?? [])].reverse() });
+  }),
+  http.post(`${prefix}/products/:slug/production_runs`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const product = db.products.find((p) => p.slug === params.slug);
+    if (!product) return fail("Product not found.");
+    const body = (await request.json()) as Partial<ProductionRun>;
+    const errors = runProblems(body);
+    if (Object.keys(errors).length) return fail("Check the highlighted fields.", errors);
+    const run: ProductionRun = {
+      id: runSequence++,
+      quantity: body.quantity!,
+      status: "ordered",
+      supplier: body.supplier?.trim() || null,
+      unit_cost_cents: body.unit_cost_cents ?? null,
+      expected_at: body.expected_at || null,
+      received_at: null,
+      stock_added: null,
+      notes: body.notes ?? null,
+      created_at: new Date().toISOString(),
+    };
+    (db.runs[product.slug] ??= []).push(run);
+    return HttpResponse.json({ production_run: run }, { status: 201 });
+  }),
+  http.patch(`${prefix}/products/:slug/production_runs/:id`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const run = db.runs[String(params.slug)]?.find((item) => String(item.id) === params.id);
+    if (!run) return fail("Production run not found.");
+    const body = (await request.json()) as Partial<ProductionRun>;
+    const errors = runProblems(body, run);
+    if (Object.keys(errors).length) return fail("Check the highlighted fields.", errors);
+    const { quantity, supplier, unit_cost_cents, expected_at, notes } = body;
+    Object.assign(run, Object.fromEntries(Object.entries({ quantity, supplier, unit_cost_cents, expected_at, notes }).filter(([, value]) => value !== undefined)));
+    return HttpResponse.json({ production_run: run, product: db.products.find((p) => p.slug === params.slug) });
+  }),
+  http.post(`${prefix}/products/:slug/production_runs/:id/receive`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const product = db.products.find((p) => p.slug === params.slug);
+    const run = db.runs[String(params.slug)]?.find((item) => String(item.id) === params.id);
+    if (!product || !run) return fail("Production run not found.");
+    // Answers like the real API: a repeat changes nothing, even with another count.
+    if (run.status === "received") return HttpResponse.json({ production_run: run, product });
+    if (run.status !== "ordered") return fail("A canceled run can't be received.");
+    const body = (await request.json().catch(() => ({}))) as { stock_added?: number | null };
+    const added = body.stock_added ?? run.quantity;
+    if (!Number.isInteger(added) || added < 0 || added > run.quantity)
+      return fail(`Stock added must be a whole number from 0 to ${run.quantity}.`, { stock_added: `Must be a whole number from 0 to ${run.quantity}. If more arrived, change the run's quantity first.` });
+    if (added > 0) moveStock(product, added, "production_received", `Production run ${run.id}`);
+    Object.assign(run, { status: "received", stock_added: added, received_at: new Date().toISOString() });
+    return HttpResponse.json({ production_run: run, product });
+  }),
+  http.post(`${prefix}/products/:slug/production_runs/:id/cancel`, ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const run = db.runs[String(params.slug)]?.find((item) => String(item.id) === params.id);
+    if (!run) return fail("Production run not found.");
+    if (run.status === "received") return fail("A received run can't be canceled. Adjust stock instead.");
+    run.status = "canceled";
+    return HttpResponse.json({ production_run: run, product: db.products.find((p) => p.slug === params.slug) });
   }),
   http.get(
     `${prefix}/products/:slug/inventory_movements`,
@@ -423,6 +548,7 @@ export const adminHandlers = [
       per_customer_limit: body.per_customer_limit ?? 2,
       quantity: body.quantity ?? 0,
       product: null,
+      products: [],
     };
     db.drops.push(drop);
     return HttpResponse.json({ drop }, { status: 201 });

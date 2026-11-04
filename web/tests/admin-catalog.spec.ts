@@ -122,6 +122,8 @@ test("a founder creates a product, uploads and orders images, and sees it on the
   await capture(page, "storefront-product", testInfo.project.name);
 
   await goTo(page, "/shop");
+  // Wait for Shop itself: the product page also shows this name until the route changes.
+  await expect(page.getByRole("heading", { name: "Shop", exact: true })).toBeVisible();
   await expect(page.getByText("Håfa Adai Mañana")).toBeVisible();
   await expect(page.getByRole("link", { name: /Håfa Adai from Tumon Bay/ })).toBeVisible();
   await capture(page, "storefront-shop", testInfo.project.name);
@@ -330,7 +332,7 @@ test("a new drop gets the next number, stays productless, and a product can move
   await expectFits(page);
   await capture(page, "placement", testInfo.project.name);
 
-  // A drop that already holds a product can't be chosen; a free one can.
+  // A drop can hold several products: the Tumon puzzle moves in, then the map joins it.
   await openSection(page, "Products");
   await page.getByRole("link", { name: "Håfa Adai from Tumon Bay" }).first().click();
   await page.getByLabel("Sold in").selectOption("drop-002-hafa-adai-manana");
@@ -340,7 +342,9 @@ test("a new drop gets the next number, stays productless, and a product can move
   await expect(page.getByText("Moved.")).toBeVisible();
   await openSection(page, "Products");
   await page.getByRole("link", { name: "Guåhan Sunset Map" }).first().click();
-  await expect(page.getByLabel("Sold in").locator('option[value="drop-002-hafa-adai-manana"]')).toHaveJSProperty("disabled", true);
+  await page.getByLabel("Sold in").selectOption("drop-002-hafa-adai-manana");
+  await page.getByRole("button", { name: "Move product" }).click();
+  await expect(page.getByText("Moved.")).toBeVisible();
 });
 
 test("image controls stay reachable on a phone", async ({ page }, testInfo) => {
