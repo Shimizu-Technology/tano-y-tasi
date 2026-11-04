@@ -45,7 +45,7 @@ RSpec.describe "Production run concurrency", type: :model do
   end
 
   def buy(index, product: @product)
-    Orders::Checkout.call(email: "race-#{index}@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
+    checkout_call(email: "race-#{index}@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
   rescue ApiError => error
     error.code
   end
@@ -108,7 +108,7 @@ RSpec.describe "Production run concurrency", type: :model do
     b = create(:product, :limited, drop: first, stock_quantity: 50)
     @products.push(a, b)
     orders = 12.times.map do |index|
-      Orders::Checkout.call(email: "pair-#{index}@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: a.slug, quantity: 1 }, { product_slug: b.slug, quantity: 1 } ]).order
+      checkout_call(email: "pair-#{index}@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: a.slug, quantity: 1 }, { product_slug: b.slug, quantity: 1 } ]).order
     end
     race(12) { |index| index.even? ? Payments::Complete.call(Order.find(orders[index].id)) : Orders::Release.call(Order.find(orders[index].id)) }
     expect(orders.map { |order| order.reload.status }.tally).to eq("paid" => 6, "canceled" => 6)

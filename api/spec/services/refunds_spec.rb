@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Issuing refunds" do
   let(:product) { create(:product, stock_quantity: 5) }
   let(:order) do
-    Orders::Checkout.call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order
+    checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order
   end
 
   context "with the simulated provider" do

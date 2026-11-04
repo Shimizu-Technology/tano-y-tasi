@@ -114,18 +114,42 @@ While `sales_open` is false nothing is purchasable, a released drop stays `upcom
 ### `GET /api/v1/drops/:slug`
 `{ "drop": { …summary…, "product": { …detail… }, "products": [ { …detail… } ] }, "server_time": "…" }`
 
+### `POST /api/v1/shipping/quotes`
+Prices shipping for a cart and an address, before checkout. Limited to 12 requests a minute per IP, because a quote can cost an EasyPost call.
+
+Request:
+```json
+{ "items": [ { "product_slug": "guahan-sunset-map", "quantity": 2 } ],
+  "address": { "name": "Mina Cruz", "line1": "123 Marine Corps Drive", "line2": "", "city": "Hagåtña", "state": "GU", "postal_code": "96910", "phone": "" } }
+```
+Response `200`:
+```json
+{ "options": [ { "quote": "signed-token", "label": "USPS Ground Advantage", "amount_cents": 820, "estimate": "About 5 business days after it ships", "kind": "live", "instructions": null } ], "tax_enabled": false }
+```
+- `quote` is signed by the server and holds the amount, label, carrier, service, provider ids and digests of the address and the cart at its prices. It lasts 30 minutes. Clients treat it as opaque and send it back unchanged.
+- `kind` is `flat`, `live` (from EasyPost), `flat_fallback` (flat rates, because EasyPost failed or had no rate) or `pickup`. Customers see the same flow for all of them; the admin order says which was used.
+- `amount_cents` of 0 means free: over the merchant's threshold, the cheapest option is free. `estimate` and `instructions` can be null. Pickup appears only for a Guam address, and last.
+- `tax_enabled` means Stripe adds tax on its payment page, so show the total as before tax.
+- `state` is a state, DC, `GU`, `MP`, `PR`, `VI`, `AS`, or military `AA`, `AE`, `AP`. A military address needs the city `APO`, `FPO` or `DPO`. Country is always the U.S.; only an absent value or `US` is accepted.
+- `422` codes: `invalid_address` with `details.fields` (`{ "postal_code": "Guam ZIP codes run from 96910 to 96932." }`), `store_closed`, `empty_cart`, `quantity_invalid`, `unknown_product`, `sold_out`, `drop_not_live`. The last two carry `details.product_slug`.
+
 ### `POST /api/v1/checkout`
 Starts checkout: validates, **reserves stock atomically**, creates a pending order, and returns a payment URL.
 
 Request:
 ```json
-{ "email": "a@b.com", "idempotency_key": "uuid-v4-from-client", "items": [ { "product_slug": "guahan-sunset-map", "quantity": 2 } ] }
+{ "email": "a@b.com", "idempotency_key": "uuid-v4-from-client", "items": [ { "product_slug": "guahan-sunset-map", "quantity": 2 } ],
+  "shipping": { "quote": "signed-token", "address": { "name": "…", "line1": "…", "line2": "", "city": "…", "state": "GU", "postal_code": "96910", "phone": "" } } }
 ```
 Response `201`:
 ```json
 { "order": { "token": "opaque", "number": "TYT-100001", "status": "pending_payment", "expires_at": "…" }, "payment_url": "https://checkout.stripe.com/… or http://localhost:5181/checkout/simulated/<token>" }
 ```
-- The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`.
+- The same `idempotency_key` with an identical payload returns the same order (`200`) and does **not** reserve again. The same key with a different payload returns `409 idempotency_conflict`. Email, items, the address and the shipping choice all count, so a changed address or option needs a new key.
+- The amount comes only from the signed quote. Its signature is always checked. Its expiry and its address and cart digests are checked only when reserving a new order, after the stock and limit checks, so a retry of a checkout already holding stock still works after its quote expires. A price change on a product invalidates quotes for it.
+- `shipping_quote_expired` and `shipping_quote_invalid` (`422`) mean: ask for quotes again and let the customer confirm. Nothing was reserved. `shipping_required` (`422`) means no shipping was sent, as from an old browser tab; `invalid_address` is as above.
+- `total_cents = subtotal_cents + shipping_cents`. Tax is on top: Stripe works it out at payment, so it's known only once paid.
+- An order with nothing to charge skips Stripe: it's completed on the spot and `payment_url` is its own order page.
 - `422` codes: `store_closed`, `sold_out`, `insufficient_stock` (details.available), `drop_not_live` (details.release_at, null when coming soon), `limit_exceeded` (details.product_slug, details.limit, details.already_purchased), `invalid_email`, `empty_cart`, `unknown_product`, `quantity_invalid`.
 - The per-customer limit treats Gmail dot variants and `+tags` as one customer, and counts quantities across that customer's `paid`, all `pending_payment` (including the grace period), and already-paid `needs_attention` orders for that product (case-insensitive email). It applies to any product with an effective limit, and the message names the product ("Tumon Bay is limited to 2 per customer."). Payment completion rechecks the limit. A payment that would exceed it becomes `needs_attention`, requires a refund, and releases any stock it still holds exactly once.
 - Stripe holds last 31 minutes, with the session expiry saved before the provider request; simulated holds last 30 minutes. Retries reuse the saved expiry and item snapshots. Holds are released 5 minutes after expiry, as a grace period for in-flight payments.
@@ -134,8 +158,10 @@ Response `201`:
 
 ### `GET /api/v1/orders/:token`
 ```json
-{ "order": { "token": "…", "number": "TYT-100001", "status": "paid", "email_masked": "a•••@b.com", "items": [ { "product_slug": "…", "name": "…", "quantity": 2, "unit_price_cents": 4500, "image": { … }, "preorder_ships": null } ], "subtotal_cents": 9000, "total_cents": 9000, "refunded_cents": 0, "currency": "USD", "created_at": "…", "paid_at": "…", "expires_at": "…" } }
+{ "order": { "token": "…", "number": "TYT-100001", "status": "paid", "email_masked": "a•••@b.com", "items": [ { "product_slug": "…", "name": "…", "quantity": 2, "unit_price_cents": 4500, "image": { … }, "preorder_ships": null } ], "subtotal_cents": 9000, "shipping_cents": 820, "tax_cents": 0, "total_cents": 9820, "fulfillment_method": "ship", "shipping_method": { "label": "USPS Ground Advantage", "estimate": "About 5 business days after it ships" }, "refunded_cents": 0, "currency": "USD", "created_at": "…", "paid_at": "…", "expires_at": "…" } }
 ```
+What the customer pays is `total_cents + tax_cents`. `fulfillment_method` is `ship` or `pickup`. `shipping_method` also has `instructions` on a pickup, and is `null` on an order from before shipping. The address and provider ids are never in this payload.
+
 `preorder_ships` is a snapshot taken at checkout, so editing the product later doesn't rewrite the order. It's `null` for a line that wasn't a preorder. Carts can mix preorder and in-stock items: it's one order with one fulfillment. Order `status` is `pending_payment`, `paid`, `expired`, `canceled`, `refunded` or `needs_attention`. The token is a long random value (unguessable); it is the only way to read an order publicly.
 
 ### `POST /api/v1/orders/:token/cancel`
@@ -144,12 +170,18 @@ The customer abandons checkout from the cancel page. If the order is `pending_pa
 ### `POST /api/v1/webhooks/stripe`
 Verifies the `Stripe-Signature` header; a bad signature is the only `400`. Every signed event gets a 2xx and is idempotent by Stripe event id.
 
-- `checkout.session.completed` / `async_payment_succeeded`: marks paid and records the payment intent. A charged amount or session that doesn't match the order becomes `needs_attention` with `attention_reason`, releases any held stock, and alerts admins. Each item's drop is checked separately: a drop moved back to Coming soon gives `drop_withdrawn`. A checkout that held its stock before a drop closed is honored; a late payment that has lost its hold gives `drop_closed`.
+- `checkout.session.completed` / `async_payment_succeeded`: marks paid and records the payment intent. The amount check is `amount_total - total_details.amount_tax == total_cents`; the tax is saved as `tax_cents`, and `charged_cents` stays `amount_total`, so refunds use what was really charged. A charged amount or session that doesn't match the order becomes `needs_attention` with `attention_reason`, releases any held stock, and alerts admins. The address saved at checkout stands: Stripe's copy is used only for an order that has none. Each item's drop is checked separately: a drop moved back to Coming soon gives `drop_withdrawn`. A checkout that held its stock before a drop closed is honored; a late payment that has lost its hold gives `drop_closed`.
 - A preorder line's Stripe `product_data.description` reads "Preorder. Ships late January 2027", from the order's snapshot.
 - `checkout.session.expired`: releases stock and marks expired. `checkout.session.async_payment_failed`: releases stock and marks canceled.
 - `charge.refunded`, `refund.created|updated|failed`, `charge.dispute.created|updated|closed`: event order isn't guaranteed, so these trigger a read of the order's current refunds and disputes from Stripe. A full refund marks the order `refunded` and restocks it if it hasn't shipped; a partial refund keeps the status. A refund that later fails lowers `refunded_cents`, sets `attention_reason: refund_failed` and alerts admins (a fully refunded order returns to `needs_attention`). A new dispute alerts admins.
 - If that read fails the endpoint returns `503` and records nothing, so Stripe retries. An event for a payment not yet recorded stays unprocessed and is applied when the payment arrives, or by hourly maintenance.
 - Sessions and payments that aren't ours are acknowledged and ignored.
+
+### `POST /api/v1/webhooks/easypost`
+Verifies `X-Hmac-Signature` (`hmac-sha256-hex=<hex digest>` of the raw body, keyed by the NFKD form of `EASYPOST_WEBHOOK_SECRET`). A bad signature, or no secret set, is the only `400`. Every signed event gets a 2xx.
+
+- `tracker.updated` is recorded once per event id in `shipping_events`. It's matched by the label's shipment id, then its tracking code, and sets the order's `tracking_status` unless a newer event already did. One that matches no order is kept with no order.
+- Manually entered tracking numbers are never matched. Other event types are acknowledged and ignored.
 
 ### Simulated provider (development/test only)
 Enabled only when `PAYMENT_PROVIDER=simulated` **and** `Rails.env` is development or test. Booting production with the simulated provider must raise.

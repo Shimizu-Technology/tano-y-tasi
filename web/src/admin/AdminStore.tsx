@@ -19,6 +19,11 @@ export function StorePage() {
         {(data) => <StoreEditor store={data.store} reload={resource.reload} />}
       </Result>
       <section className="admin-panel admin-section">
+        <h2>Shipping and tax</h2>
+        <p className="admin-help">Rates, free shipping, Guam pickup, EasyPost labels, and the tax switch.</p>
+        <Link className="admin-button secondary" to="/admin/store/shipping">Edit shipping and tax</Link>
+      </section>
+      <section className="admin-panel admin-section">
         <h2>Policy pages</h2>
         <p className="admin-help">These show on the site as soon as you save. Use {"{{contact_email}}"} wherever the contact email belongs.</p>
         <Result resource={pages}>
@@ -83,6 +88,11 @@ function StoreEditor({ store, reload }: { store: StoreSettings; reload: () => vo
         <h2>Sales</h2>
         <p><strong>{store.sales_open ? "The store is open." : "The store is closed."}</strong> {store.sales_open ? "Customers can buy." : "Products show as Coming soon, and customers can join the list."}</p>
         <p className="admin-help">{paymentNotes[store.payment_mode]}</p>
+        {store.shipping_placeholders && (
+          <p className="admin-attention" role="note">
+            <strong>Shipping rates are still placeholders.</strong> <Link to="/admin/store/shipping">Check and save them</Link> before you open the store.
+          </p>
+        )}
         <button className={`admin-button ${store.sales_open ? "secondary" : ""}`} disabled={saving} onClick={toggleSales}>
           {store.sales_open ? "Close the store" : "Open the store"}
         </button>

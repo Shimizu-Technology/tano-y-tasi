@@ -8,7 +8,7 @@ RSpec.describe "Stripe checkout recovery", type: :request do
   before { allow(Payments::Gateway).to receive(:provider).and_return("stripe") }
 
   def submit
-    post "/api/v1/checkout", params: payload, as: :json
+    post "/api/v1/checkout", params: with_shipping(payload), as: :json
   end
 
   [ Stripe::APIConnectionError.new("offline"), Stripe::APIError.new("unavailable"),
@@ -70,13 +70,15 @@ RSpec.describe "Stripe checkout recovery", type: :request do
       raise "worker crashed after provider create" if attempts.size == 1
       result
     end
-    expect { Orders::Checkout.call(payload) }.to raise_error("worker crashed after provider create")
+    # A retry repeats the saved request, so its quote was priced before the catalog changed.
+    request = with_shipping(payload)
+    expect { Orders::Checkout.call(request) }.to raise_error("worker crashed after provider create")
     order = Order.find_by!(idempotency_key: payload[:idempotency_key])
     expect(order.provider_session_id).to be_nil
     expect(order.provider_session_expires_at).to be_present
     product.update!(name: "Changed catalog name", price_cents: 9900)
     travel 25.seconds
-    recovered = Orders::Checkout.call(payload).order
+    recovered = Orders::Checkout.call(request).order
     expect(attempts.last).to eq(attempts.first)
     expect(attempts.last.first[:line_items]).to eq([
       { quantity: 2, price_data: { currency: "usd", unit_amount: 3500, product_data: { name: "Håfa Adai from Tumon Bay" } } }

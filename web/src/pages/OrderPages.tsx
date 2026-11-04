@@ -63,7 +63,7 @@ export function OrderPage() {
       </p>
       <p className="muted">
         {o.status === "paid"
-          ? preorder ? "Your preorder is confirmed. It ships on the date shown below." : "A piece of home is headed your way."
+          ? preorder ? "Your preorder is confirmed. It ships on the date shown below." : o.fulfillment_method === "pickup" ? "We’ll email you when it’s ready to pick up." : "A piece of home is headed your way."
           : recover
             ? "Your reservation has ended. We’ve restored your cart so you can pick up where you left off."
             : o.status === "pending_payment"
@@ -120,6 +120,42 @@ export function CancelPage() {
     </div>
   );
 }
+function OrderTotals({ order: o }: { order: Order }) {
+  const pickup = o.fulfillment_method === "pickup";
+  const label = o.shipping_method?.label;
+  const detailed = !!label || !!o.shipping_cents || !!o.tax_cents;
+  return (
+    <div className="order-totals">
+      {detailed && (
+        <dl className="price-lines">
+          <div>
+            <dt>Subtotal</dt>
+            <dd>{money(o.subtotal_cents)}</dd>
+          </div>
+          <div>
+            <dt>{pickup ? label : label ? `Shipping (${label})` : "Shipping"}</dt>
+            <dd>{o.shipping_cents ? money(o.shipping_cents) : "Free"}</dd>
+          </div>
+          {!!o.tax_cents && (
+            <div>
+              <dt>Tax</dt>
+              <dd>{money(o.tax_cents)}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      <div className="subtotal">
+        <span>Total</span>
+        <span>{money(o.total_cents + (o.tax_cents ?? 0))}</span>
+      </div>
+      {pickup && o.shipping_method?.instructions && (
+        <p className="small order-pickup">
+          <strong>Pickup.</strong> {o.shipping_method.instructions}
+        </p>
+      )}
+    </div>
+  );
+}
 export function OrderSummary({ order: o }: { order: Order }) {
   return (
     <div className="order-summary">
@@ -140,10 +176,7 @@ export function OrderSummary({ order: o }: { order: Order }) {
           <span className="price">{money(i.quantity * i.unit_price_cents)}</span>
         </div>
       ))}
-      <div className="subtotal">
-        <span>Total</span>
-        <span>{money(o.total_cents)}</span>
-      </div>
+      <OrderTotals order={o} />
     </div>
   );
 }

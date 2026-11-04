@@ -18,6 +18,7 @@ import {
 import { DropProducts, PlaceholderChecklist, ProductPlacement, SellingFields } from "./AdminCatalog";
 import { ProductionRuns } from "./AdminProduction";
 import { ImageManager, useImageManager } from "./AdminImages";
+import { LabelPanel, ShippingSummary } from "./AdminShipping";
 import {
   centsToDollars,
   datePreview,
@@ -254,6 +255,10 @@ type ProductForm = {
   limit: string;
   preorder: boolean;
   preorderShips: string;
+  weight: string;
+  length: string;
+  width: string;
+  height: string;
 };
 export function productForm(product: AdminProduct): ProductForm {
   return {
@@ -276,6 +281,10 @@ export function productForm(product: AdminProduct): ProductForm {
     limit: product.per_customer_limit == null ? "" : String(product.per_customer_limit),
     preorder: product.preorder ?? false,
     preorderShips: product.preorder_ships ?? "",
+    weight: product.weight_oz == null ? "" : String(product.weight_oz),
+    length: product.length_in == null ? "" : String(product.length_in),
+    width: product.width_in == null ? "" : String(product.width_in),
+    height: product.height_in == null ? "" : String(product.height_in),
   };
 }
 function lineList(value: string) {
@@ -322,6 +331,12 @@ export function productPatch(form: ProductForm, initial: ProductForm) {
   add("per_customer_limit", form.limit.trim() ? Number(form.limit) : null, initial.limit.trim() ? Number(initial.limit) : null);
   add("preorder", form.preorder, initial.preorder);
   add("preorder_ships", form.preorderShips.trim() || null, initial.preorderShips.trim() || null);
+  // Empty falls back to the default box. Anything unreadable reaches the API, which names the field.
+  const measure = (value: string) => (!value.trim() ? null : Number.isFinite(Number(value)) ? Number(value) : value);
+  add("weight_oz", measure(form.weight), measure(initial.weight));
+  add("length_in", measure(form.length), measure(initial.length));
+  add("width_in", measure(form.width), measure(initial.width));
+  add("height_in", measure(form.height), measure(initial.height));
   // Ticking a box off and on again reorders the list without changing it.
   if (JSON.stringify([...form.placeholders].sort()) !== JSON.stringify([...initial.placeholders].sort()))
     patch.placeholders = form.placeholders;
@@ -764,12 +779,28 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
               </tbody>
             </table>
           </div>
+          {(order.shipping_method || !!order.shipping_cents) && (
+            <>
+              <p className="admin-total">
+                Subtotal <Money cents={order.subtotal_cents} />
+              </p>
+              <p className="admin-total">
+                {order.fulfillment_method === "pickup" ? "Pickup" : "Shipping"} <Money cents={order.shipping_cents ?? 0} />
+              </p>
+            </>
+          )}
+          {!!order.tax_cents && (
+            <p className="admin-total">
+              Tax <Money cents={order.tax_cents} />
+            </p>
+          )}
           <p className="admin-total">
-            Total <Money cents={order.total_cents} />
+            Total <Money cents={order.total_cents + (order.tax_cents ?? 0)} />
           </p>
-          <h2 className="admin-subheading">Customer and shipping</h2>
+          <h2 className="admin-subheading">{order.fulfillment_method === "pickup" ? "Customer and pickup" : "Customer and shipping"}</h2>
           <p>{order.email}</p>
           <ShippingAddress shipping={order.shipping} />
+          <ShippingSummary order={order} />
           <h2 className="admin-subheading">Payment</h2>
           {(order.status === "needs_attention" || order.attention_reason) && (
             <div className="admin-attention" role="alert">
@@ -862,6 +893,15 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
             {saving ? "Saving…" : "Save notes"}
           </button>
           <h2 className="admin-subheading">Fulfillment</h2>
+          <LabelPanel
+            order={order}
+            busy={saving}
+            reload={reload}
+            fulfill={() => {
+              if (preorderLines.length > 0 && !window.confirm("This order has preorder items. Has everything really shipped?")) return;
+              void perform(`${endpoint}/fulfill`, "POST", { notify: true });
+            }}
+          />
           {order.fulfillment_status === "fulfilled" ? (
             <>
               <p>
@@ -884,7 +924,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
                 Unfulfill
               </button>
             </>
-          ) : (
+          ) : order.label_status === "bought" ? null : (
             <>
               {preorderLines.length > 0 && order.status === "paid" && (
                 <div className="admin-attention" role="note">
@@ -918,7 +958,7 @@ function OrderEditor({ order, reload }: { order: OrderDetail; reload: () => void
                   checked={notify}
                   onChange={(event) => setNotify(event.target.checked)}
                 />
-                Notify customer by email
+                {order.fulfillment_method === "pickup" ? "Email the customer that it's ready for pickup" : "Notify customer by email"}
               </label>
               <button
                 className="admin-button"
@@ -1345,6 +1385,14 @@ function ProductEditor({ product, reload }: { product: AdminProduct; reload: () 
             onChange={(value) => update("story", value)}
           />
           <PlaceholderChecklist value={form.placeholders} onChange={(value) => update("placeholders", value)} />
+          <h3 className="admin-subheading">Shipping size</h3>
+          <p className="admin-help">The boxed product, for live carrier rates. Leave a field empty to use the default box from Shipping settings.</p>
+          <div className="admin-form-grid">
+            <Field label="Weight (oz)" name="weight_oz" value={form.weight} onChange={(value) => update("weight", value)} error={errors.weight_oz} />
+            <Field label="Length (in)" name="length_in" value={form.length} onChange={(value) => update("length", value)} error={errors.length_in} />
+            <Field label="Width (in)" name="width_in" value={form.width} onChange={(value) => update("width", value)} error={errors.width_in} />
+            <Field label="Height (in)" name="height_in" value={form.height} onChange={(value) => update("height", value)} error={errors.height_in} />
+          </div>
           {errors.specs && <p className="admin-field-error">{errors.specs}</p>}
           <Notice text={formFailure} kind="error" />
           <button className="admin-button" disabled={saving || !dirty} onClick={() => void save()}>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { submitCheckout } from "./checkoutFlow";
 import { mkdir } from "node:fs/promises";
 
 const artwork = "public/images/products/hafa-adai-from-tumon-bay/finished-flat-2000.webp";
@@ -108,8 +109,7 @@ test("a founder creates a limited preorder, receives its run, and a customer buy
   await expect(cart.getByText("Ships late January 2027")).toBeVisible();
   await expect(cart.getByRole("button", { name: /Increase quantity/ })).toBeDisabled();
   await capture(page, "cart-preorder", project);
-  await cart.getByLabel("Email address", { exact: true }).fill("qa@example.com");
-  await cart.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page);
 
   // The redirect reloads the page, so this part reads the order's own snapshot.
   await expect(page.getByText("TEST MODE · SIMULATED PAYMENT")).toBeVisible();
@@ -128,16 +128,14 @@ test("a customer who reaches a limit is told plainly, with a fix, for a core pro
   await page.goto("/products/hagatna-sunrise?mockPreorder=1&mockDrop=upcoming");
   await page.getByRole("button", { name: "PREORDER" }).first().click();
   const cart = page.getByRole("dialog", { name: "Your cart" });
-  await cart.getByLabel("Email address", { exact: true }).fill("qa@example.com");
-  await cart.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page);
   await page.getByRole("button", { name: "Pay (test)" }).click();
   await expect(page.getByRole("heading", { name: "Thank you." })).toBeVisible();
 
   await page.goto("/products/hagatna-sunrise");
   await page.getByRole("button", { name: "Increase quantity" }).click();
   await page.getByRole("button", { name: "PREORDER" }).first().click();
-  await cart.getByLabel("Email address", { exact: true }).fill("qa@example.com");
-  await cart.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page);
   await expect(cart.getByText("This item is limited to 2 per customer. You can order 1 more with this email.")).toBeVisible();
   await cart.getByRole("button", { name: "Reduce to 1" }).click();
   await expect(cart.getByText(/limited to 2/)).toHaveCount(0);

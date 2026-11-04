@@ -14,27 +14,70 @@ module Payments
 
     # Persist this window before the first request; retries must send it unchanged.
     STRIPE_MIN_EXPIRY = 30.minutes + 1.minute
+    # Stripe's tax code for shipping.
+    SHIPPING_TAX_CODE = "txcd_92010001".freeze
 
     def self.create_session(order)
       if order.provider == "simulated"
         return { id: "sim_#{order.token}", url: "#{web_url}/checkout/simulated/#{order.token}", expires_at: order.expires_at }
       end
       expires_at = order.provider_session_expires_at
-      session = Stripe::Checkout::Session.create({
-        mode: "payment", customer_email: order.email, expires_at: expires_at.to_i,
+      session = Stripe::Checkout::Session.create(session_params(order, expires_at), { idempotency_key: "tano-y-tasi-order-#{order.token}" })
+      { id: session.id, url: session.url, expires_at: expires_at }
+    end
+
+    def self.session_params(order, expires_at)
+      tax = order.tax_enabled
+      params = {
+        mode: "payment", expires_at: expires_at.to_i,
         metadata: { order_token: order.token },
         success_url: "#{web_url}/orders/#{order.token}?from=checkout",
         cancel_url: "#{web_url}/checkout/cancel/#{order.token}",
-        # Stripe Checkout accepts US, GU and PR here; USVI, American Samoa and the
-        # CNMI are not separate options in its allowed_countries list.
-        shipping_address_collection: { allowed_countries: %w[US GU PR] },
-        line_items: order.order_items.order(:id).map do |item|
-          { quantity: item.quantity, price_data: { currency: order.currency.downcase,
-            unit_amount: item.unit_price_cents, product_data: { name: item.name, description: item.preorder_ships&.then { |ships| "Preorder. #{ships}" } }.compact } }
-        end
-      }, { idempotency_key: "tano-y-tasi-order-#{order.token}" })
-      { id: session.id, url: session.url, expires_at: expires_at }
+        line_items: line_items(order, tax)
+      }
+      # Stripe refuses this alongside automatic tax. With tax on, the Customer holds the address.
+      params[:payment_intent_data] = { shipping: stripe_shipping(order) } if order.fulfillment_method == "ship" && !tax
+      params.merge!(tax ? { customer: tax_customer(order), automatic_tax: { enabled: true }, billing_address_collection: "required" } : { customer_email: order.email })
+      params
     end
+    private_class_method :session_params
+
+    # Stripe Tax uses a Customer's shipping address before the billing address, which is
+    # what taxes a gift by where it's going. Stripe collects no shipping address itself.
+    def self.tax_customer(order)
+      details = { email: order.email }
+      details[:shipping] = stripe_shipping(order) if order.fulfillment_method == "ship"
+      Stripe::Customer.create(details, { idempotency_key: "tano-y-tasi-customer-#{order.token}" }).id
+    end
+    private_class_method :tax_customer
+
+    # Stripe rejects a zero-amount line, so free items and free shipping stay off the page.
+    def self.line_items(order, tax)
+      lines = order.order_items.order(:id).reject { |item| item.unit_price_cents.zero? }.map do |item|
+        line(order, item.quantity, item.unit_price_cents, { name: item.name, description: item.preorder_ships&.then { |ships| "Preorder. #{ships}" } }.compact, tax)
+      end
+      if order.shipping_cents.positive?
+        product = { name: "Shipping: #{order.shipping_method&.dig('label')}" }
+        product[:tax_code] = SHIPPING_TAX_CODE if tax
+        lines << line(order, 1, order.shipping_cents, product, tax)
+      end
+      lines
+    end
+    private_class_method :line_items
+
+    # Exclusive, so tax is added on top and amount_total less tax equals the order total.
+    def self.line(order, quantity, amount, product, tax)
+      price = { currency: order.currency.downcase, unit_amount: amount, product_data: product }
+      price[:tax_behavior] = "exclusive" if tax
+      { quantity: quantity, price_data: price }
+    end
+    private_class_method :line
+
+    def self.stripe_shipping(order)
+      saved = order.shipping.to_h
+      { name: saved["name"], phone: saved["phone"], address: saved.fetch("address", {}).compact_blank }.compact_blank
+    end
+    private_class_method :stripe_shipping
 
     # The null marker persists retry work when Stripe cannot confirm closure.
     # Call outside inventory transactions and locks.

@@ -20,6 +20,11 @@ class Order < ApplicationRecord
     charged_cents || total_cents
   end
 
+  # What the customer pays: tax comes from Stripe, on top of the order's total.
+  def grand_total_cents
+    total_cents + tax_cents
+  end
+
   # Per-customer limits treat Gmail dot variants and +tags as one person.
   def self.customer_key_for(email)
     local, domain = email.to_s.strip.downcase.split("@", 2)

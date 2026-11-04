@@ -17,6 +17,8 @@ class Product < ApplicationRecord
   validates :stock_quantity, :price_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: INTEGER_MAX }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: -INTEGER_MAX, less_than_or_equal_to: INTEGER_MAX }
   validates :per_customer_limit, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: INTEGER_MAX }, allow_nil: true
+  validates :weight_oz, numericality: { greater_than: 0, less_than: 100_000 }, allow_nil: true
+  validates :length_in, :width_in, :height_in, numericality: { greater_than: 0, less_than: 1000 }, allow_nil: true
   validates :signature, :preorder, inclusion: { in: [ true, false ], message: "must be true or false" }
   validates :preorder_ships, length: { maximum: PREORDER_SHIPS_MAX }
   validate :preorder_says_when_it_ships, if: -> { preorder_changed? || preorder_ships_changed? }

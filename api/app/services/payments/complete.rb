@@ -2,12 +2,15 @@ module Payments
   class Complete
     # A problem from the provider (for example an amount that does not match the
     # order) flags the payment for review instead of losing it.
-    def self.call(order, payment_intent_id: nil, shipping: {}, problem: nil, charged_cents: nil)
+    def self.call(order, payment_intent_id: nil, shipping: {}, problem: nil, charged_cents: nil, tax_cents: nil)
       Orders::Inventory.with_locked_order(order) do |products|
         next if %w[paid refunded needs_attention].include?(order.status)
         holding = order.status == "pending_payment"
         reason = problem || ("store_closed" unless StoreSetting.sales_open?) || withdrawn_reason(order, products) || over_limit_reason(order, products) || (!holding && (closed_reason(order, products) || stock_reason(order, products)))
-        attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, shipping: shipping, charged_cents: charged_cents }
+        attributes = { paid_at: Time.current, provider_payment_intent_id: payment_intent_id, charged_cents: charged_cents }
+        # The address from our own checkout stands; only an order without one takes Stripe's.
+        attributes[:shipping] = shipping if order.shipping.blank? && shipping.present?
+        attributes[:tax_cents] = tax_cents if tax_cents
         if reason
           if holding
             order.order_items.each { |item| Orders::Inventory.change!(products.fetch(item.product_id), order, item.quantity, "release") }

@@ -5,7 +5,8 @@ module Payments
     # key identifies one refund attempt in the admin's browser. Repeating it after an
     # unclear response can never start another refund, whatever happened in between.
     def self.call(order, amount_cents: nil, key: nil)
-      ProviderLease.with("refund-#{order.id}") do
+      # Shared with buying a label, so a label can't be bought for an order being refunded.
+      ProviderLease.with("money-#{order.id}") do
         order.reload
         stored_key = key && "#{order.id}-#{key}"
         attempt = stored_key && order.refund_requests.find_by(idempotency_key: stored_key)

@@ -7,6 +7,8 @@ import type {
   Order,
   ProductDetail,
   Product,
+  ShippingAddress,
+  ShippingQuotes,
   Storefront,
   StorePage,
   StoreSettings,
@@ -44,8 +46,10 @@ export const api = {
     request<{ product: ProductDetail; server_time: string }>(`/products/${encodeURIComponent(slug)}`),
   drops: () => request<Drops>("/drops"),
   drop: (slug: string) => request<{ drop: Drop; server_time: string }>(`/drops/${encodeURIComponent(slug)}`),
-  checkout: (email: string, items: CartItem[], key: string) =>
-    request<CheckoutResult>("/checkout", { email, items, idempotency_key: key }),
+  shippingQuotes: (items: CartItem[], address: ShippingAddress) =>
+    request<ShippingQuotes>("/shipping/quotes", { items, address }),
+  checkout: (email: string, items: CartItem[], key: string, shipping: { quote: string; address: ShippingAddress }) =>
+    request<CheckoutResult>("/checkout", { email, items, idempotency_key: key, shipping }),
   order: (token: string) => request<{ order: Order }>(`/orders/${encodeURIComponent(token)}`),
   cancel: (token: string) => request<{ order: Order }>(`/orders/${encodeURIComponent(token)}/cancel`, {}),
   simulated: (token: string, action: "complete" | "cancel") =>

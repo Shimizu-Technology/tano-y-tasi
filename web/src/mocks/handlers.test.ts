@@ -2,8 +2,14 @@ import { api, ApiError, API_URL } from "../api";
 import { configureMocks } from "./handlers";
 import { configureAdminMocks } from "./adminHandlers";
 import { CORE, MAP, MAP_NIGHT, DROP, PREORDER, PREORDER_SHIPS } from "./data";
+import type { CartItem, ShippingAddress } from "../types";
 const items = [{ product_slug: MAP, quantity: 1 }];
-const start = (email = "guest@example.com", key = crypto.randomUUID()) => api.checkout(email, items, key);
+const GUAM: ShippingAddress = { name: "A Buyer", line1: "1 Marine Drive", line2: "", city: "Hagåtña", state: "GU", postal_code: "96910", phone: "" };
+// The quote is fetched for this cart and address, as the real checkout does.
+const shipped = async (cart: CartItem[], address = GUAM) => ({ quote: (await api.shippingQuotes(cart, address)).options[0].quote, address });
+const pay = async (email: string, cart: CartItem[], key: string) =>
+  api.checkout(email, cart, key, cart.length ? await shipped(cart) : { quote: "mock.none", address: GUAM });
+const start = (email = "guest@example.com", key = crypto.randomUUID()) => pay(email, items, key);
 beforeEach(() => configureMocks({ state: "live" }));
 it("returns the seed catalog and complete drop shapes", async () => {
   const data = await api.storefront();
@@ -73,9 +79,9 @@ it("expires old holds on the next request and restores stock", async () => {
 it("validates email and quantity and preserves stock on invalid requests", async () => {
   await expect(start("invalid")).rejects.toMatchObject({ body: { code: "invalid_email" } });
   await expect(
-    api.checkout("a@example.com", [{ product_slug: MAP, quantity: 0 }], crypto.randomUUID())
+    pay("a@example.com", [{ product_slug: MAP, quantity: 0 }], crypto.randomUUID())
   ).rejects.toMatchObject({ body: { code: "quantity_invalid" } });
-  await expect(api.checkout("a@example.com", [], crypto.randomUUID())).rejects.toMatchObject({
+  await expect(pay("a@example.com", [], crypto.randomUUID())).rejects.toMatchObject({
     body: { code: "empty_cart" },
   });
 });
@@ -141,7 +147,7 @@ it.each([
   ["empty_cart", [], {}],
 ])("matches Rails' %s detail shape", async (code, cart, details) => {
   try {
-    await api.checkout("guest@example.com", cart as typeof items, crypto.randomUUID());
+    await pay("guest@example.com", cart as typeof items, crypto.randomUUID());
     expect.fail("Checkout should fail");
   } catch (error) {
     expect((error as ApiError).body.code).toBe(code);
@@ -150,8 +156,8 @@ it.each([
 });
 it("normalizes and aggregates duplicate lines like Rails before idempotency checks", async () => {
   const key = crypto.randomUUID();
-  const result = await api.checkout("GUEST@example.com", [items[0], items[0]], key);
-  const retry = await api.checkout("guest@example.com", [{ product_slug: MAP, quantity: 2 }], key);
+  const result = await pay("GUEST@example.com", [items[0], items[0]], key);
+  const retry = await pay("guest@example.com", [{ product_slug: MAP, quantity: 2 }], key);
   expect(retry).toEqual(result);
   expect((await api.order(result.order.token)).order.items).toHaveLength(1);
 });
@@ -168,7 +174,7 @@ it("matches Rails stock and drop error details", async () => {
     body: { code: "sold_out", details: { product_slug: MAP, available: 0 } },
   });
   await expect(
-    api.checkout("guest@example.com", [{ product_slug: CORE, quantity: 2 }], crypto.randomUUID())
+    pay("guest@example.com", [{ product_slug: CORE, quantity: 2 }], crypto.randomUUID())
   ).rejects.toMatchObject({ body: { code: "insufficient_stock", details: { product_slug: CORE, available: 1 } } });
 });
 
@@ -179,7 +185,7 @@ describe("commerce model mocks", () => {
       headers: { Authorization: "Bearer tyt-admin-test-auth", "Content-Type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const buy = (slug: string, quantity = 1, email = "guest@example.com") => api.checkout(email, [{ product_slug: slug, quantity }], crypto.randomUUID());
+  const buy = (slug: string, quantity = 1, email = "guest@example.com") => pay(email, [{ product_slug: slug, quantity }], crypto.randomUUID());
   afterEach(() => configureAdminMocks());
 
   it("sells a preorder with its limit, and snapshots the ship date on the order", async () => {

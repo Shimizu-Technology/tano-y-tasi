@@ -5,6 +5,7 @@ abort("Production mode!") if Rails.env.production?
 require "rspec/rails"
 require "webmock/rspec"
 require "spec_helper"
+require_relative "support/shipping_helpers"
 WebMock.disable_net_connect!(allow_localhost: false)
 # Never auto-load a schema or prepare databases from specs.
 name = ActiveRecord::Base.connection.current_database
@@ -14,6 +15,7 @@ RSpec.configure do |config|
   config.fixture_paths = [ Rails.root.join("spec/fixtures") ]
   config.use_transactional_fixtures = true
   config.include FactoryBot::Syntax::Methods
+  config.include ShippingHelpers
   config.include ActiveSupport::Testing::TimeHelpers
   config.infer_spec_type_from_file_location!
   config.filter_rails_from_backtrace!

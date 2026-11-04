@@ -39,7 +39,7 @@ RSpec.shared_context "admin auth" do
 
   def make_order(status: "paid")
     product = create(:product)
-    order = Orders::Checkout.call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
+    order = checkout_call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
     # Deliberately bypass callbacks for a controlled pre-existing paid fixture.
     order.update_columns(status: status, paid_at: status == "paid" ? Time.current : nil)
     order.reload

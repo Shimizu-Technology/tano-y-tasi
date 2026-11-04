@@ -49,7 +49,7 @@ RSpec.describe "Store settings and pages", type: :request do
     end
 
     it "refuses checkout and takes no stock" do
-      post "/api/v1/checkout", params: { email: "a@example.com", idempotency_key: "k", items: [ { product_slug: core.slug, quantity: 1 } ] }, as: :json
+      post "/api/v1/checkout", params: with_shipping({ email: "a@example.com", idempotency_key: "k", items: [ { product_slug: core.slug, quantity: 1 } ] }), as: :json
       expect(response).to have_http_status(:unprocessable_content)
       expect(response.parsed_body.dig("error", "code")).to eq("store_closed")
       expect(core.reload.stock_quantity).to eq(50)

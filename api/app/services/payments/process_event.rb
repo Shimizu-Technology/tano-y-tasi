@@ -2,14 +2,14 @@ module Payments
   class ProcessEvent
     PAID_EVENTS = %w[checkout.session.completed checkout.session.async_payment_succeeded].freeze
 
-    def self.call(provider:, event_id:, event_type:, order: nil, payment_intent_id: nil, shipping: {}, problem: nil, charged_cents: nil, unresolved: false)
+    def self.call(provider:, event_id:, event_type:, order: nil, payment_intent_id: nil, shipping: {}, problem: nil, charged_cents: nil, tax_cents: nil, unresolved: false)
       PaymentEvent.transaction(requires_new: true) do
         # Unique insert is in the same transaction as its inventory transition.
         event = PaymentEvent.create!(provider: provider, event_id: event_id, event_type: event_type, payment_intent_id: payment_intent_id)
         if order
           case event_type
           when *PAID_EVENTS
-            Complete.call(order, payment_intent_id: payment_intent_id, shipping: shipping, problem: problem, charged_cents: charged_cents)
+            Complete.call(order, payment_intent_id: payment_intent_id, shipping: shipping, problem: problem, charged_cents: charged_cents, tax_cents: tax_cents)
           when "checkout.session.expired"
             Orders::Release.call(order, status: "expired")
           when "checkout.session.async_payment_failed"

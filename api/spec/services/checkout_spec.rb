@@ -4,7 +4,7 @@ RSpec.describe Orders::Checkout do
   let(:product) { create(:product, stock_quantity: 5) }
   let(:payload) { { email: "Buyer@Example.com ", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ] } }
   def checkout(attributes = {})
-    described_class.call(payload.merge(attributes)).order
+    checkout_call(payload.merge(attributes)).order
   end
 
   it "reserves exactly once, normalizes email, and snapshots prices and images" do
@@ -23,8 +23,8 @@ RSpec.describe Orders::Checkout do
   end
 
   it "returns the canonical order and payment URL on retry" do
-    first = described_class.call(payload)
-    second = described_class.call(payload)
+    first = checkout_call(payload)
+    second = checkout_call(payload)
     expect(first.created).to be(true)
     expect(second.created).to be(false)
     expect(second.order.id).to eq(first.order.id)

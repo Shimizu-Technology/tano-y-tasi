@@ -2,7 +2,8 @@ import { http, HttpResponse } from "msw";
 import { adminHandlers, mockAdminDrops, mockAdminProducts, onAdminStockChange } from "./adminHandlers";
 import { catalog, CORE, extraProducts, MAP, DROP, dropSummary, mockSalesOpen, MAP_NIGHT, MAP_TIDES, type MockExtras } from "./data";
 import { mockStore, mockPages } from "./store";
-import type { CartItem, CheckoutResult, DropState, DropSummary, Order, ProductDetail, Product } from "../types";
+import { addressErrors, cleanAddress } from "../shippingAddress";
+import type { CartItem, CheckoutResult, DropState, DropSummary, Order, ProductDetail, Product, ShippingAddress, ShippingOption } from "../types";
 interface StoredOrder {
   order: Order;
   email: string;
@@ -13,6 +14,7 @@ interface Database {
   attempts: Record<string, { fingerprint: string; result: CheckoutResult; ready?: boolean }>;
   subscribers: string[];
   sequence: number;
+  quotedOnce?: boolean;
 }
 let db: Database;
 let persist: ((db: Database) => void) | undefined;
@@ -20,6 +22,10 @@ let state: DropState = "upcoming";
 let coreCount = 1;
 let extras: MockExtras = {};
 let paymentFailures: ("same_key" | "new_checkout")[] = [];
+// How /shipping/quotes behaves: flat rates, live EasyPost rates, EasyPost down (falls back to flat rates),
+// a first quote that has already expired, Guam pickup switched on, or a threshold that makes shipping free.
+export type MockShipping = "flat" | "live" | "down" | "expired" | "pickup" | "free" | "tax";
+let shippingMode: MockShipping = "flat";
 const fresh = (): Database => ({
   stock: { [CORE]: 40, [MAP]: 100 },
   orders: {},
@@ -35,9 +41,11 @@ export function configureMocks(
     database?: Database;
     save?: (db: Database) => void;
     paymentFailures?: ("same_key" | "new_checkout")[];
+    shipping?: MockShipping;
   } = {}
 ) {
   paymentFailures = [...(options.paymentFailures ?? [])];
+  shippingMode = options.shipping ?? "flat";
   state = options.state ?? "upcoming";
   coreCount = options.coreCount === 2 || options.coreCount === 3 ? options.coreCount : 1;
   extras = options.extras ?? {};
@@ -162,6 +170,44 @@ function provision(attempt: Database["attempts"][string], status: number) {
   save();
   return HttpResponse.json({ ...attempt.result, order: { ...attempt.result.order, status: order.status } }, { status });
 }
+const FLAT: Record<string, number> = { mainland: 800 };
+const zoneRate = (state: string) => (/^[A-Z]{2}$/.test(state) && !["AK", "HI", "GU", "MP", "PR", "VI", "AS", "AA", "AE", "AP"].includes(state) ? FLAT.mainland : 1200);
+const addressKey = (address: ShippingAddress) => JSON.stringify(address).toLowerCase();
+type MockQuote = { amount_cents: number; label: string; kind: ShippingOption["kind"]; estimate: string | null; instructions?: string | null; address: string; items: string; expires_at: number };
+function itemsKey(items: CartItem[]) {
+  const quantities = new Map<string, number>();
+  for (const item of items) quantities.set(item.product_slug, (quantities.get(item.product_slug) ?? 0) + item.quantity);
+  return JSON.stringify([...quantities].sort(([a], [b]) => a.localeCompare(b)));
+}
+function issueQuote(option: Omit<MockQuote, "address" | "items" | "expires_at">, address: ShippingAddress, items: CartItem[], expires_at: number): ShippingOption {
+  const quote: MockQuote = { ...option, address: addressKey(address), items: itemsKey(items), expires_at };
+  return { quote: `mock.${btoa(encodeURIComponent(JSON.stringify(quote)))}`, label: option.label, amount_cents: option.amount_cents, kind: option.kind, estimate: option.estimate, instructions: option.instructions ?? null };
+}
+function readQuote(token: unknown): MockQuote | null {
+  try {
+    if (typeof token !== "string" || !token.startsWith("mock.")) return null;
+    return JSON.parse(decodeURIComponent(atob(token.slice(5)))) as MockQuote;
+  } catch {
+    return null;
+  }
+}
+const PICKUP_INSTRUCTIONS = "Tumon, Guam. We'll email you when it's ready.";
+function quoteOptions(address: ShippingAddress, items: CartItem[]) {
+  // The first quote for "expired" is already out of date, so checkout refuses it and the cart re-quotes.
+  const expires = shippingMode === "expired" && !db.quotedOnce ? Date.now() - 1000 : Date.now() + 30 * 60_000;
+  db.quotedOnce = true;
+  const flat = zoneRate(address.state);
+  const base = shippingMode === "live"
+    ? [
+        { label: "USPS Ground Advantage", amount_cents: flat - 150, kind: "live" as const, estimate: "About 5 business days after it ships" },
+        { label: "USPS Priority", amount_cents: flat + 700, kind: "live" as const, estimate: "About 3 business days after it ships" },
+      ]
+    : [{ label: "Standard", amount_cents: shippingMode === "free" ? 0 : flat, kind: shippingMode === "down" ? ("flat_fallback" as const) : ("flat" as const), estimate: null }];
+  const options = base.map((option) => issueQuote(option, address, items, expires));
+  if (shippingMode === "pickup" && address.state === "GU")
+    options.push(issueQuote({ label: "Pick up in Guam", amount_cents: 0, kind: "pickup", estimate: null, instructions: PICKUP_INSTRUCTIONS }, address, items, expires));
+  return options;
+}
 const validEmail = (email: unknown): email is string =>
   typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 function listProduct(p: ProductDetail): Product {
@@ -235,9 +281,24 @@ export const handlers = [
     const drop = publicDrops().find((d) => d.slug === params.slug);
     return drop ? HttpResponse.json({ drop, server_time: now() }) : error("not_found", "We couldn't find that.", 404);
   }),
+  http.post(path("/shipping/quotes"), async ({ request }) => {
+    if (!mockSalesOpen()) return error("store_closed", "The store isn't open for orders yet. Join the list and you'll hear first.");
+    let body: { items?: CartItem[]; address?: ShippingAddress };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return error("malformed", "Provide a valid JSON request.", 400);
+    }
+    if (!Array.isArray(body.items) || body.items.length === 0) return error("empty_cart", "Your cart is empty.");
+    const fields = addressErrors(cleanAddress(body.address ?? ({} as ShippingAddress)));
+    if (!body.address || Object.keys(fields).length) return error("invalid_address", "Check your shipping address.", 422, { fields });
+    const options = quoteOptions(cleanAddress(body.address), body.items);
+    save();
+    return HttpResponse.json({ options, tax_enabled: shippingMode === "tax" });
+  }),
   http.post(path("/checkout"), async ({ request }) => {
     if (!mockSalesOpen()) return error("store_closed", "The store isn't open for orders yet. Join the list and you'll hear first.");
-    let body: { email?: unknown; idempotency_key?: unknown; items?: unknown };
+    let body: { email?: unknown; idempotency_key?: unknown; items?: unknown; shipping?: { quote?: unknown; address?: ShippingAddress } };
     try {
       body = (await request.json()) as typeof body;
     } catch {
@@ -273,7 +334,13 @@ export const handlers = [
     const items: CartItem[] = [...quantities]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([product_slug, quantity]) => ({ product_slug, quantity }));
-    const fingerprint = JSON.stringify({ email, items });
+    if (!body.shipping?.quote || !body.shipping.address)
+      return error("shipping_required", "Add a shipping address to continue. If you don't see the form, refresh the page.");
+    const quote = readQuote(body.shipping.quote);
+    if (!quote) return error("shipping_quote_invalid", "Your shipping options need refreshing. Choose one again to continue.");
+    const shippingAddress = cleanAddress(body.shipping.address);
+    // What was chosen, not the token, as on the server: a re-quote of the same option is the same request.
+    const fingerprint = JSON.stringify({ email, items, amount: quote.amount_cents, label: quote.label, kind: quote.kind, address: addressKey(shippingAddress) });
     const previous = db.attempts[body.idempotency_key];
     if (previous)
       return previous.fingerprint === fingerprint
@@ -311,6 +378,10 @@ export const handlers = [
           available: db.stock[p.slug],
         });
     }
+    // Only a new reservation checks these: a retry keeps the quote that priced its order.
+    if (quote.address !== addressKey(shippingAddress) || quote.items !== itemsKey(items))
+      return error("shipping_quote_invalid", "Your shipping options need refreshing. Choose one again to continue.");
+    if (quote.expires_at <= Date.now()) return error("shipping_quote_expired", "Your shipping options expired. Choose one again to continue.");
     // No asynchronous work between validation and reservation: one atomic mock operation.
     for (const item of items) db.stock[item.product_slug] -= item.quantity;
     const token = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "");
@@ -318,15 +389,19 @@ export const handlers = [
       const p = all.find((p) => p.slug === i.product_slug)!;
       return { ...i, name: p.name, unit_price_cents: p.price_cents, image: p.image, preorder_ships: p.preorder ? p.preorder_ships : null };
     });
-    const total = orderItems.reduce((s, i) => s + i.quantity * i.unit_price_cents, 0);
+    const subtotal = orderItems.reduce((s, i) => s + i.quantity * i.unit_price_cents, 0);
     const order: Order = {
       token,
       number: `TYT-${++db.sequence}`,
       status: "pending_payment",
       email_masked: email.replace(/^(.).*@/, "$1•••@"),
       items: orderItems,
-      subtotal_cents: total,
-      total_cents: total,
+      subtotal_cents: subtotal,
+      shipping_cents: quote.amount_cents,
+      tax_cents: 0,
+      fulfillment_method: quote.kind === "pickup" ? "pickup" : "ship",
+      shipping_method: { label: quote.label, estimate: quote.estimate, instructions: quote.instructions ?? null },
+      total_cents: subtotal + quote.amount_cents,
       currency: "USD",
       created_at: now(),
       paid_at: null,

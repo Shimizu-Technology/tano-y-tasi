@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "Orders and simulated payments", type: :request do
   let(:product) { create(:product) }
-  let(:order) { Orders::Checkout.call(email: "alice@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order }
+  let(:order) { checkout_call(email: "alice@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order }
 
   it "shows only public order fields with masked email and snapshots" do
     get "/api/v1/orders/#{order.token}"

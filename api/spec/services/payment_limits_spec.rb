@@ -4,7 +4,7 @@ RSpec.describe "Drop limits across delayed payments" do
   let(:product) { create(:product, stock_quantity: 10, kind: "drop", drop: create(:drop, per_customer_limit: 2)) }
 
   def checkout
-    Orders::Checkout.call(email: "Buyer@Example.com", idempotency_key: SecureRandom.uuid,
+    checkout_call(email: "Buyer@Example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 2 } ]).order
   end
 
@@ -43,7 +43,7 @@ RSpec.describe "Drop limits across delayed payments" do
     first = checkout
     Payments::Complete.call(first)
     gmail = lambda do |email|
-      Orders::Checkout.call(email: email, idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ])
+      checkout_call(email: email, idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ])
     end
     gmail.call("buyer.one@gmail.com")
     [ "buyerone+drop@gmail.com", "b.uyerone@googlemail.com" ].each do |variant|
@@ -89,10 +89,10 @@ RSpec.describe "Drop limits across delayed payments" do
 
   it "rechecks pending completion and releases every reserved item exactly once on violation" do
     core = create(:product, stock_quantity: 5)
-    pending = Orders::Checkout.call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid,
+    pending = checkout_call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 2 }, { product_slug: core.slug, quantity: 1 } ]).order
     # Reproduce already-paid legacy data that violated the old completion check.
-    prior = Orders::Checkout.call(email: "legacy@example.com", idempotency_key: SecureRandom.uuid,
+    prior = checkout_call(email: "legacy@example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 2 } ]).order
     Payments::Complete.call(prior)
     prior.update!(email: "buyer@example.com")
@@ -132,7 +132,7 @@ RSpec.describe "Drop limits across delayed payments" do
     first = checkout
     first.update!(expires_at: 2.minutes.ago)
     # Old checkout code excluded this still-payable hold and allowed two more.
-    second = Orders::Checkout.call(email: "legacy@example.com", idempotency_key: SecureRandom.uuid,
+    second = checkout_call(email: "legacy@example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 2 } ]).order
     second.update!(email: "buyer@example.com")
     [ first, second ].each { |order| Payments::Complete.call(order) }

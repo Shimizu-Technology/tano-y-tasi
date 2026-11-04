@@ -647,6 +647,143 @@ dialog::backdrop {
   width: 100%;
   margin-top: 16px;
 }
+.drawer-header h2:focus {
+  outline: none;
+}
+.drawer-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.checkout-step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 0 max(24px, env(safe-area-inset-bottom));
+}
+.checkout-step > .button {
+  width: 100%;
+}
+.checkout-field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.checkout-field input,
+.checkout-field select {
+  width: 100%;
+}
+.checkout-field select {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  padding: 14px 32px 14px 16px;
+  font-size: 16px;
+  color: var(--color-ink);
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23141311' stroke-width='1.5'%3E%3Cpath d='M2 4.5 6 8.5 10 4.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border: 1px solid var(--color-line);
+  border-radius: 0;
+}
+.checkout-field select:focus {
+  border-color: var(--color-ink);
+}
+.checkout-field .small {
+  margin-top: 6px;
+}
+.checkout-field .error {
+  margin-top: 8px;
+}
+.checkout-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.checkout-ship-to {
+  overflow-wrap: anywhere;
+}
+.shipping-options {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.shipping-options legend {
+  font-size: 13px;
+  padding: 0;
+  margin-bottom: 8px;
+}
+.shipping-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 12px;
+  border: 1px solid var(--color-line);
+  cursor: pointer;
+}
+.shipping-option + .shipping-option {
+  border-top: 0;
+}
+.shipping-option:has(input:checked) {
+  outline: 1px solid var(--color-ink);
+  outline-offset: -1px;
+}
+.shipping-option input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  padding: 0;
+  accent-color: var(--color-ink);
+}
+.shipping-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.shipping-option-text strong {
+  font-weight: 600;
+}
+.shipping-option .price {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.price-lines {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.price-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.price-lines dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.price-lines dd {
+  margin: 0;
+  flex-shrink: 0;
+}
+.order-totals {
+  padding-top: 24px;
+}
+.order-totals .price-lines {
+  margin-bottom: 12px;
+}
+.order-summary .order-totals .subtotal {
+  padding-top: 0;
+}
+.order-pickup {
+  margin-top: 12px;
+}
 .empty-cart {
   padding-top: 64px;
 }

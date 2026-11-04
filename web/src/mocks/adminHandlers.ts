@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { catalog, CORE, extraProducts, MAP, DROP, dropSummary, PREORDER, PREORDER_SHIPS, type MockExtras } from "./data";
 import { mockPages, mockStore, updateMockStore } from "./store";
 import type { StoreSettings } from "../types";
-import type { AdminDrop, AdminImage, AdminProduct, OrderDetail, OrderSummary, ProductionRun } from "../admin/adminApi";
+import type { AdminDrop, AdminImage, AdminProduct, OrderDetail, OrderSummary, ProductionRun, ShippingSettings } from "../admin/adminApi";
 
 const prefix = "*/api/v1/admin";
 const now = "2026-10-29T00:00:00Z";
@@ -23,6 +23,32 @@ let mode = "ok";
 let uploadMode = "ok";
 let db: MockAdmin;
 let runSequence = 1;
+// mockEasyPost=1 connects EasyPost, so orders can buy labels.
+let easyPost = "off";
+const defaultShipping = (): ShippingSettings => ({
+  mode: "flat",
+  carriers: [],
+  handling_fee_cents: 0,
+  free_shipping_threshold_cents: null,
+  flat_rates: { mainland: 800, alaska_hawaii: 1200, guam_cnmi: 1200, territories: 1200, military: 1200 },
+  flat_rates_placeholder: true,
+  pickup_enabled: false,
+  pickup_instructions: "",
+  origin: { name: "", company: "Tåno + Tåsi", phone: "", line1: "", line2: "", city: "", state: "", postal_code: "" },
+  origin_complete: false,
+  parcel: { weight_oz: 24, length_in: 12, width_in: 10, height_in: 3 },
+  customs: { description: "Jigsaw puzzle", hs_tariff_number: "950300", origin_country: "US", signer: "" },
+  tax_enabled: false,
+  easypost_configured: false,
+  easypost_webhook_configured: false,
+});
+let shipping = defaultShipping();
+const shippingResponse = () => ({ ...shipping, easypost_configured: easyPost !== "off", easypost_webhook_configured: easyPost !== "off" });
+export function configureEasyPostMock(next: string) {
+  easyPost = next;
+  shipping = defaultShipping();
+  for (const order of db?.orders ?? []) order.label_available = next !== "off" && order.status === "paid" && order.fulfillment_status === "unfulfilled";
+}
 export const mockAdminProducts = () => db.products;
 export const mockAdminDrops = () => db.drops;
 let stockListener: (slug: string, delta: number) => void = () => {};
@@ -59,14 +85,19 @@ export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok", extr
     token: "mock-order-token",
     status: "paid",
     fulfillment_status: "unfulfilled",
+    fulfillment_method: "ship",
     email: "buyer@example.com",
-    total_cents: 4500,
+    total_cents: 5700,
     currency: "USD",
     item_count: 1,
     preorder_item_count: 0,
     created_at: now,
     paid_at: now,
     subtotal_cents: 4500,
+    shipping_cents: 1200,
+    tax_cents: 0,
+    shipping_method: { label: "Standard", kind: "flat_fallback", estimate: null },
+    label_available: easyPost !== "off",
     items: [
       {
         product_slug: MAP,
@@ -229,6 +260,7 @@ const orderSummary = (order: OrderDetail): OrderSummary => ({
   token: order.token,
   status: order.status,
   fulfillment_status: order.fulfillment_status,
+  fulfillment_method: order.fulfillment_method,
   email: order.email,
   total_cents: order.total_cents,
   currency: order.currency,
@@ -304,8 +336,8 @@ export const adminHandlers = [
       notify?: boolean;
     };
     order.fulfillment_status = "fulfilled";
-    order.tracking_number = body.tracking_number;
-    order.tracking_url = body.tracking_url;
+    if (body.tracking_number !== undefined) order.tracking_number = body.tracking_number;
+    if (body.tracking_url !== undefined) order.tracking_url = body.tracking_url;
     order.fulfilled_at = now;
     if (body.notify && !order.email_deliveries.some((d) => d.kind === "order_shipped"))
       order.email_deliveries.push({
@@ -622,10 +654,42 @@ export const adminHandlers = [
     Object.assign(drop, body);
     return HttpResponse.json({ drop });
   }),
+  http.post(`${prefix}/orders/:number/label`, async ({ request, params }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const order = db.orders.find((o) => o.number === params.number);
+    if (!order || !order.label_available) return fail("Labels can only be bought for a paid, unfulfilled order that's being shipped, once EasyPost is connected.");
+    if (order.label_status === "bought") return HttpResponse.json({ order });
+    const body = (await request.json()) as { confirm_cents?: number };
+    const price = 1865;
+    if (body.confirm_cents !== price)
+      return HttpResponse.json({
+        error: { code: "label_price_changed", message: "A USPS Priority label costs $18.65 USD. Confirm to buy it.", details: { previous_cents: null, current_cents: price, label: "USPS Priority" } },
+      }, { status: 409 });
+    Object.assign(order, {
+      label_status: "bought", label_url: "https://easypost-files.example/label.png", label_cost_cents: price, label_bought_at: now,
+      tracking_number: "9400100000000000000000", tracking_url: "https://track.example/9400100000000000000000", tracking_status: "pre_transit", tracking_status_at: now,
+    });
+    return HttpResponse.json({ order });
+  }),
+  http.get(`${prefix}/shipping`, ({ request }) => guard(request) ?? HttpResponse.json({ shipping: shippingResponse() })),
+  http.patch(`${prefix}/shipping`, async ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<ShippingSettings>;
+    if (body.customs && !/^[A-Z]{2}$/.test(body.customs.origin_country ?? ""))
+      return fail("Check the highlighted shipping settings.", { "customs.origin_country": "Must be a two-letter country code" });
+    if (body.pickup_enabled && !body.pickup_instructions?.trim())
+      return fail("Check the highlighted shipping settings.", { pickup_instructions: "Must say where and when to pick up" });
+    shipping = { ...shipping, ...body, flat_rates_placeholder: body.flat_rates ? false : shipping.flat_rates_placeholder };
+    const origin = shipping.origin;
+    shipping.origin_complete = !!(origin.line1 && origin.city && origin.state && origin.postal_code && origin.phone && (origin.name || origin.company));
+    return HttpResponse.json({ shipping: shippingResponse() });
+  }),
   http.get(`${prefix}/store`, ({ request }) => {
     const denied = guard(request);
     if (denied) return denied;
-    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test" } });
+    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test", shipping_placeholders: shipping.flat_rates_placeholder } });
   }),
   http.patch(`${prefix}/store`, async ({ request }) => {
     const denied = guard(request);
@@ -634,7 +698,7 @@ export const adminHandlers = [
     if (body.contact_email !== undefined && !/.+@.+\..+/.test(body.contact_email))
       return fail("Contact email is invalid.", { contact_email: "Enter a valid email." });
     updateMockStore(body);
-    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test" } });
+    return HttpResponse.json({ store: { ...mockStore(), payment_mode: "stripe_test", shipping_placeholders: shipping.flat_rates_placeholder } });
   }),
   http.get(`${prefix}/pages`, ({ request }) => {
     const denied = guard(request);

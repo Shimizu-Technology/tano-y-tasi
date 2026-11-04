@@ -95,6 +95,27 @@ export interface CartItem {
   product_slug: string;
   quantity: number;
 }
+export interface ShippingAddress {
+  name: string;
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  phone: string;
+}
+export interface ShippingOption {
+  quote: string;
+  label: string;
+  amount_cents: number;
+  estimate: string | null;
+  kind: "flat" | "flat_fallback" | "live" | "pickup";
+  instructions?: string | null;
+}
+export interface ShippingQuotes {
+  options: ShippingOption[];
+  tax_enabled?: boolean;
+}
 export type OrderStatus = "pending_payment" | "paid" | "expired" | "canceled" | "refunded" | "needs_attention";
 export interface Order {
   token: string;
@@ -103,6 +124,11 @@ export interface Order {
   email_masked: string;
   items: (CartItem & { name: string; unit_price_cents: number; image: Art; preorder_ships?: string | null })[];
   subtotal_cents: number;
+  // Optional: the web app can deploy ahead of an API that doesn't send these yet.
+  shipping_cents?: number;
+  tax_cents?: number;
+  fulfillment_method?: "ship" | "pickup";
+  shipping_method?: { label?: string | null; estimate?: string | null; instructions?: string | null } | null;
   total_cents: number;
   refunded_cents?: number;
   currency: "USD";
@@ -124,5 +150,6 @@ export interface ErrorBody {
     already_purchased?: number;
     release_at?: string | null;
     retry?: "same_key" | "new_checkout";
+    fields?: Partial<Record<keyof ShippingAddress, string>>;
   };
 }
