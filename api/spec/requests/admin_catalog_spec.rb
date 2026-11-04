@@ -351,6 +351,14 @@ RSpec.describe "Admin catalog", type: :request do
       end
     end
   end
+
+  it "reports a drop out of stock by the products actually on sale" do
+    drop = create(:drop)
+    create(:product, :limited, drop: drop, stock_quantity: 0)
+    create(:product, :limited, drop: drop, stock_quantity: 500, status: "archived")
+    get "/api/v1/admin/drops/#{drop.slug}", headers: headers
+    expect(response.parsed_body["drop"]).to include("state" => "sold_out", "out_of_stock" => true)
+  end
 end
 
 RSpec.describe "Admin catalog concurrency" do

@@ -73,6 +73,15 @@ test("a founder creates a limited preorder, receives its run, and a customer buy
   await expect(page.getByText("0 units")).toBeVisible();
   await expectFits(page);
   await capture(page, "run-ordered", project);
+  // A quantity edited after the card first appeared is what receiving offers.
+  await run.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Units ordered").fill("9");
+  await page.getByRole("button", { name: "Save run" }).click();
+  await expect(run.getByText("9 units")).toBeVisible();
+  await run.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Units ordered").fill("6");
+  await page.getByRole("button", { name: "Save run" }).click();
+  await expect(run.getByText("6 units")).toBeVisible();
   await run.getByRole("button", { name: "Receive" }).click();
   await expect(run.getByLabel("Units to add to stock")).toHaveValue("6");
   await run.getByRole("button", { name: "Confirm received" }).click();

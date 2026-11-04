@@ -104,7 +104,7 @@ function RunCard({ run, product, busy, act, edit }: {
         </form>
       ) : (
         <div className="admin-run-actions">
-          {run.status === "ordered" && <button type="button" className="admin-button" disabled={busy} onClick={() => setReceiving(true)}>Receive</button>}
+          {run.status === "ordered" && <button type="button" className="admin-button" disabled={busy} onClick={() => { setCount(String(run.quantity)); setError(""); setReceiving(true); }}>Receive</button>}
           {run.status !== "canceled" && <button type="button" className="admin-button secondary" disabled={busy} onClick={edit}>Edit</button>}
           {run.status === "ordered" && (
             <button

@@ -43,7 +43,7 @@ class AdminSerializer
 
   def self.drop(drop)
     CatalogSerializer.drop(drop).merge(quantity: drop.quantity, release_at: drop.release_at&.iso8601, product: drop.product&.slice(:slug, :name, :stock_quantity),
-      products: drop.products.map { |product| product.slice(:slug, :name, :stock_quantity, :status) })
+      products: drop.products.map { |product| product.slice(:slug, :name, :stock_quantity, :status) }, out_of_stock: drop.out_of_stock?)
   end
 
   # Admin only: what a run costs must never reach a public payload.

@@ -1514,7 +1514,7 @@ function DropEditor({ drop, reload }: { drop: AdminDrop; reload: () => void }) {
         ? "Upcoming"
         : closes && currentTime >= Date.parse(closes)
           ? "Closed"
-          : (dropStock(drop) ?? 1) < 1
+          : drop.out_of_stock
             ? "Sold out"
             : "Live";
   async function save() {

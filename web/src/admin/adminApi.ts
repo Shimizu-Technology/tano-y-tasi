@@ -120,6 +120,8 @@ export type AdminDrop = {
   quantity: number;
   product?: DropMember | null;
   products?: DropMember[];
+  // The server's answer, counting only products on sale: a preview can't work this out from stock alone.
+  out_of_stock?: boolean;
 };
 export type StoreSettings = {
   sales_open: boolean;

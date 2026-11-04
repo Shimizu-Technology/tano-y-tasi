@@ -86,7 +86,7 @@ Shape: `{ id, quantity, status (ordered|received|canceled), supplier, unit_cost_
 ### Drops
 - `GET /drops`, `GET /drops/:slug`: summary plus `product` (the first by position: slug, name, stock_quantity, status, or null), `products` (all of them, in position order, including drafts) and its computed `state`. A drop with no product is never `live`, and isn't featured on the dashboard. Attach products through `PATCH /products/:slug`.
 - `POST /drops` (201): `name` is required. `release_at`, `closes_at`, `per_customer_limit` (default 2) and `quantity` (default 0, meaning undecided) are optional. `number` is the highest existing number plus one, and the slug is `drop-NNN-<name>`; the unique indexes settle a race and the request retries. A new drop has no product and stays off public pages until one is attached.
-- `PATCH /drops/:slug`: `{ name, release_at, closes_at, per_customer_limit, quantity }`. `per_customer_limit` applies to each product in the drop that doesn't set its own. A `null` `release_at` makes the drop coming soon. Admin responses always include the real `quantity`.
+- `PATCH /drops/:slug`: `{ name, release_at, closes_at, per_customer_limit, quantity }`. `per_customer_limit` applies to each product in the drop that doesn't set its own. A `null` `release_at` makes the drop coming soon. Admin responses always include the real `quantity`, plus `out_of_stock`, which counts only products on sale.
   - `quantity` is the announced edition size. Changing it doesn't move stock; use stock adjustments for that.
   - Returns `422` if `release_at` would be after `closes_at`, or if either isn't a readable date and time. An unreadable date never turns a drop into coming soon.
 
