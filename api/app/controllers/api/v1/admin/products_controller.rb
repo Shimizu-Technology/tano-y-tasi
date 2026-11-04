@@ -2,7 +2,7 @@ module Api
   module V1
     module Admin
       class ProductsController < BaseController
-        before_action :find_product, except: :index
+        before_action :find_product, except: [ :index, :create ]
 
         def index
           render json: { products: Product.includes(:drop).order(:position, :id).map { |product| AdminSerializer.product(product) } }
@@ -12,8 +12,16 @@ module Api
           render_product
         end
 
+        def create
+          attributes = content.merge(AdminCatalog.placement(params[:kind], params[:drop_slug]))
+          render json: { product: AdminSerializer.product(AdminCatalog.create_product(attributes)) }, status: :created
+        end
+
         def update
-          @product.update!(params.permit(:name, :summary, :description, :price_cents, :status, :position, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []))
+          attributes = content
+          attributes.merge!(AdminCatalog.placement(params[:kind], params[:drop_slug], product: @product)) if params.key?(:kind) || params.key?(:drop_slug)
+          attributes[:images] = AdminCatalog.images(request.request_parameters["images"]) if request.request_parameters.key?("images")
+          AdminCatalog.update_product(@product, attributes)
           render_product
         end
 
@@ -32,6 +40,10 @@ module Api
         end
 
         private
+
+        def content
+          params.permit(:name, :summary, :description, :price_cents, :status, :position, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []).to_h
+        end
 
         def find_product
           @product = Product.find_by!(slug: params[:slug])

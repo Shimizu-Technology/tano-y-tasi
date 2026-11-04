@@ -69,6 +69,12 @@ describe("product spec editing", () => {
     expect(productPatch({ ...initial, price: "50.00" }, initial)).toEqual({ price_cents: 5000 });
   });
 
+  it("sends the placeholder list only when it really changes, keeping unknown keys", () => {
+    const initial = productForm({ ...product, placeholders: ["price_cents", "future.thing"] });
+    expect(productPatch({ ...initial, placeholders: ["future.thing", "price_cents"] }, initial)).toEqual({});
+    expect(productPatch({ ...initial, placeholders: ["future.thing"] }, initial)).toEqual({ placeholders: ["future.thing"] });
+  });
+
   it("saves an edited structured value as parsed JSON and supports deleting a spec", () => {
     const initial = productForm(product);
     const specs = initial.specs

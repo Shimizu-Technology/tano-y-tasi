@@ -2,7 +2,7 @@ import { http, HttpResponse } from "msw";
 import { catalog, CORE, MAP, DROP, dropSummary } from "./data";
 import { mockPages, mockStore, updateMockStore } from "./store";
 import type { StoreSettings } from "../types";
-import type { AdminDrop, AdminProduct, OrderDetail, OrderSummary } from "../admin/adminApi";
+import type { AdminDrop, AdminImage, AdminProduct, OrderDetail, OrderSummary } from "../admin/adminApi";
 
 const prefix = "*/api/v1/admin";
 const now = "2026-10-29T00:00:00Z";
@@ -15,10 +15,16 @@ type MockAdmin = {
   subscribers: { email: string; source: string; drop_slug: string | null; created_at: string }[];
   movements: Record<string, { id: number; delta: number; reason: string; created_at: string }[]>;
 };
+const BUCKET = "https://tano-y-tasi-media.s3.ap-southeast-1.amazonaws.com";
+// The real file bytes, so uploaded images render through the same URLs they would in production.
+const objects = new Map<string, ArrayBuffer>();
 let mode = "ok";
+let uploadMode = "ok";
 let db: MockAdmin;
-export function configureAdminMocks(nextMode = "ok") {
+export const mockAdminProducts = () => db.products;
+export function configureAdminMocks(nextMode = "ok", nextUploadMode = "ok") {
   mode = nextMode;
+  uploadMode = nextUploadMode;
   const products = catalog("upcoming", { [CORE]: 40, [MAP]: 100 }).map((product) => ({
     ...product,
     status: "active",
@@ -123,6 +129,47 @@ function guard(request: Request) {
 }
 const fail = (message: string, details: Record<string, string> = {}) =>
   HttpResponse.json({ error: { code: "invalid", message, details } }, { status: 422 });
+const slugify = (name: string) =>
+  name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function freeSlug(base: string) {
+  const taken = new Set([...db.products.map((p) => p.slug), "new"]);
+  if (!taken.has(base)) return base;
+  let suffix = 2;
+  while (taken.has(`${base}-${suffix}`)) suffix++;
+  return `${base}-${suffix}`;
+}
+function placement(product: AdminProduct, body: { kind?: string; drop_slug?: string | null }) {
+  const kind = body.kind ?? (body.drop_slug ? "drop" : product.kind);
+  if (kind === "core") {
+    if (body.drop_slug) return fail("Drop slug must be empty", { drop_slug: "Must be empty for the always-available collection" });
+    return { kind, drop: null };
+  }
+  const drop = db.drops.find((d) => d.slug === body.drop_slug);
+  if (!drop) return fail("Drop slug must name a drop", { drop_slug: "Must name a drop" });
+  if (drop.product && drop.product.slug !== product.slug)
+    return fail("Drop slug already has a product", { drop_slug: "Already has a product" });
+  return { kind, drop };
+}
+function applyPlacement(product: AdminProduct, target: { kind: string; drop: AdminDrop | null }) {
+  for (const drop of db.drops) if (drop.product?.slug === product.slug) drop.product = null;
+  product.kind = target.kind;
+  product.drop = target.drop && { slug: target.drop.slug, name: target.drop.name };
+  if (target.drop) target.drop.product = { slug: product.slug, name: product.name, stock_quantity: product.stock_quantity };
+}
+const validBase = (base: unknown) =>
+  typeof base === "string" && (base.startsWith("/images/") || base.startsWith(`${BUCKET}/products/`)) && !base.includes("..");
+function imageProblem(images: AdminImage[]) {
+  const position = images.findIndex(
+    (image) =>
+      !["hero", "gallery", "detail", "box", "lifestyle"].includes(image.role) ||
+      !image.alt?.trim() ||
+      !/^[1-9]\d*:[1-9]\d*$/.test(image.aspect ?? "") ||
+      !image.widths?.length ||
+      !image.widths.every((width) => Number.isInteger(width) && width > 0) ||
+      !validBase(image.base)
+  );
+  return position < 0 ? null : `Images need a valid role, alt text, aspect, widths and base (image ${position + 1})`;
+}
 const orderSummary = (order: OrderDetail): OrderSummary => ({
   number: order.number,
   token: order.token,
@@ -264,6 +311,39 @@ export const adminHandlers = [
     `${prefix}/products`,
     ({ request }) => guard(request) ?? HttpResponse.json({ products: db.products })
   ),
+  http.post(`${prefix}/products`, async ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<AdminProduct> & { drop_slug?: string | null };
+    const errors: Record<string, string> = {};
+    for (const key of ["name", "summary", "description"] as const) if (!body[key]?.trim()) errors[key] = "Can't be blank";
+    if (!Number.isInteger(body.price_cents) || body.price_cents! < 0) errors.price_cents = "Must be 0 or more";
+    if (Object.keys(errors).length) return fail("Check the highlighted fields.", errors);
+    const product = {
+      slug: freeSlug(slugify(body.name!) || "product"),
+      name: body.name!,
+      summary: body.summary!,
+      description: body.description!,
+      price_cents: body.price_cents!,
+      currency: "USD",
+      status: body.status ?? "draft",
+      position: Math.max(0, ...db.products.map((p) => p.position)) + 1,
+      stock_quantity: 0,
+      kind: "core",
+      specs: body.specs ?? {},
+      includes: body.includes ?? [],
+      art: body.art ?? { credit: "", story: "" },
+      placeholders: body.placeholders ?? [],
+      images: [],
+      drop: null,
+    } as AdminProduct;
+    const target = placement(product, { kind: body.kind, drop_slug: body.drop_slug });
+    if (target instanceof Response) return target;
+    applyPlacement(product, target);
+    db.products.push(product);
+    db.movements[product.slug] = [];
+    return HttpResponse.json({ product }, { status: 201 });
+  }),
   http.get(
     `${prefix}/products/:slug`,
     ({ request, params }) =>
@@ -274,7 +354,16 @@ export const adminHandlers = [
     if (denied) return denied;
     const product = db.products.find((p) => p.slug === params.slug);
     if (!product) return fail("Product not found.");
-    const body = (await request.json()) as Partial<AdminProduct>;
+    const { drop_slug, kind, ...body } = (await request.json()) as Partial<AdminProduct> & { drop_slug?: string | null };
+    if (kind !== undefined || drop_slug !== undefined) {
+      const target = placement(product, { kind, drop_slug });
+      if (target instanceof Response) return target;
+      applyPlacement(product, target);
+    }
+    if (body.images !== undefined) {
+      const problem = imageProblem(body.images);
+      if (problem) return fail(problem, { images: problem });
+    }
     if (body.name !== undefined && !body.name.trim())
       return fail("Name is required.", { name: "Name is required." });
     if (body.summary !== undefined && !body.summary.trim())
@@ -306,7 +395,8 @@ export const adminHandlers = [
       reason: body.reason,
       created_at: new Date().toISOString(),
     });
-    if (product.slug === MAP) db.drops[0].product!.stock_quantity = product.stock_quantity;
+    const holder = db.drops.find((drop) => drop.product?.slug === product.slug);
+    if (holder) holder.product!.stock_quantity = product.stock_quantity;
     return HttpResponse.json({ product });
   }),
   http.get(
@@ -315,6 +405,81 @@ export const adminHandlers = [
       guard(request) ?? HttpResponse.json({ inventory_movements: db.movements[String(params.slug)] ?? [] })
   ),
   http.get(`${prefix}/drops`, ({ request }) => guard(request) ?? HttpResponse.json({ drops: db.drops })),
+  http.post(`${prefix}/drops`, async ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    const body = (await request.json()) as Partial<AdminDrop>;
+    if (!body.name?.trim()) return fail("Name can't be blank", { name: "Can't be blank" });
+    if (body.release_at && body.closes_at && body.release_at > body.closes_at)
+      return fail("Release must not be after close.", { release_at: "Must not be after closes_at" });
+    const number = Math.max(0, ...db.drops.map((d) => d.number)) + 1;
+    const drop: AdminDrop = {
+      slug: [`drop-${String(number).padStart(3, "0")}`, slugify(body.name)].filter(Boolean).join("-"),
+      number,
+      name: body.name,
+      state: "upcoming",
+      release_at: body.release_at ?? null,
+      closes_at: body.closes_at ?? null,
+      per_customer_limit: body.per_customer_limit ?? 2,
+      quantity: body.quantity ?? 0,
+      product: null,
+    };
+    db.drops.push(drop);
+    return HttpResponse.json({ drop }, { status: 201 });
+  }),
+  http.post(`${prefix}/uploads`, async ({ request }) => {
+    const denied = guard(request);
+    if (denied) return denied;
+    if (uploadMode === "offline") return HttpResponse.error();
+    if (uploadMode === "unconfigured")
+      return HttpResponse.json(
+        { error: { code: "storage_unavailable", message: "Image uploads aren't set up yet. Ask Leon to check the storage settings.", details: {} } },
+        { status: 503 }
+      );
+    const body = (await request.json()) as { product_slug: string; widths: number[]; content_type: string };
+    if (!db.products.some((p) => p.slug === body.product_slug))
+      return HttpResponse.json({ error: { code: "not_found", message: "We couldn't find that.", details: {} } }, { status: 404 });
+    if (body.content_type !== "image/webp" || !body.widths?.length || body.widths.length > 6)
+      return fail("Images must be uploaded as WebP.");
+    const base = `${BUCKET}/products/${body.product_slug}/mock${crypto.randomUUID().replaceAll("-", "")}`;
+    return HttpResponse.json(
+      {
+        base,
+        uploads: body.widths.map((width) => ({
+          width,
+          url: `${base}-${width}.webp?X-Amz-Expires=900&X-Amz-Signature=mock`,
+          headers: { "Content-Type": "image/webp", "Cache-Control": "public, max-age=31536000, immutable" },
+        })),
+      },
+      { status: 201 }
+    );
+  }),
+  // Stands in for S3: like a presigned URL, it refuses a PUT without the signed headers.
+  http.put(`${BUCKET}/products/*`, async ({ request }) => {
+    if (uploadMode === "fail-once") {
+      uploadMode = "ok";
+      return new HttpResponse("<Error><Code>AccessDenied</Code></Error>", { status: 403 });
+    }
+    const url = new URL(request.url);
+    if (
+      !url.searchParams.get("X-Amz-Signature") ||
+      request.headers.get("Content-Type") !== "image/webp" ||
+      request.headers.get("Cache-Control") !== "public, max-age=31536000, immutable"
+    )
+      return new HttpResponse("<Error><Code>SignatureDoesNotMatch</Code></Error>", { status: 403 });
+    const bytes = await request.arrayBuffer();
+    // Refuse anything that isn't really WebP: a PNG here means the encoder fallback failed.
+    const header = new TextDecoder().decode(bytes.slice(8, 12));
+    if (header !== "WEBP") return new HttpResponse("<Error><Code>NotWebP</Code></Error>", { status: 400 });
+    objects.set(url.pathname, bytes);
+    return new HttpResponse(null, { status: 200 });
+  }),
+  http.get(`${BUCKET}/products/*`, ({ request }) => {
+    const bytes = objects.get(new URL(request.url).pathname);
+    return bytes
+      ? new HttpResponse(bytes, { headers: { "Content-Type": "image/webp" } })
+      : new HttpResponse(null, { status: 404 });
+  }),
   http.get(
     `${prefix}/drops/:slug`,
     ({ request, params }) =>

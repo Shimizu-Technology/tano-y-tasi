@@ -7,7 +7,8 @@ module Api
         end
 
         def show
-          drops = Drop.includes(:product).order(:release_at).to_a
+          # A drop with no product attached has nothing to feature yet.
+          drops = Drop.joins(:product).includes(:product).order(:release_at).to_a
           featured = drops.find { |drop| drop.state == "live" } || drops.find { |drop| drop.state == "upcoming" }
           paid = Order.where(status: "paid")
           render json: {

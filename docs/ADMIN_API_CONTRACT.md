@@ -53,18 +53,30 @@ Base path: `/api/v1/admin`. Every request needs `Authorization: Bearer <Clerk se
 
 ### Products
 - `GET /products`: all statuses, with `stock_quantity` and `drop` summary.
-- `GET /products/:slug`: editable fields: `name, summary, description, price_cents, status (draft|active|archived), position, specs{}, includes[], art{credit, story}, placeholders[]`, plus read-only `images[]`, `kind` and `drop`.
-- `PATCH /products/:slug`: any editable field. Price changes never affect existing orders, which keep their snapshots.
+- `GET /products/:slug`: editable fields: `name, summary, description, price_cents, status (draft|active|archived), position, specs{}, includes[], art{credit, story}, placeholders[], images[]`, plus `kind` and `drop`.
+- `POST /products` (201): `name, summary, description, price_cents` are required; `status` defaults to `draft`, `position` to last, `kind` to `core`. Also accepts `specs, includes, art, placeholders` and `kind`/`drop_slug`. The slug comes from the name (`Håfa Adai Mañana` becomes `hafa-adai-manana`), takes a numeric suffix on a collision, never changes on rename, and is never `new`. Stock starts at 0 and only changes through stock adjustments. `slug`, `stock_quantity` and `currency` are ignored. There is no delete endpoint.
+- `PATCH /products/:slug`: any editable field. Price changes never affect existing orders, which keep their snapshots. `slug`, `stock_quantity` and `currency` are ignored.
+  - **Placement:** `kind` and `drop_slug` move a product either way. `{ kind: "core" }` (with `drop_slug` absent or null) moves it to the always-available collection; `{ kind: "drop", drop_slug }`, or `drop_slug` alone, moves it into a drop. `422 invalid_record` with `details.drop_slug` for an unknown drop, a missing or contradictory slug, or a drop that already holds a product (`already has a product`, enforced by the `one_product_per_drop` index); `details.kind` for any other kind. A drop left without a product disappears from public pages. Stock, orders and customer-limit history stay with the product. A checkout already open when its product moves into an unreleased drop becomes `needs_attention` (`drop_withdrawn`) if paid.
+  - **Images:** `images` replaces the ordered list. Each needs `role` (`hero|gallery|detail|box|lifestyle`), nonblank `alt`, `aspect` like `4:3`, `widths` (nonempty positive JSON integers), and `base`: a safe path under `/images/` or a URL under `https://<AWS_S3_BUCKET>.s3.<AWS_REGION>.amazonaws.com/products/`. Nothing else is accepted: no `..`, empty segments, queries or spaces. Unknown keys are dropped. A value that isn't a list of objects is `422`, never an empty list. `[]` is allowed and hides the product. Rules apply only when `images` changes, so saved data can't block stock changes or checkout. Replaced files stay in the bucket.
 - `POST /products/:slug/stock_adjustments`: `{ delta: integer (≠0), reason: string }`. Runs under a row lock through the inventory path, writes an inventory movement (`admin_adjustment`), and rejects any change that would take stock below 0 (`422 invalid_adjustment`). Returns the product.
 - `GET /products/:slug/inventory_movements`: the latest 50.
 
-(Creating products and uploading images is a later phase; it needs object storage. Products and images come from the seed for now.)
+### Image uploads
+`POST /uploads` with `{ "product_slug": "…", "widths": [640, 1280, 2000], "content_type": "image/webp" }` returns (201):
+```json
+{ "base": "https://<bucket>.s3.<region>.amazonaws.com/products/<slug>/<random>",
+  "uploads": [ { "width": 640, "url": "<presigned PUT>", "headers": { "Content-Type": "image/webp", "Cache-Control": "public, max-age=31536000, immutable" } } ] }
+```
+- One presigned PUT per width, for the object `products/<slug>/<random>-<width>.webp`, valid for 15 minutes. Both headers are signed: the browser must send them exactly as returned, so the bucket's CORS rules must allow them. Then save `base` and the widths through `PATCH /products/:slug` `images`.
+- Only `image/webp`, 1 to 6 different widths, each from 100 to 4000. `422 invalid_upload` with `details.content_type` or `details.widths`; `404` for an unknown product; `503 storage_unavailable` when any `AWS_*` setting is missing. Boot doesn't need them. File size isn't limited by the URL.
+- The admin resizes in the browser with canvas at each default width no larger than the source (always at least one) and rejects sources under 640px wide. Where canvas can't encode WebP, as in Safari on iPhone, a WASM encoder is downloaded on demand, which is why the site's `script-src` has `'wasm-unsafe-eval'`.
 
 ### Drops
-- `GET /drops`, `GET /drops/:slug`: summary plus `product` (slug, name, stock_quantity) and its computed `state`.
+- `GET /drops`, `GET /drops/:slug`: summary plus `product` (slug, name, stock_quantity, or null) and its computed `state`. A drop with no product is never `live`, and isn't featured on the dashboard.
+- `POST /drops` (201): `name` is required. `release_at`, `closes_at`, `per_customer_limit` (default 2) and `quantity` (default 0, meaning undecided) are optional. `number` is the highest existing number plus one, and the slug is `drop-NNN-<name>`; the unique indexes settle a race and the request retries. A new drop has no product and stays off public pages until one is attached.
 - `PATCH /drops/:slug`: `{ name, release_at, closes_at, per_customer_limit, quantity }`. A `null` `release_at` makes the drop coming soon. Admin responses always include the real `quantity`.
   - `quantity` is the announced edition size. Changing it doesn't move stock; use stock adjustments for that.
-  - Returns `422` if `release_at` would be after `closes_at`.
+  - Returns `422` if `release_at` would be after `closes_at`, or if either isn't a readable date and time. An unreadable date never turns a drop into coming soon.
 
 ### Subscribers
 - `GET /subscribers?page=`: `{ subscribers: [{ email, source, drop_slug, created_at }], page, pages, total }`
@@ -100,7 +112,7 @@ The `email_deliveries` table stores `order_id, kind (order_confirmation|admin_ne
 - Dashboard recent orders are the latest 10; low stock is 20 units or fewer. Order and subscriber pages have 25 entries, stable newest-first ordering, and zero pages when empty.
 - Order detail includes `subtotal_cents` and `shipping` (the persisted Stripe shipping address payload), along with the fields above. Fulfill/unfulfill/notes return `{ order }`; resend returns `{ email_delivery }`. Fulfill is a no-op once fulfilled, including notify/tracking; to change the fulfillment cycle, unfulfill first. One shipped delivery row is retained per order; send again through the explicit resend endpoint if needed.
 - Inventory response is `{ inventory_movements: [{ id, delta, balance, reason, note, order_id, created_at }] }`, latest 50 first. For admin changes, `reason` is `admin_adjustment`, `note` preserves the supplied human reason, and `order_id` is null. Stock adjustments require a JSON integer, nonzero delta, and a nonblank reason; strings/floats are rejected with `422 invalid_adjustment`.
-- Model validation returns `422 invalid_record`; fulfillment rules use `invalid_fulfillment`, user guards use `invalid_user`, and accepted invitation revocation uses `invalid_invitation`. Errors retain the standard `{ error: { code, message, details } }` shape. Tracking URLs accept only HTTP(S). Non-editable fields are ignored through strong params.
+- Model validation returns `422 invalid_record`, with `details` mapping each field to its messages (`{ "name": ["can't be blank"] }`); fulfillment rules use `invalid_fulfillment`, user guards use `invalid_user`, and accepted invitation revocation uses `invalid_invitation`. Errors retain the standard `{ error: { code, message, details } }` shape. Tracking URLs accept only HTTP(S). Non-editable fields are ignored through strong params.
 - Subscriber CSV headers are `email,source,drop_slug,created_at`; formula-like values are escaped with a leading apostrophe for spreadsheet safety.
 - Clerk `azp` may be absent as in the reference verifier; when present it must match `CLERK_AUTHORIZED_PARTIES`. `iss`, `sub`, and `exp` are required; RS256 signature, issuer, expiry, and not-before are checked. JWT verification selects the usable RS256 signing key matching `kid`; malformed or unusable JWKS responses return 503 and are not cached. The JWKS cache lasts one hour, with one single-flight unknown-`kid` refresh at most once per minute for rotation. Only verified primary email from the Backend API qualifies for provisioning.
 - Delivery status `sent` means Resend accepted the message. It does not assert inbox arrival. Provider errors never fail payment completion; automatic retry retains a stable idempotency key within Resend's retention window. Uncertain older outcomes require operator reconciliation.

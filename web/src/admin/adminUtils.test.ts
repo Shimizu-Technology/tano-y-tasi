@@ -18,6 +18,10 @@ describe("admin access", () => {
     expect(authState(new AdminApiError(503, { message: "Offline" }))).toBe("retry");
     expect(authState(new AdminApiError(0, { message: "Network" }))).toBe("retry");
     expect(authState(new AdminApiError(422, { message: "Invalid" }))).toBe("other");
+    expect(authState(new AdminApiError(503, { code: "storage_unavailable", message: "Not set up" }))).toBe("other");
+    expect(authState(new AdminApiError(503, { code: "payment_unavailable", message: "Retry" }))).toBe("other");
+    expect(authState(new AdminApiError(503, { code: "identity_unavailable", message: "Retry" }))).toBe("retry");
+    expect(authState(new AdminApiError(500, { message: "The request failed." }))).toBe("retry");
   });
   it("uses a fresh bearer token on every request and maps field errors", async () => {
     let sequence = 0;

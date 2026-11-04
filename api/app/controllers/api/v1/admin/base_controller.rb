@@ -11,7 +11,7 @@ module Api
           render_error("busy", "Another request for this is still running. Try again in a moment.", :conflict)
         end
         rescue_from ActiveRecord::RecordInvalid do |error|
-          render_error("invalid_record", error.record.errors.full_messages.join(", "), :unprocessable_content)
+          render_error("invalid_record", error.record.errors.full_messages.join(", "), :unprocessable_content, error.record.errors.messages)
         end
 
         private

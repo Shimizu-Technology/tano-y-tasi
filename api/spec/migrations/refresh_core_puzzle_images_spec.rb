@@ -23,7 +23,7 @@ RSpec.describe RefreshCorePuzzleImages do
       legacy.map.with_index { |image, i| i.zero? ? image.merge("alt" => "Merchant description") : image },
       legacy.map.with_index { |image, i| i.zero? ? image.merge("widths" => [ 640 ]) : image },
       legacy.map.with_index { |image, i| i.zero? ? image.merge("role" => "lifestyle") : image },
-      [ { "base" => "/merchant-photo", "aspect" => "1:1", "widths" => [ 640 ], "role" => "hero", "alt" => "Merchant photo" } ],
+      [ { "base" => "/images/merchant-photo", "aspect" => "1:1", "widths" => [ 640 ], "role" => "hero", "alt" => "Merchant photo" } ],
       []
     ]
     edits.each do |images|

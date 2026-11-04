@@ -62,7 +62,7 @@ module Orders
     def reserve!(fingerprint)
       Order.transaction do
         products = Product.where(slug: @items.map { |item| item[:product_slug] }).order(:id).lock.to_a
-        raise ApiError.new("unknown_product", "This product is unavailable.") if products.size != @items.size || products.any? { |product| product.status != "active" }
+        raise ApiError.new("unknown_product", "This product is unavailable.") if products.size != @items.size || products.any? { |product| product.status != "active" || product.images.blank? }
         products.each { |product| validate_product!(product, quantity_for(product)) }
         subtotal = products.sum { |product| product.price_cents * quantity_for(product) }
         provider = Payments::Gateway.provider

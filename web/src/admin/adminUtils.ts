@@ -77,3 +77,22 @@ export function validateDrop(value: {
     errors.quantity = "Enter a nonnegative whole number.";
   return errors;
 }
+// Friendly names for the storefront's placeholder keys. Keys not listed here are kept as they are.
+export const placeholderFields = [
+  { key: "price_cents", label: "Price" },
+  { key: "stock_quantity", label: "Stock" },
+  { key: "specs.piece_count", label: "Pieces" },
+  { key: "specs.finished_size", label: "Finished size" },
+  { key: "specs.box_size", label: "Box size" },
+  { key: "specs.material", label: "Material" },
+  { key: "specs.cut", label: "Cut" },
+  { key: "specs.made_in", label: "Made in" },
+  { key: "includes", label: "What's in the box" },
+  { key: "art.credit", label: "Art credit" },
+  { key: "drop.release_at", label: "Release date" },
+  { key: "drop.quantity", label: "Quantity" },
+];
+export function togglePlaceholder(list: string[], key: string, on: boolean) {
+  const others = list.filter((item) => item !== key);
+  return on ? [...others, key] : others;
+}

@@ -67,6 +67,11 @@ export type OrderDetail = OrderSummary & {
   dispute_status?: string | null;
   email_deliveries: Delivery[];
 };
+export type AdminImage = { role: string; alt: string; base: string; widths: number[]; aspect: string };
+export type UploadGrant = {
+  base: string;
+  uploads: { width: number; url: string; headers: Record<string, string> }[];
+};
 export type AdminProduct = {
   slug: string;
   name: string;
@@ -82,18 +87,19 @@ export type AdminProduct = {
   includes: string[];
   art: { credit: string; story: string };
   placeholders: string[];
-  images: { base: string; widths?: number[]; alt?: string }[];
+  images: AdminImage[];
   drop?: { slug: string; name: string } | null;
 };
 export type AdminDrop = {
   slug: string;
+  number: number;
   name: string;
   state: string;
   release_at: string | null;
   closes_at: string | null;
   per_customer_limit: number;
   quantity: number;
-  product?: { slug: string; name: string; stock_quantity: number };
+  product?: { slug: string; name: string; stock_quantity: number } | null;
 };
 export type StoreSettings = {
   sales_open: boolean;
@@ -168,16 +174,20 @@ export function authState(error: unknown): "expired" | "denied" | "retry" | "oth
   if (!(error instanceof AdminApiError)) return "retry";
   if (error.status === 401) return "expired";
   if (error.status === 403) return "denied";
+  // A named failure in one feature (image storage, the payment provider) belongs on that
+  // screen. Taking over the whole admin would throw away the work in front of the merchant.
+  if (error.status >= 500 && error.body.code && error.body.code !== "identity_unavailable") return "other";
   if (error.status === 0 || error.status >= 500) return "retry";
   return "other";
 }
+const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 export function fieldErrors(error: unknown): Record<string, string> {
   if (!(error instanceof AdminApiError)) return {};
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(error.body.details ?? {}))
-    if (typeof value === "string") result[key] = value;
+    if (typeof value === "string") result[key] = sentence(value);
     else if (Array.isArray(value) && value.every((item) => typeof item === "string"))
-      result[key] = value.join(", ");
+      result[key] = sentence(value.join(", "));
   return result;
 }
 export function formError(error: unknown, fallback = "Could not save changes.") {

@@ -79,3 +79,24 @@ it("hides what's in the box while the catalog marks it unconfirmed", () => {
     vi.unstubAllGlobals();
   }
 });
+
+it("renders a new product that has only its required fields", () => {
+  vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  const base = catalog("upcoming", { [CORE]: 40, [MAP]: 100 })[0];
+  const product = { ...base, slug: "new-tee", name: "Island Tee", specs: {}, includes: [], art: {}, placeholders: [] } as unknown as typeof base;
+  client.setQueryData(["product", "new-tee"], { product, server_time: "2026-10-29T00:00:00Z" });
+  try {
+    render(
+      <QueryClientProvider client={client}><MemoryRouter initialEntries={["/products/new-tee"]}>
+        <Routes><Route path="/products/:slug" element={<ProductPage />} /></Routes>
+      </MemoryRouter></QueryClientProvider>
+    );
+    expect(screen.getByRole("heading", { name: "Island Tee" })).toBeVisible();
+    expect(screen.queryByText("The art")).not.toBeInTheDocument();
+    expect(screen.queryByText("Details")).not.toBeInTheDocument();
+    expect(screen.getByText("Shipping", { exact: true })).toBeVisible();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

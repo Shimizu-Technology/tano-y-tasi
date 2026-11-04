@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { adminHandlers } from "./adminHandlers";
+import { adminHandlers, mockAdminProducts } from "./adminHandlers";
 import { catalog, CORE, MAP, DROP, dropSummary, mockSalesOpen } from "./data";
 import { mockStore, mockPages } from "./store";
 import type { CartItem, CheckoutResult, DropState, Order, ProductDetail, Product } from "../types";
@@ -65,7 +65,28 @@ function products() {
     const copy = catalog(state, { ...db.stock, [CORE]: db.stock[slug] })[0];
     items.push({ ...copy, slug, name: `Tumon Bay — Mock ${i}` });
   }
-  return items;
+  return withAdminEdits(items);
+}
+// What the admin saved shows on the storefront, as it would with the real API.
+function withAdminEdits(items: ProductDetail[]) {
+  const edited = items.map((item) => {
+    const saved = mockAdminProducts().find((p) => p.slug === item.slug);
+    if (!saved?.images.length) return item;
+    return { ...item, name: saved.name, summary: saved.summary, description: saved.description, price_cents: saved.price_cents,
+      images: saved.images, image: saved.images[0], alt_image: saved.images[1] ?? null };
+  });
+  const added = mockAdminProducts()
+    .filter((p) => !items.some((item) => item.slug === p.slug) && p.status !== "draft" && p.images.length > 0)
+    .map((p): ProductDetail => {
+      const count = (db.stock[p.slug] ??= p.stock_quantity);
+      const purchasable = p.kind === "core" && count > 0 && mockSalesOpen();
+      const stateName = p.kind === "drop" ? "upcoming" : count === 0 ? "sold_out" : purchasable ? "available" : "coming_soon";
+      return { slug: p.slug, name: p.name, kind: p.kind as ProductDetail["kind"], price_cents: p.price_cents, currency: "USD", summary: p.summary, description: p.description,
+        availability: { state: stateName, purchasable, remaining: count <= 20 ? count : null, low_stock: count > 0 && count <= 20 },
+        drop: null, image: p.images[0], alt_image: p.images[1] ?? null, images: p.images, specs: p.specs as ProductDetail["specs"], includes: p.includes,
+        art: p.art, per_customer_limit: null, max_per_order: purchasable ? Math.min(10, count) : 0, placeholders: p.placeholders };
+    });
+  return [...edited, ...added];
 }
 function drop() {
   const p = products()[1];

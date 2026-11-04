@@ -38,6 +38,9 @@ for (const requiredSource of [
 ])
   assert(netlifyConfig.includes(requiredSource), `Required Clerk CSP source is missing: ${requiredSource}`);
 assert(!/script-src[^;]*'unsafe-(?:inline|eval)'/.test(netlifyConfig), "Production script-src is unsafe");
+const mediaHost = "https://tano-y-tasi-media.s3.ap-southeast-1.amazonaws.com";
+for (const directive of ["img-src", "connect-src"])
+  assert(new RegExp(`${directive}[^;]*${mediaHost.replaceAll(".", "\\.")}`).test(netlifyConfig), `${directive} must allow ${mediaHost}`);
 for (const flag of ["VITE_API_MOCKS", "VITE_SIMULATED_PAYMENTS", "VITE_ADMIN_TEST_AUTH"]) {
   // Exercise the Vite build guard itself without overwriting the verified output.
   const result = spawnSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
