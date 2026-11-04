@@ -9,7 +9,7 @@ const product = {
 } as unknown as AdminProduct;
 
 it("keeps an edit made while images are saving, and leaves it unsaved", async () => {
-  let finish = (_: unknown) => {};
+  let finish: (value: unknown) => void = () => {};
   const api = vi.fn(() => new Promise((resolve) => { finish = resolve; }));
   const wrapper = ({ children }: { children: ReactNode }) => (
     <AdminApiContext.Provider value={api as never}>{children}</AdminApiContext.Provider>
