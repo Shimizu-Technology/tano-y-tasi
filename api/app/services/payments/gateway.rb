@@ -35,7 +35,8 @@ module Payments
         cancel_url: "#{web_url}/checkout/cancel/#{order.token}",
         line_items: line_items(order, tax)
       }
-      params[:payment_intent_data] = { shipping: stripe_shipping(order) } if order.fulfillment_method == "ship"
+      # Stripe refuses this alongside automatic tax. With tax on, the Customer holds the address.
+      params[:payment_intent_data] = { shipping: stripe_shipping(order) } if order.fulfillment_method == "ship" && !tax
       params.merge!(tax ? { customer: tax_customer(order), automatic_tax: { enabled: true }, billing_address_collection: "required" } : { customer_email: order.email })
       params
     end

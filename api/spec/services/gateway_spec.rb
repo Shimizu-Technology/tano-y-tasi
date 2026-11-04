@@ -128,7 +128,7 @@ RSpec.describe Payments::Gateway, "shipping and tax" do
     it "taxes by the delivery address through a Customer holding it" do
       options = session_for(shipping_for(items, amount_cents: 820, kind: "live", label: "USPS Ground Advantage"))
       expect(options[:customer]).to eq("cus_1")
-      expect(options).not_to include(:customer_email)
+      expect(options).not_to include(:customer_email, :payment_intent_data)
       expect(Stripe::Customer).to have_received(:create).with(hash_including(email: "a@example.com", shipping: hash_including(:name, :address)), hash_including(:idempotency_key))
     end
 
