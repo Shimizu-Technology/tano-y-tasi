@@ -64,6 +64,14 @@ module Api
           render_order
         end
 
+        # Answers 409 label_price_changed until confirm_cents names the current price.
+        def label
+          confirm = params[:confirm_cents]
+          raise ApiError.new("malformed", "confirm_cents must be a whole number of cents.", status: :bad_request) unless confirm.nil? || confirm.is_a?(Integer)
+          Shipping::Label.buy(@order, confirm_cents: confirm)
+          render_order
+        end
+
         def resend
           delivery = @order.email_deliveries.find(params[:id])
           delivery.deliver!(resend: true)

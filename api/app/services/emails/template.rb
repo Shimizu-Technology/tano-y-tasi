@@ -11,6 +11,7 @@ module Emails
 
     def self.subject(kind, order)
       prefix = { "order_confirmation" => "Your order is confirmed", "admin_new_order" => "New paid order", "admin_attention" => "Order needs attention", "order_shipped" => "Your order has shipped", "order_refunded" => "Your refund has been issued" }.fetch(kind)
+      prefix = "Your order is ready for pickup" if kind == "order_shipped" && order.fulfillment_method == "pickup"
       "Tåno + Tåsi — #{prefix} — #{order.number}"
     end
 
@@ -31,7 +32,9 @@ module Emails
         []
       end
       notes = extra_lines(delivery.kind, order)
-      text = ([ "TÅNO + TÅSI", title, "Order #{order.number}" ] + notes + lines + [ "Total: #{money(order.total_cents)}", link ] + tracking).join("\n")
+      totals = total_lines(order)
+      destination = destination_lines(delivery.kind, order)
+      text = ([ "TÅNO + TÅSI", title, "Order #{order.number}" ] + notes + lines + totals + destination + [ link ] + tracking).join("\n")
       rows = lines.map { |line| "<tr><td style=\"padding:12px 0;border-bottom:1px solid #c9c2b6\">#{escape(line)}</td></tr>" }.join
       tracking_html = tracking.map { |line| "<p>#{escape(line)}</p>" }.join
       html = <<~HTML
@@ -41,7 +44,8 @@ module Emails
         <p style="font-size:24px;font-weight:bold;letter-spacing:2px">TÅNO + TÅSI</p>
         <h1 style="font-size:22px">#{escape(title)}</h1><p>Order #{escape(order.number)}</p>#{notes.map { |line| "<p>#{escape(line)}</p>" }.join}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">#{rows}</table>
-        <p style="font-weight:bold">Total: #{escape(money(order.total_cents))}</p>
+        #{totals.map.with_index { |line, index| "<p style=\"#{index == totals.size - 1 ? 'font-weight:bold' : 'margin:4px 0'}\">#{escape(line)}</p>" }.join}
+        #{destination.map { |line| "<p style=\"margin:4px 0\">#{escape(line)}</p>" }.join}
         <p><a style="color:#141311" href="#{escape(link)}">#{admin ? "Open in admin" : "View your order"}</a></p>#{tracking_html}
         <p style="font-size:14px">Questions? Just reply, or email #{escape(StoreSetting.current.contact_email)}.</p>
         </td></tr></table></td></tr></table></body></html>
@@ -49,6 +53,30 @@ module Emails
       data = { from: ENV.fetch("MAILER_FROM_EMAIL"), to: delivery.to, subject: delivery.subject, html: html, text: text }
       data[:reply_to] = StoreSetting.current.contact_email
       data
+    end
+
+    # An order with no shipping or tax reads as it always has: one total.
+    def self.total_lines(order)
+      lines = []
+      if order.shipping_cents.positive? || order.tax_cents.positive? || order.shipping_method
+        lines << "Subtotal: #{money(order.subtotal_cents)}"
+        label = order.shipping_method&.dig("label")
+        lines << "#{label ? "Shipping (#{label})" : 'Shipping'}: #{money(order.shipping_cents)}"
+        lines << "Tax: #{money(order.tax_cents)}" if order.tax_cents.positive?
+      end
+      lines << "Total: #{money(order.grand_total_cents)}"
+    end
+
+    def self.destination_lines(kind, order)
+      return [] unless %w[order_confirmation admin_new_order order_shipped].include?(kind)
+      if order.fulfillment_method == "pickup"
+        return [ "Pick up in Guam: #{order.shipping_method&.dig('instructions')}".strip ]
+      end
+      saved = order.shipping.to_h
+      address = saved["address"].to_h
+      locality = [ address["city"], address["state"] ].compact_blank.join(", ")
+      lines = [ saved["name"], address["line1"], address["line2"], [ locality, address["postal_code"] ].compact_blank.join(" ") ].compact_blank
+      lines.empty? ? [] : [ "Shipping to:" ] + lines
     end
 
     ATTENTION_REASONS = {

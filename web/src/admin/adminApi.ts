@@ -24,6 +24,7 @@ export type OrderSummary = {
   token: string;
   status: string;
   fulfillment_status: string;
+  fulfillment_method?: "ship" | "pickup";
   email: string;
   total_cents: number;
   currency: string;
@@ -55,6 +56,24 @@ export type OrderDetail = OrderSummary & {
   }[];
   shipping?: OrderShipping | null;
   subtotal_cents: number;
+  shipping_cents?: number;
+  tax_cents?: number;
+  shipping_method?: {
+    label?: string | null;
+    carrier?: string | null;
+    service?: string | null;
+    kind?: string | null;
+    estimate?: string | null;
+    instructions?: string | null;
+    cost_cents?: number | null;
+  } | null;
+  label_status?: "buying" | "bought" | null;
+  label_url?: string | null;
+  label_cost_cents?: number | null;
+  label_bought_at?: string | null;
+  label_available?: boolean;
+  tracking_status?: string | null;
+  tracking_status_at?: string | null;
   provider?: string;
   provider_payment_intent_id?: string | null;
   tracking_number?: string | null;
@@ -89,6 +108,10 @@ export type AdminProduct = {
   per_customer_limit: number | null;
   preorder: boolean;
   preorder_ships: string | null;
+  weight_oz?: number | null;
+  length_in?: number | null;
+  width_in?: number | null;
+  height_in?: number | null;
   specs: Record<string, unknown>;
   includes: string[];
   art: { credit: string; story: string };
@@ -131,6 +154,24 @@ export type StoreSettings = {
   story: string;
   mission_lines: string[];
   payment_mode: "stripe_live" | "stripe_test" | "simulated";
+  shipping_placeholders?: boolean;
+};
+export type ShippingSettings = {
+  mode: "flat" | "easypost";
+  carriers: string[];
+  handling_fee_cents: number;
+  free_shipping_threshold_cents: number | null;
+  flat_rates: { mainland: number; alaska_hawaii: number; guam_cnmi: number; territories: number; military: number };
+  flat_rates_placeholder: boolean;
+  pickup_enabled: boolean;
+  pickup_instructions: string;
+  origin: Record<string, string>;
+  origin_complete: boolean;
+  parcel: Record<string, number>;
+  customs: Record<string, string>;
+  tax_enabled: boolean;
+  easypost_configured: boolean;
+  easypost_webhook_configured: boolean;
 };
 export type AdminPage = { slug: string; title: string; body: string; updated_at: string };
 export type Page<T extends string, V> = { page: number; pages: number; total: number } & Record<T, V[]>;

@@ -11,7 +11,7 @@ RSpec.describe "Database invariants" do
   it "enforces unique provider payment intent IDs across orders" do
     product = create(:product)
     orders = 2.times.map do |n|
-      Orders::Checkout.call(email: "buyer@example.com", idempotency_key: "unique-#{n}", items: [ { product_slug: product.slug, quantity: 1 } ]).order
+      checkout_call(email: "buyer@example.com", idempotency_key: "unique-#{n}", items: [ { product_slug: product.slug, quantity: 1 } ]).order
     end
     Payments::Complete.call(orders.first, payment_intent_id: "pi_unique")
     expect do

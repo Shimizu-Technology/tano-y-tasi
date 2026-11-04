@@ -7,7 +7,7 @@ RSpec.describe "Commerce model", type: :request do
   end
 
   def checkout(product, email: "buyer@example.com", quantity: 1)
-    post "/api/v1/checkout", params: { email: email, idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: quantity } ] }, as: :json
+    post "/api/v1/checkout", params: with_shipping({ email: email, idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: quantity } ] }), as: :json
   end
 
   describe "signature products" do
@@ -74,8 +74,8 @@ RSpec.describe "Commerce model", type: :request do
     end
 
     it "flags a completed payment that passes the effective limit, on a core product too" do
-      order = Orders::Checkout.call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 } ]).order
-      paid_first = Orders::Checkout.call(email: "other@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 } ]).order
+      order = checkout_call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 } ]).order
+      paid_first = checkout_call(email: "other@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 } ]).order
       Payments::Complete.call(paid_first)
       paid_first.update!(email: "buyer@example.com")
       stock = core.reload.stock_quantity
@@ -153,8 +153,8 @@ RSpec.describe "Commerce model", type: :request do
     end
 
     it "flags a late payment for a closed drop, but honors a checkout that held its stock" do
-      held = Orders::Checkout.call(email: "held@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: lead.slug, quantity: 1 } ]).order
-      late = Orders::Checkout.call(email: "late@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: second.slug, quantity: 1 } ]).order
+      held = checkout_call(email: "held@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: lead.slug, quantity: 1 } ]).order
+      late = checkout_call(email: "late@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: second.slug, quantity: 1 } ]).order
       Orders::Release.call(late, status: "expired")
       drop.update!(closes_at: 1.minute.ago)
       Payments::Complete.call(held)
@@ -165,7 +165,7 @@ RSpec.describe "Commerce model", type: :request do
 
     it "flags a payment for one withdrawn product in a mixed order and releases all of it" do
       core = create(:product)
-      order = Orders::Checkout.call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: lead.slug, quantity: 1 }, { product_slug: core.slug, quantity: 1 } ]).order
+      order = checkout_call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: lead.slug, quantity: 1 }, { product_slug: core.slug, quantity: 1 } ]).order
       drop.update!(release_at: nil)
       Payments::Complete.call(order)
       expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "drop_withdrawn")
@@ -224,7 +224,7 @@ RSpec.describe "Commerce model", type: :request do
 
     it "takes a mixed cart as one order and labels only the preorder line" do
       other = create(:product)
-      post "/api/v1/checkout", params: { email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 }, { product_slug: other.slug, quantity: 1 } ] }, as: :json
+      post "/api/v1/checkout", params: with_shipping({ email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 }, { product_slug: other.slug, quantity: 1 } ] }), as: :json
       expect(response).to have_http_status(:created)
       get "/api/v1/orders/#{response.parsed_body.dig('order', 'token')}"
       items = response.parsed_body.dig("order", "items").to_h { |item| [ item["product_slug"], item["preorder_ships"] ] }
@@ -284,7 +284,7 @@ RSpec.describe "Commerce model", type: :request do
         { "slug" => second.slug, "name" => second.name, "stock_quantity" => 50, "status" => "draft" }
       ])
       product.update!(preorder: true, preorder_ships: "Ships late January 2027")
-      post "/api/v1/checkout", params: { email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 }, { product_slug: first.slug, quantity: 1 } ] }, as: :json
+      post "/api/v1/checkout", params: with_shipping({ email: "buyer@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 }, { product_slug: first.slug, quantity: 1 } ] }), as: :json
       get "/api/v1/admin/orders", headers: headers
       expect(response.parsed_body["orders"].first).to include("item_count" => 3, "preorder_item_count" => 2)
       get "/api/v1/admin/orders/#{response.parsed_body['orders'].first['number']}", headers: headers

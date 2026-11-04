@@ -34,3 +34,11 @@ it("allows the exact same-origin simulated route only in development", () => {
   ])
     expect(paymentRedirect(url), url).toBeNull();
 });
+
+it("allows only this site's own order page for an order with nothing to charge", () => {
+  const origin = window.location.origin;
+  expect(paymentRedirect(`${origin}/orders/abc_123?from=checkout`)).toBe(`${origin}/orders/abc_123?from=checkout`);
+  expect(paymentRedirect(`https://evil.example/orders/abc?from=checkout`)).toBeNull();
+  expect(paymentRedirect(`${origin}/orders/abc?next=https://evil.example`)).toBeNull();
+  expect(paymentRedirect(`${origin}/admin?from=checkout`)).toBeNull();
+});

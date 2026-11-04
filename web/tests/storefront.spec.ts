@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { submitCheckout } from "./checkoutFlow";
 import type { Page, TestInfo } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 async function shot(page: Page, info: TestInfo, name: string) {
@@ -40,8 +41,7 @@ async function addCore(page: Page) {
   await expect(page.getByRole("dialog", { name: "Your cart" })).toBeVisible();
 }
 async function checkout(page: Page, email = "qa@example.com") {
-  await page.getByLabel("Email address", { exact: true }).fill(email);
-  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page, email);
   await expect(page.getByText("TEST MODE · SIMULATED PAYMENT")).toBeVisible();
 }
 test("home upcoming: hero, collection and island identity", async ({ page }, info) => {
@@ -209,8 +209,7 @@ test("limit errors use the email allowance with an inline remove action", async 
   await expect(page.getByRole("status")).toHaveText("Paid");
   await go(page, "/drop", "live");
   await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
-  await page.getByLabel("Email address", { exact: true }).fill("LIMIT@example.com");
-  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page, "LIMIT@example.com");
   await expect(page.getByRole("alert")).toContainText("This item is limited to 2 per customer. You've already reached it with this email.");
   await page.getByRole("alert").getByRole("button", { name: "Remove" }).click();
   await expect(page.getByText("A piece of home is waiting.")).toBeVisible();
@@ -414,8 +413,7 @@ for (const retry of ["same_key", "new_checkout"]) {
   test(`payment failure ${retry}: recover with the correct key and complete payment`, async ({ page }) => {
     await go(page, `/products/hafa-adai-from-tumon-bay?mockPayment=${retry}`);
     await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
-    await page.getByLabel("Email address", { exact: true }).fill("recovery@example.com");
-    await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+    await submitCheckout(page, "recovery@example.com");
     const action = page.getByRole("button", { name: retry === "same_key" ? "Try again" : "Start a new checkout", exact: true });
     await expect(action).toBeVisible();
     const attempts = await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-mock-db")!).attempts);
@@ -441,8 +439,7 @@ test("last-unit reservation retries after lost provider setup despite refreshed 
   });
   await page.reload();
   await page.getByRole("button", { name: "ADD TO CART", exact: true }).first().click();
-  await page.getByLabel("Email address", { exact: true }).fill("last-unit@example.com");
-  await page.getByRole("button", { name: "CHECKOUT", exact: true }).click();
+  await submitCheckout(page, "last-unit@example.com");
   const action = page.getByRole("button", { name: "Try again", exact: true });
   await expect(action).toBeEnabled();
   const originalKey = await page.evaluate(() => JSON.parse(sessionStorage.getItem("tyt-checkout-attempt")!).key);

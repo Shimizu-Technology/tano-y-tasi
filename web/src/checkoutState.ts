@@ -1,15 +1,23 @@
-import type { CartItem } from "./types";
+import type { CartItem, ShippingAddress, ShippingOption } from "./types";
+export interface CheckoutShipping {
+  option: ShippingOption;
+  address: ShippingAddress;
+}
 export interface CheckoutAttempt {
   fingerprint: string;
   key: string;
   cartRevision: string;
   items: CartItem[];
+  // A retry sends this exact choice, even if its quote has since expired: the
+  // server has already priced that order. sessionStorage only, because of the address.
+  shipping?: CheckoutShipping;
   orderToken?: string;
 }
-export function checkoutFingerprint(email: string, items: CartItem[]) {
+export function checkoutFingerprint(email: string, items: CartItem[], shipping: CheckoutShipping | null) {
   return JSON.stringify({
     email: email.trim().toLowerCase(),
     items: [...items].sort((a, b) => a.product_slug.localeCompare(b.product_slug)),
+    shipping: shipping && { quote: shipping.option.quote, address: shipping.address },
   });
 }
 export function readAttempt(): CheckoutAttempt | null {

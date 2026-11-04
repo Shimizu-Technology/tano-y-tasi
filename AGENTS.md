@@ -33,6 +33,7 @@ Several Shimizu Rails repos share this machine's Postgres, and a generic `api_de
 
 - `PAYMENT_PROVIDER=simulated` (dev/test default) or `stripe`. The simulated provider is refused in production.
 - Stripe needs `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `WEB_APP_URL`. No live keys belong in any file.
+- EasyPost is optional (`EASYPOST_API_KEY`, `EASYPOST_WEBHOOK_SECRET`). Without it, shipping uses the merchant's flat rates. Never call it inside a transaction or row lock.
 
 ## Engineering rules
 

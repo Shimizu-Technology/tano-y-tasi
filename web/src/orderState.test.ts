@@ -1,6 +1,7 @@
 import { useCart } from "./cart";
 import { reconcileOrder, rememberCheckout } from "./orderState";
 import { readAttempt, saveAttempt } from "./checkoutState";
+import { saveAddress } from "./shippingAddress";
 import type { Order } from "./types";
 const order = { token: "order-token", status: "paid", items: [{ product_slug: "core", quantity: 1 }] } as Order;
 beforeEach(() => useCart.setState({ items: [] }));
@@ -13,6 +14,17 @@ it("reconciles a locally started paid order once across tab sessions", () => {
   sessionStorage.clear();
   reconcileOrder(order);
   expect(useCart.getState().items).toEqual([{ product_slug: "core", quantity: 2 }]);
+});
+it("keeps the address out of localStorage, and clears it from the tab once paid", () => {
+  useCart.getState().add("core", 1, 10);
+  const address = { name: "A", line1: "Secret Street", line2: "", city: "Hagåtña", state: "GU", postal_code: "96910", phone: "" };
+  const shipping = { option: { quote: "q", label: "Standard", amount_cents: 800, estimate: null, kind: "flat" as const }, address };
+  saveAddress(address);
+  rememberCheckout(order.token, { ...attempt(), fingerprint: JSON.stringify({ address }), shipping });
+  expect(JSON.stringify({ ...localStorage })).not.toContain("Secret Street");
+  expect(sessionStorage.getItem("tyt-checkout-attempt")).toBeNull();
+  reconcileOrder(order);
+  expect(sessionStorage.getItem("tyt-shipping-address")).toBeNull();
 });
 it("does not clear a cart when viewing an unrelated paid order link", () => {
   useCart.getState().add("core", 1, 10);

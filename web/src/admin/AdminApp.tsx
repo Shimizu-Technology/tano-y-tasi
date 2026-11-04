@@ -30,6 +30,7 @@ import {
   AdminsPage,
 } from "./AdminPages";
 import { StorePage, StorePageEditor } from "./AdminStore";
+import { ShippingSettingsPage } from "./AdminShipping";
 import { NewDropPage, NewProductPage } from "./AdminCatalog";
 import "./admin.css";
 
@@ -420,7 +421,10 @@ function AdminShell({ user, signOut }: { user: AdminUser; signOut: () => Promise
   if (section === "products") page = subpage === "new" ? <NewProductPage /> : subpage ? <ProductPage /> : <ProductsPage />;
   if (section === "drops") page = subpage === "new" ? <NewDropPage /> : subpage ? <DropPage /> : <DropsPage />;
   if (section === "subscribers") page = <SubscribersPage />;
-  if (section === "store") page = location.pathname.split("/")[3] === "pages" ? <StorePageEditor /> : <StorePage />;
+  if (section === "store") {
+    const area = location.pathname.split("/")[3];
+    page = area === "pages" ? <StorePageEditor /> : area === "shipping" ? <ShippingSettingsPage /> : <StorePage />;
+  }
   if (section === "admins") page = <AdminsPage currentUser={user} />;
   return (
     <div className={`admin-app ${collapsed ? "collapsed" : ""}`}>

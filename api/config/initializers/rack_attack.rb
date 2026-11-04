@@ -6,6 +6,10 @@ end
 Rack::Attack.throttle("subscribers/ip", limit: 5, period: 1.minute) do |request|
   request.ip if request.post? && request.path.squeeze("/").match?(%r{\A/api/v1/subscribers(?:\.[^/]+)?/?\z})
 end
+# A quote can cost an EasyPost call.
+Rack::Attack.throttle("shipping_quotes/ip", limit: 12, period: 1.minute) do |request|
+  request.ip if request.post? && request.path.squeeze("/").match?(%r{\A/api/v1/shipping/quotes(?:\.[^/]+)?/?\z})
+end
 Rack::Attack.throttled_responder = lambda do |request|
   retry_after = request.env.fetch("rack.attack.match_data")[:period]
   [ 429, { "content-type" => "application/json", "retry-after" => retry_after.to_s },

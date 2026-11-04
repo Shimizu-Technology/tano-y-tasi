@@ -4,7 +4,7 @@ require "rake"
 RSpec.describe "Released Stripe session closure", type: :request do
   let(:product) { create(:product, stock_quantity: 5) }
   let(:order) do
-    Orders::Checkout.call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid,
+    checkout_call(email: "buyer@example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 2 } ]).order.tap do |row|
       row.update!(provider: "stripe", provider_session_id: "cs_close")
     end
@@ -92,7 +92,7 @@ RSpec.describe "Released Stripe session closure", type: :request do
 
   it "bounds closure retry work independently of the expiry release batch" do
     rows = 101.times.map do |index|
-      row = Orders::Checkout.call(email: "batch@example.com", idempotency_key: SecureRandom.uuid,
+      row = checkout_call(email: "batch@example.com", idempotency_key: SecureRandom.uuid,
         items: [ { product_slug: product.slug, quantity: 1 } ]).order
       Orders::Release.call(row)
       row.update!(provider: "stripe", provider_session_id: "cs_batch_#{index}")
@@ -110,7 +110,7 @@ RSpec.describe "Released Stripe session closure", type: :request do
 
   it "rotates persistently failing sessions so a healthy newer session still gets closed" do
     rows = 101.times.map do |index|
-      row = Orders::Checkout.call(email: "rotate@example.com", idempotency_key: SecureRandom.uuid,
+      row = checkout_call(email: "rotate@example.com", idempotency_key: SecureRandom.uuid,
         items: [ { product_slug: product.slug, quantity: 1 } ]).order
       Orders::Release.call(row)
       row.update!(provider: "stripe", provider_session_id: "cs_rotate_#{index}", updated_at: (200 - index).minutes.ago)

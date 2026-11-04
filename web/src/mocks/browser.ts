@@ -1,7 +1,7 @@
 import { setupWorker } from "msw/browser";
-import { handlers, configureMocks } from "./handlers";
+import { handlers, configureMocks, type MockShipping } from "./handlers";
 import { setMockAnnounced, setMockSalesOpen } from "./data";
-import { configureAdminMocks } from "./adminHandlers";
+import { configureAdminMocks, configureEasyPostMock } from "./adminHandlers";
 import type { DropState } from "../types";
 export async function startMocks() {
   const params = new URLSearchParams(location.search);
@@ -15,6 +15,9 @@ export async function startMocks() {
   const extras = { preorder: sessionStorage.getItem("tyt-mock-preorder") === "1", dropItems: Number(sessionStorage.getItem("tyt-mock-drop-items") || 1) };
   // mockUpload=fail-once refuses the next image PUT, unconfigured answers uploads with 503, offline drops the connection.
   configureAdminMocks(sessionStorage.getItem("tyt-mock-admin-mode") || "ok", params.get("mockUpload") ?? "ok", extras);
+  const easyPostParam = params.get("mockEasyPost");
+  if (easyPostParam) sessionStorage.setItem("tyt-mock-easypost", easyPostParam);
+  configureEasyPostMock(sessionStorage.getItem("tyt-mock-easypost") || "off");
   const requestedCount = params.get("mockCore");
   if (import.meta.env.DEV && requestedCount && ["1", "2", "3"].includes(requestedCount))
     sessionStorage.setItem("tyt-mock-core", requestedCount);
@@ -38,7 +41,11 @@ export async function startMocks() {
     sessionStorage.removeItem("tyt-mock-db");
   }
   const failure = params.get("mockPayment");
+  // mockShipping=live|down|expired|pickup|free|tax: see MockShipping.
+  const shippingParam = params.get("mockShipping");
+  if (shippingParam) sessionStorage.setItem("tyt-mock-shipping", shippingParam);
   configureMocks({
+    shipping: (sessionStorage.getItem("tyt-mock-shipping") as MockShipping | null) ?? "flat",
     state,
     coreCount,
     extras,

@@ -4,7 +4,7 @@ RSpec.describe "Checkout", type: :request do
   let(:product) { create(:product) }
   let(:payload) { { email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ] } }
   def submit(attributes = {})
-    post "/api/v1/checkout", params: payload.merge(attributes), as: :json
+    post "/api/v1/checkout", params: with_shipping(payload.merge(attributes)), as: :json
   end
   def expect_error(code, status = :unprocessable_content)
     expect(response).to have_http_status(status)

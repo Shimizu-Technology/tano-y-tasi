@@ -38,9 +38,39 @@ RSpec.describe "PostgreSQL inventory concurrency", type: :model do
   end
 
   def buy(index, key: SecureRandom.uuid, email: "race-#{index}@example.com", quantity: 1)
-    Orders::Checkout.call(email: email, idempotency_key: key, items: [ { product_slug: @product.slug, quantity: quantity } ]).order
+    checkout_call(email: email, idempotency_key: key, items: [ { product_slug: @product.slug, quantity: quantity } ]).order
   rescue ApiError => error
     error.code
+  end
+
+  it "buys one label for simultaneous double clicks, holding no row lock during the network call" do
+    stub_const("ENV", ENV.to_h.merge("EASYPOST_API_KEY" => "EZTK_test"))
+    settings = StoreSetting.current
+    previous = settings.shipping_settings
+    settings.update!(shipping_settings: { mode: "easypost", origin: { name: "C", phone: "671", line1: "1 Harmon", city: "Dededo", state: "GU", postal_code: "96929" } })
+    items = [ { product_slug: @product.slug, quantity: 1 } ]
+    shipping = shipping_for(items, amount_cents: 900, kind: "live", label: "USPS Ground", carrier: "USPS", service: "Ground", provider_shipment_id: "shp_race", provider_rate_id: "rate_old", cost_cents: 820)
+    order = Orders::Checkout.call(email: "label@example.com", idempotency_key: SecureRandom.uuid, items: items, shipping: shipping).order
+    order.update!(status: "paid", paid_at: Time.current)
+    url = "https://api.easypost.com/v2/shipments/shp_race"
+    bought = { id: "shp_race", tracking_code: "T1", postage_label: { label_url: "https://x.example/l.png" }, selected_rate: { rate: "8.20" }, tracker: { public_url: "https://x.example/t", status: "pre_transit" } }
+    purchases = Queue.new
+    stub_request(:get, url).to_return { purchases.empty? ? { body: { id: "shp_race", postage_label: nil }.to_json } : { body: bought.to_json } }
+    stub_request(:post, "#{url}/rerate").to_return(body: { rates: [ { id: "rate_new", rate: "8.20", currency: "USD", carrier: "USPS", service: "Ground" } ] }.to_json)
+    stub_request(:post, "#{url}/buy").to_return do
+      # Another request must still be able to read and lock the order during the purchase.
+      Order.where(id: order.id).lock("FOR UPDATE NOWAIT").first
+      purchases << true
+      sleep 0.2
+      { body: bought.to_json }
+    end
+    results = race(4) { Shipping::Label.buy(order) }
+    expect(results.map { |result| result.reload.label_status }).to all(eq("bought"))
+    expect(purchases.size).to eq(1)
+    expect(a_request(:post, "#{url}/buy")).to have_been_made.once
+  ensure
+    settings&.update!(shipping_settings: previous)
+    ProviderLease.where("key LIKE 'label-%'").delete_all
   end
 
   it "sells exactly the last five units to twelve simultaneous buyers without oversell" do

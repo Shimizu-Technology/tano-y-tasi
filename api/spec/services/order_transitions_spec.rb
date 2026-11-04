@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "Order transitions" do
   let(:product) { create(:product, stock_quantity: 3) }
-  let(:order) { Orders::Checkout.call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order }
+  let(:order) { checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 2 } ]).order }
 
   it "releases canceled orders exactly once" do
     order
@@ -32,7 +32,7 @@ RSpec.describe "Order transitions" do
   it "bounds each lazy cleanup batch" do
     product.update!(stock_quantity: 110)
     orders = 101.times.map do
-      Orders::Checkout.call(email: "batch@example.com", idempotency_key: SecureRandom.uuid,
+      checkout_call(email: "batch@example.com", idempotency_key: SecureRandom.uuid,
         items: [ { product_slug: product.slug, quantity: 1 } ]).order
     end
     Order.where(id: orders.map(&:id)).update_all(expires_at: 6.minutes.ago)
@@ -46,7 +46,8 @@ RSpec.describe "Order transitions" do
       Payments::ProcessEvent.call(provider: "simulated", event_id: "event-#{n}", event_type: "checkout.session.completed", order: order, payment_intent_id: "pi_once", shipping: { "name" => "Buyer" })
     end
     expect(order.reload.status).to eq("paid")
-    expect(order.shipping).to eq("name" => "Buyer")
+    # The address from checkout stands: a provider's copy never replaces it.
+    expect(order.shipping).to include("name" => "A Buyer")
     expect(order.provider_payment_intent_id).to eq("pi_once")
     expect(product.reload.stock_quantity).to eq(1)
     expect(InventoryMovement.count).to eq(1)
@@ -98,7 +99,7 @@ RSpec.describe "Order transitions" do
   end
   it "does not partially re-reserve a multi-product late payment" do
     other = create(:product, stock_quantity: 1)
-    multi = Orders::Checkout.call(email: "multi@example.com", idempotency_key: "multi-late",
+    multi = checkout_call(email: "multi@example.com", idempotency_key: "multi-late",
       items: [ { product_slug: product.slug, quantity: 1 }, { product_slug: other.slug, quantity: 1 } ]).order
     Orders::Release.call(multi, status: "expired")
     other.update!(stock_quantity: 0)

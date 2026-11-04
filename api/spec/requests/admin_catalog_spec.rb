@@ -225,7 +225,7 @@ RSpec.describe "Admin catalog", type: :request do
 
     it "can't be bought until it has one" do
       Product.where(id: product.id).update_all(stock_quantity: 5)
-      post "/api/v1/checkout", params: { email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ] }, as: :json
+      post "/api/v1/checkout", params: with_shipping({ email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ] }), as: :json
       expect(response).to have_http_status(:unprocessable_content)
       expect(error["code"]).to eq("unknown_product")
       expect(product.reload.stock_quantity).to eq(5)

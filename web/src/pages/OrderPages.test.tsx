@@ -14,3 +14,25 @@ it("marks only the preorder line with its ship date", () => {
   expect(screen.getByText("Ships late January 2027")).toBeVisible();
   expect(screen.getAllByText("Preorder.")).toHaveLength(1);
 });
+
+it("shows shipping and tax as lines, with tax in the total", () => {
+  render(<MemoryRouter><OrderSummary order={{ ...order, shipping_cents: 820, tax_cents: 344, total_cents: 7820, shipping_method: { label: "USPS Ground Advantage" } }} /></MemoryRouter>);
+  expect(screen.getByText("Shipping (USPS Ground Advantage)")).toBeVisible();
+  expect(screen.getByText("$8.20")).toBeVisible();
+  expect(screen.getByText("Tax")).toBeVisible();
+  expect(screen.getByText("$3.44")).toBeVisible();
+  expect(screen.getByText("$81.64")).toBeVisible();
+});
+
+it("shows pickup instead of shipping, with its instructions", () => {
+  render(<MemoryRouter><OrderSummary order={{ ...order, shipping_cents: 0, fulfillment_method: "pickup", shipping_method: { label: "Pick up in Guam", instructions: "Tumon, weekdays." } }} /></MemoryRouter>);
+  expect(screen.getByText("Pick up in Guam")).toBeVisible();
+  expect(screen.getByText("Free")).toBeVisible();
+  expect(screen.getByText("Tumon, weekdays.")).toBeVisible();
+});
+
+it("keeps one total line for an order from before shipping", () => {
+  render(<MemoryRouter><OrderSummary order={order} /></MemoryRouter>);
+  expect(screen.queryByText("Subtotal")).not.toBeInTheDocument();
+  expect(screen.getByText("$70")).toBeVisible();
+});

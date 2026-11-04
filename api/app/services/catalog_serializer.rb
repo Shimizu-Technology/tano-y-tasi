@@ -38,7 +38,8 @@ class CatalogSerializer
     local, domain = order.email.split("@", 2)
     data.merge!(email_masked: "#{local.first}•••@#{domain}",
       items: order.order_items.order(:id).map { |item| item.slice(:product_slug, :name, :quantity, :unit_price_cents, :image, :preorder_ships) },
-      subtotal_cents: order.subtotal_cents, total_cents: order.total_cents, refunded_cents: order.refunded_cents, currency: order.currency,
+      subtotal_cents: order.subtotal_cents, shipping_cents: order.shipping_cents, tax_cents: order.tax_cents, total_cents: order.total_cents,
+      fulfillment_method: order.fulfillment_method, shipping_method: order.shipping_method&.slice("label", "estimate", "instructions"), refunded_cents: order.refunded_cents, currency: order.currency,
       created_at: order.created_at.iso8601, paid_at: order.paid_at&.iso8601)
   end
 end

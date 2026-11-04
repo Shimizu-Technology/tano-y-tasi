@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe "Stripe webhooks", type: :request do
   let(:product) { create(:product) }
   let(:order) do
-    Orders::Checkout.call(email: "a@example.com", idempotency_key: SecureRandom.uuid,
+    checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid,
       items: [ { product_slug: product.slug, quantity: 1 } ]).order.tap { |row| row.update!(provider: "stripe", provider_session_id: "cs_test") }
   end
   let(:secret) { "whsec_test_only" }
@@ -23,12 +23,56 @@ RSpec.describe "Stripe webhooks", type: :request do
     post "/api/v1/webhooks/stripe", params: body, headers: { "CONTENT_TYPE" => "application/json", "Stripe-Signature" => signature }
   end
 
+  describe "tax and the saved address" do
+    def charged(amount_total, tax, **extra)
+      session.merge(amount_total: amount_total, total_details: { amount_tax: tax, amount_shipping: 0, amount_discount: 0 }, **extra)
+    end
+
+    it "accepts the order total plus Stripe's tax, stores the tax, and refunds what was charged" do
+      order.update!(subtotal_cents: 3500, shipping_cents: 800, total_cents: 4300)
+      send_event(object: charged(4644, 344))
+      expect(order.reload).to have_attributes(status: "paid", tax_cents: 344, charged_cents: 4644, total_cents: 4300)
+      expect(order.paid_cents).to eq(4644)
+      expect(order.grand_total_cents).to eq(4644)
+    end
+
+    it "flags a charge that doesn't add up, even with tax" do
+      order.update!(subtotal_cents: 3500, shipping_cents: 800, total_cents: 4300)
+      send_event(object: charged(4700, 344))
+      expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "amount_mismatch", tax_cents: 344, charged_cents: 4700)
+    end
+
+    it "treats a session with no total_details as no tax" do
+      send_event(object: session.except(:total_details))
+      expect(order.reload).to have_attributes(status: "paid", tax_cents: 0, charged_cents: 3500)
+    end
+
+    it "flags a session with no amount rather than raising" do
+      send_event(object: session.except(:amount_total))
+      expect(response).to have_http_status(:ok)
+      expect(order.reload).to have_attributes(status: "needs_attention", attention_reason: "amount_mismatch")
+    end
+
+    it "never overwrites the saved address with an empty one" do
+      send_event(object: session.except(:collected_information))
+      expect(order.reload.shipping).to include("name" => "A Buyer")
+    end
+
+    it "takes Stripe's address for an order that has none" do
+      order.update!(shipping: {})
+      send_event
+      expect(order.reload.shipping).to include("name" => "A Buyer", "address" => { "country" => "GU" })
+    end
+  end
+
   it "verifies a real signature and processes duplicates once" do
     2.times { send_event; expect(response).to have_http_status(:ok) }
     expect(order.reload.status).to eq("paid")
     expect(order.provider_payment_intent_id).to eq("pi_test")
     expect(order.provider_session_closed_at).to be_present
-    expect(order.shipping.dig("address", "country")).to eq("GU")
+    # The address from our checkout stands, whatever Stripe collected.
+    expect(order.shipping).to include("name" => "A Buyer")
+    expect(order.shipping.dig("address", "line1")).to eq("123 Marine Corps Drive")
     expect(product.reload.stock_quantity).to eq(49)
     expect(PaymentEvent.count).to eq(1)
   end

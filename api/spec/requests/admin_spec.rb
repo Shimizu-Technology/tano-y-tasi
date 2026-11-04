@@ -70,7 +70,7 @@ RSpec.describe "Admin API", type: :request do
 
   it "closes open checkouts when the store closes" do
     StoreSetting.current.update!(sales_open: true)
-    pending = Orders::Checkout.call(email: "open@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
+    pending = checkout_call(email: "open@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: product.slug, quantity: 1 } ]).order
     pending.update!(provider: "stripe", provider_session_id: "cs_open")
     stock = product.reload.stock_quantity
     expect(Stripe::Checkout::Session).to receive(:expire).with("cs_open").and_return(Stripe::StripeObject.construct_from(status: "expired"))

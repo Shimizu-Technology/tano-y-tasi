@@ -151,7 +151,7 @@ RSpec.describe "Catalog", type: :request do
   end
 
   it "lazily releases expired inventory before availability reads" do
-    order = Orders::Checkout.call(email: "a@example.com", idempotency_key: "read-expiry", items: [ { product_slug: core.slug, quantity: 1 } ]).order
+    order = checkout_call(email: "a@example.com", idempotency_key: "read-expiry", items: [ { product_slug: core.slug, quantity: 1 } ]).order
     order.update!(expires_at: 6.minutes.ago)
     get "/api/v1/products/#{core.slug}"
     expect(order.reload.status).to eq("expired")

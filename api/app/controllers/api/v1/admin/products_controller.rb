@@ -42,7 +42,7 @@ module Api
         private
 
         def content
-          params.permit(:name, :summary, :description, :price_cents, :status, :position, :signature, :per_customer_limit, :preorder, :preorder_ships, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []).to_h.tap { |values| AdminCatalog.check_flags!(values) }
+          params.permit(:name, :summary, :description, :price_cents, :status, :position, :signature, :per_customer_limit, :preorder, :preorder_ships, :weight_oz, :length_in, :width_in, :height_in, specs: {}, includes: [], art: [ :credit, :story ], placeholders: []).to_h.tap { |values| AdminCatalog.check_flags!(values) }
         end
 
         def find_product

@@ -10,6 +10,7 @@ Rails.application.routes.draw do
           post :unfulfill, on: :member
           post :refund, on: :member
           post :mark_paid, on: :member
+          post :label, on: :member
           post "email_deliveries/:id/resend", to: "orders#resend", on: :member
         end
         resources :products, param: :slug, only: [ :index, :show, :create, :update ] do
@@ -23,6 +24,7 @@ Rails.application.routes.draw do
         resources :drops, param: :slug, only: [ :index, :show, :create, :update ]
         resources :uploads, only: :create
         resource :store, only: [ :show, :update ], controller: "store"
+        resource :shipping, only: [ :show, :update ], controller: "shipping"
         resources :pages, param: :slug, only: [ :index, :show, :update ]
         resources :subscribers, only: :index
         resources :users, only: [ :index, :update ]
@@ -35,10 +37,12 @@ Rails.application.routes.draw do
       get "products/:slug", to: "catalog#product"
       get "drops", to: "catalog#drops"
       get "drops/:slug", to: "catalog#drop"
+      post "shipping/quotes", to: "shipping#quotes"
       post "checkout", to: "checkout#create"
       get "orders/:token", to: "orders#show"
       post "orders/:token/cancel", to: "orders#cancel"
       post "webhooks/stripe", to: "webhooks#stripe"
+      post "webhooks/easypost", to: "webhooks#easypost"
       post "simulated_payments/:token/complete", to: "simulated_payments#complete"
       post "simulated_payments/:token/cancel", to: "simulated_payments#cancel"
       post "subscribers", to: "subscribers#create"

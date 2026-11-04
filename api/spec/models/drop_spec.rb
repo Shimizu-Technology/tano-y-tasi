@@ -45,10 +45,10 @@ RSpec.describe Drop do
   it "records the sell-out only when no product has stock or an open hold" do
     first.update!(stock_quantity: 1)
     second.update!(stock_quantity: 1)
-    order = Orders::Checkout.call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: first.slug, quantity: 1 } ]).order
+    order = checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: first.slug, quantity: 1 } ]).order
     Payments::Complete.call(order)
     expect(drop.reload.sold_out_at).to be_nil
-    held = Orders::Checkout.call(email: "b@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: second.slug, quantity: 1 } ]).order
+    held = checkout_call(email: "b@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: second.slug, quantity: 1 } ]).order
     Orders::Inventory.refresh_drop!(first)
     expect(drop.reload.state).to eq("sold_out")
     expect(drop.sold_out_at).to be_nil
@@ -64,7 +64,7 @@ RSpec.describe Drop do
     other_drop = create(:drop, release_at: 1.day.from_now)
     upcoming = create(:product, :limited, drop: other_drop, stock_quantity: 5)
     expect {
-      Orders::Checkout.call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 }, { product_slug: upcoming.slug, quantity: 1 } ])
+      checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: [ { product_slug: core.slug, quantity: 1 }, { product_slug: upcoming.slug, quantity: 1 } ])
     }.to raise_error(ApiError) { |error| expect(error.details[:product_slug]).to eq(upcoming.slug) }
     expect(core.reload.stock_quantity).to eq(5)
   end
