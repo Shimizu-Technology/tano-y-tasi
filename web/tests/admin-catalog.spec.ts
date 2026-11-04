@@ -122,6 +122,8 @@ test("a founder creates a product, uploads and orders images, and sees it on the
   await capture(page, "storefront-product", testInfo.project.name);
 
   await goTo(page, "/shop");
+  // Wait for Shop itself: the product page also shows this name until the route changes.
+  await expect(page.getByRole("heading", { name: "Shop", exact: true })).toBeVisible();
   await expect(page.getByText("Håfa Adai Mañana")).toBeVisible();
   await expect(page.getByRole("link", { name: /Håfa Adai from Tumon Bay/ })).toBeVisible();
   await capture(page, "storefront-shop", testInfo.project.name);
