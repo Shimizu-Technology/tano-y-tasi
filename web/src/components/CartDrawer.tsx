@@ -154,8 +154,10 @@ export function CartDrawer({ onClose }: { onClose: () => void }) {
         ? saved
         : { fingerprint, key: crypto.randomUUID(), cartRevision: cart.revision, items: checkoutItems, shipping };
     saveAttempt(attempt);
-    // A different choice replaces the earlier checkout, so its hold can't block this one.
-    if (saved && saved.key !== attempt.key && saved.orderToken) await api.cancel(saved.orderToken).catch(() => undefined);
+    // A new shipping choice for this same cart replaces its checkout, so that hold can't block this
+    // one. A changed cart is a separate purchase: the earlier checkout may still be paid in another tab.
+    if (saved?.orderToken && saved.key !== attempt.key && saved.cartRevision === cart.revision)
+      await api.cancel(saved.orderToken).catch(() => undefined);
     const chosen = attempt.shipping ?? shipping;
     try {
       const result = await api.checkout(email.trim(), checkoutItems, attempt.key, { quote: chosen.option.quote, address: chosen.address });
