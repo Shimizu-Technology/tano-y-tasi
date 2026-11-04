@@ -17,6 +17,15 @@ RSpec.describe "Shipping money guards" do
     expect { Payments::IssueRefund.call(order) }.to raise_error(ProviderLease::Busy)
   end
 
+  it "won't buy a label while a refund is unconfirmed" do
+    order = create_paid_order
+    order.update!(shipping: { name: "A", address: { line1: "1 Marine Dr", city: "Hagatna", state: "GU", postal_code: "96910", country: "US" } }, fulfillment_method: "ship")
+    order.refund_requests.create!(amount_cents: 3500)
+    allow(Shipping::EasyPostClient).to receive(:configured?).and_return(true)
+    allow_any_instance_of(Shipping::Settings).to receive(:origin_complete?).and_return(true)
+    expect { Shipping::Label.buy(order) }.to raise_error(ApiError) { |error| expect(error.message).to match(/hasn't been confirmed/) }
+  end
+
   def create_paid_order
     product = create(:product)
     order = Order.create!(email: "a@example.com", idempotency_key: SecureRandom.uuid, request_fingerprint: "f", subtotal_cents: 3500, total_cents: 3500,

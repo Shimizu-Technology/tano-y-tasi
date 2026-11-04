@@ -50,6 +50,8 @@ module Shipping
         raise ApiError.new("label_unavailable", "Labels can only be bought for a paid, unfulfilled order that's being shipped, once EasyPost is connected.")
       end
       raise ApiError.new("label_unavailable", "Add your full origin address in Shipping settings first.") unless @settings.origin_complete?
+      # Stripe may already have this refund, even though the order doesn't show it yet.
+      raise ApiError.new("label_unavailable", "A refund on this order hasn't been confirmed. Retry it before buying a label.") if @order.refund_requests.open.exists?
     end
 
     # The shipment made at quote time when it's still this order's to use, else a new one.
