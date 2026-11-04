@@ -114,7 +114,23 @@ RSpec.describe Payments::Gateway, "shipping and tax" do
   end
 
   context "with tax on" do
-    before { StoreSetting.current.update!(tax_enabled: true) }
+    before do
+      StoreSetting.current.update!(tax_enabled: true)
+      allow(Stripe::Customer).to receive(:create).and_return(Stripe::StripeObject.construct_from(id: "cus_1"))
+    end
+
+    it "keeps the setting from when stock was reserved, so a retry sends Stripe the same request" do
+      order = checkout_call(email: "a@example.com", idempotency_key: SecureRandom.uuid, items: items, shipping: shipping_for(items, amount_cents: 820, kind: "live", label: "USPS Ground Advantage")).order
+      StoreSetting.current.update!(tax_enabled: false)
+      expect(order.reload.tax_enabled).to be(true)
+    end
+
+    it "taxes by the delivery address through a Customer holding it" do
+      options = session_for(shipping_for(items, amount_cents: 820, kind: "live", label: "USPS Ground Advantage"))
+      expect(options[:customer]).to eq("cus_1")
+      expect(options).not_to include(:customer_email)
+      expect(Stripe::Customer).to have_received(:create).with(hash_including(email: "a@example.com", shipping: hash_including(:name, :address)), hash_including(:idempotency_key))
+    end
 
     it "turns on Stripe Tax, codes the shipping line, requires a billing address, and adds tax on top" do
       options = session_for(shipping_for(items, amount_cents: 820, kind: "live", label: "USPS Ground Advantage"))

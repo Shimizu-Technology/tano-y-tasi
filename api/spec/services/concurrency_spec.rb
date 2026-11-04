@@ -70,7 +70,7 @@ RSpec.describe "PostgreSQL inventory concurrency", type: :model do
     expect(a_request(:post, "#{url}/buy")).to have_been_made.once
   ensure
     settings&.update!(shipping_settings: previous)
-    ProviderLease.where("key LIKE 'label-%'").delete_all
+    ProviderLease.where("key LIKE 'money-%'").delete_all
   end
 
   it "sells exactly the last five units to twelve simultaneous buyers without oversell" do

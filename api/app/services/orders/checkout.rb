@@ -69,7 +69,7 @@ module Orders
         order = Order.create!(email: @email, idempotency_key: @key, request_fingerprint: fingerprint,
           subtotal_cents: subtotal, shipping_cents: @quote.amount_cents, total_cents: subtotal + @quote.amount_cents, currency: "USD", provider: provider, expires_at: expires_at,
           provider_session_expires_at: provider == "stripe" ? expires_at : nil, shipping: @address.to_order_shipping, shipping_method: @quote.shipping_method,
-          fulfillment_method: @quote.fulfillment_method)
+          fulfillment_method: @quote.fulfillment_method, tax_enabled: StoreSetting.current.tax_enabled)
         products.each do |product|
           quantity = quantity_for(product)
           order.order_items.create!(product: product, product_slug: product.slug, name: product.name,
@@ -124,8 +124,11 @@ module Orders
 
     # Nothing to charge, so there's nothing for Stripe to do, and it would reject the session.
     def complete_free_order!(order)
-      Payments::Complete.call(order, charged_cents: 0)
-      order.update!(payment_url: "#{Payments::Gateway.web_url}/orders/#{order.token}?from=checkout", provider_session_closed_at: Time.current)
+      # Together, so a crash can't leave a paid order that a retry can't find its way back to.
+      Order.transaction do
+        order.update!(payment_url: "#{Payments::Gateway.web_url}/orders/#{order.token}?from=checkout", provider_session_closed_at: Time.current)
+        Payments::Complete.call(order, charged_cents: 0)
+      end
     end
 
     def conflict!

@@ -27,19 +27,28 @@ module Payments
     end
 
     def self.session_params(order, expires_at)
-      tax = StoreSetting.current.tax_enabled
+      tax = order.tax_enabled
       params = {
-        mode: "payment", customer_email: order.email, expires_at: expires_at.to_i,
+        mode: "payment", expires_at: expires_at.to_i,
         metadata: { order_token: order.token },
         success_url: "#{web_url}/orders/#{order.token}?from=checkout",
         cancel_url: "#{web_url}/checkout/cancel/#{order.token}",
         line_items: line_items(order, tax)
       }
       params[:payment_intent_data] = { shipping: stripe_shipping(order) } if order.fulfillment_method == "ship"
-      params.merge!(automatic_tax: { enabled: true }, billing_address_collection: "required") if tax
+      params.merge!(tax ? { customer: tax_customer(order), automatic_tax: { enabled: true }, billing_address_collection: "required" } : { customer_email: order.email })
       params
     end
     private_class_method :session_params
+
+    # Stripe Tax uses a Customer's shipping address before the billing address, which is
+    # what taxes a gift by where it's going. Stripe collects no shipping address itself.
+    def self.tax_customer(order)
+      details = { email: order.email }
+      details[:shipping] = stripe_shipping(order) if order.fulfillment_method == "ship"
+      Stripe::Customer.create(details, { idempotency_key: "tano-y-tasi-customer-#{order.token}" }).id
+    end
+    private_class_method :tax_customer
 
     # Stripe rejects a zero-amount line, so free items and free shipping stay off the page.
     def self.line_items(order, tax)

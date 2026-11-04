@@ -30,6 +30,8 @@ class AddShippingAndTax < ActiveRecord::Migration[8.1]
     SQL
 
     add_column :store_settings, :tax_enabled, :boolean, null: false, default: false
+    # Fixed when stock is reserved, so a retry sends Stripe the same request under the same key.
+    add_column :orders, :tax_enabled, :boolean, null: false, default: false
     add_column :store_settings, :shipping_settings, :jsonb, null: false, default: {}
     # Flat rates are placeholders until the merchant saves real ones.
     add_column :store_settings, :flat_rates_saved_at, :datetime

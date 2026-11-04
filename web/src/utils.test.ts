@@ -1,4 +1,5 @@
 import { checkoutFix } from "./api";
+import { checkoutFingerprint } from "./checkoutState";
 import { catalog, CORE, MAP } from "./mocks/data";
 import { dropItems, money, countdown, priceRange, purchaseState, releaseTimes, remainingMs, heroReleaseTime } from "./utils";
 import type { DropState } from "./types";
@@ -78,4 +79,13 @@ it("lists a drop's items, falling back to the lead for an older API", () => {
 it("shows one price, or where a range starts", () => {
   expect(priceRange([{ price_cents: 4500 }, { price_cents: 4500 }])).toBe("$45");
   expect(priceRange([{ price_cents: 5000 }, { price_cents: 4500 }])).toBe("From $45");
+});
+it("treats a re-quote of the same shipping choice as the same checkout, and a new choice as a new one", () => {
+  const address = { name: "A", line1: "1 Marine Dr", city: "Hagåtña", state: "GU", postal_code: "96910" };
+  const option = { quote: "signed-1", kind: "flat", label: "Standard", amount_cents: 1200 };
+  const items = [{ product_slug: CORE, quantity: 1 }];
+  const first = checkoutFingerprint("a@b.com", items, { option, address } as never);
+  expect(checkoutFingerprint("a@b.com", items, { option: { ...option, quote: "signed-2" }, address } as never)).toBe(first);
+  expect(checkoutFingerprint("a@b.com", items, { option: { ...option, amount_cents: 800 }, address } as never)).not.toBe(first);
+  expect(checkoutFingerprint("a@b.com", items, { option, address: { ...address, postal_code: "96913" } } as never)).not.toBe(first);
 });

@@ -280,6 +280,7 @@ CREATE TABLE public.orders (
     label_bought_at timestamp(6) without time zone,
     tracking_status character varying,
     tracking_status_at timestamp(6) without time zone,
+    tax_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
     CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND ((charged_cents IS NULL) OR (charged_cents >= 0)))),

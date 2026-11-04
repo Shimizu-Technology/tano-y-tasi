@@ -17,7 +17,8 @@ export function checkoutFingerprint(email: string, items: CartItem[], shipping: 
   return JSON.stringify({
     email: email.trim().toLowerCase(),
     items: [...items].sort((a, b) => a.product_slug.localeCompare(b.product_slug)),
-    shipping: shipping && { quote: shipping.option.quote, address: shipping.address },
+    // The choice, not its signed token: re-quoting the same option mustn't start a new checkout.
+    shipping: shipping && { kind: shipping.option.kind, label: shipping.option.label, amount_cents: shipping.option.amount_cents, address: shipping.address },
   });
 }
 export function readAttempt(): CheckoutAttempt | null {

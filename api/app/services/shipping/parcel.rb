@@ -17,12 +17,14 @@ module Shipping
       }
     end
 
-    # EasyPost's value and weight are for the whole line, not one unit.
+    # EasyPost's value and weight are for the whole line, not one unit. It refuses a zero
+    # value, so a giveaway is declared at the nominal value the merchant should confirm.
+    MIN_CUSTOMS_VALUE = 1.0
     def self.customs_items(lines, settings)
       lines.map do |line|
         weight = (line.product.weight_oz || settings.parcel.fetch("weight_oz")).to_f * line.quantity
         { description: settings.customs.fetch("description"), quantity: line.quantity, weight: weight.round(1),
-          value: (line.unit_price_cents * line.quantity / 100.0).round(2), hs_tariff_number: settings.customs.fetch("hs_tariff_number"),
+          value: [ (line.unit_price_cents * line.quantity / 100.0).round(2), MIN_CUSTOMS_VALUE ].max, hs_tariff_number: settings.customs.fetch("hs_tariff_number"),
           origin_country: settings.customs.fetch("origin_country"), currency: "USD" }
       end
     end

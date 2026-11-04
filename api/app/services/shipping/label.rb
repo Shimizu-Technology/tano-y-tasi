@@ -23,7 +23,8 @@ module Shipping
     end
 
     def buy
-      ProviderLease.with("label-#{@order.id}") do
+      # Shared with refunds, and eligibility is checked inside it.
+      ProviderLease.with("money-#{@order.id}") do
         @order.reload
         next @order if @order.label_status == "bought"
         check!
