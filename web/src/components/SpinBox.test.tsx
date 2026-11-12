@@ -69,3 +69,25 @@ it("leaves a finger's swipe to the gallery when touch dragging is off", () => {
   pointer(stage, "pointermove", 160, "mouse");
   expect(body(container).style.transform).toBe("rotateY(6deg)");
 });
+
+it("ends a press that is released away from the box, so the next click still opens the product", () => {
+  vi.useFakeTimers();
+  try {
+    const opened = vi.fn();
+    const { container } = render(<MemoryRouter><div onClick={opened}><ProductCard product={product} /></div></MemoryRouter>);
+    const stage = container.querySelector(".spin-box-stage")!;
+    pointer(stage, "pointerdown", 100, "mouse");
+    pointer(stage, "pointermove", 110, "mouse");
+    pointer(stage, "pointermove", 140, "mouse");
+    // The release lands elsewhere; the stage only hears that it lost the pointer.
+    pointer(stage, "lostpointercapture", 140, "mouse");
+    expect(body(container).style.transform).toBe("rotateY(-24deg)");
+    // Moving back over it with no button down must not turn it.
+    pointer(stage, "pointermove", 300, "mouse");
+    expect(body(container).style.transform).toBe("rotateY(-24deg)");
+    // No click followed that drag, so a later one (a keyboard Enter on the link, say) goes through.
+    vi.advanceTimersByTime(100);
+    fireEvent.click(stage);
+    expect(opened).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});

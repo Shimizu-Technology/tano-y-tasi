@@ -1,3 +1,4 @@
+import { GALLERY_BOX_SIZES, GALLERY_LEAD_SIZES } from "../../src/gallerySizes.ts";
 import { HOME_HERO_ART, HOME_HERO_SIZES } from "../../src/homeHero.ts";
 import type { Drop, Drops, ProductDetail, Storefront } from "../../src/types.ts";
 
@@ -51,10 +52,12 @@ export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT
     meta("og:url", canonical), meta("og:type", product ? "product" : "website"), meta("og:site_name", "Tåno + Tåsi"),
     meta("twitter:card", "summary_large_image", false),
   ];
-  const hero = route.kind === "home" ? HOME_HERO_ART : product?.images[0];
+  // A product with a box leads its gallery with the box's front.
+  const boxFront = route.kind === "home" ? undefined : product?.box?.front;
+  const hero = route.kind === "home" ? HOME_HERO_ART : boxFront ?? product?.images[0];
   if (hero) {
     // Must match the rendered <img sizes> so the browser reuses the preloaded candidate.
-    const sizes = route.kind === "home" ? HOME_HERO_SIZES : "(min-width: 900px) 58vw, calc(100vw - 32px)";
+    const sizes = route.kind === "home" ? HOME_HERO_SIZES : boxFront ? GALLERY_BOX_SIZES : GALLERY_LEAD_SIZES;
     tags.push(`<link data-tyt-preload rel="preload" as="image" imagesrcset="${escapeHtml(hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", "))}" imagesizes="${sizes}" fetchpriority="high" />`);
   }
   tags.push(`<script type="application/json" id="tyt-initial-data">${serializeData(data)}</script>`);

@@ -4,6 +4,7 @@ import type { Art, Box } from "../types";
 import { ArtImage } from "./ArtImage";
 import { Modal } from "./Modal";
 import { SpinBox } from "./SpinBox";
+import { GALLERY_BOX_SIZES, GALLERY_LEAD_SIZES } from "../gallerySizes";
 export function Gallery({ images, name, box }: { images: Art[]; name: string; box?: Box | null }) {
   const [index, setIndex] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -25,7 +26,7 @@ export function Gallery({ images, name, box }: { images: Art[]; name: string; bo
       >
         {box && (
           // A swipe here moves the gallery on a phone, so a finger turns the box with the button.
-          <div className="gallery-image gallery-box"><SpinBox box={box} sizes="(min-width: 900px) 34vw, 70vw" priority controls touchDrag={false} /></div>
+          <div className="gallery-image gallery-box"><SpinBox box={box} sizes={GALLERY_BOX_SIZES} priority controls touchDrag={false} /></div>
         )}
         {images.map((art, i) => (
           <button
@@ -34,7 +35,7 @@ export function Gallery({ images, name, box }: { images: Art[]; name: string; bo
             aria-label={`View image ${i + 1} of ${name}`}
             onClick={() => setViewer(i)}
           >
-            <ArtImage art={art} priority={i === 0 && !box} sizes={i === 0 ? "(min-width: 900px) 58vw, calc(100vw - 32px)" : "(min-width: 900px) 28vw, calc(100vw - 32px)"} />
+            <ArtImage art={art} priority={i === 0 && !box} sizes={i === 0 ? GALLERY_LEAD_SIZES : "(min-width: 900px) 28vw, calc(100vw - 32px)"} />
             <span className="gallery-zoom label">EXPLORE IMAGE <Plus aria-hidden="true" /></span>
           </button>
         ))}

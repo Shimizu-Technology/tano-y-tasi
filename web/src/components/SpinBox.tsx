@@ -82,6 +82,30 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     frame.current = requestAnimationFrame(tick);
   }
   useEffect(() => stopSpin, []);
+  // Turning reduced motion on mid-spin stops it at once, facing front.
+  useEffect(() => {
+    if (!reduced || !frame.current) return;
+    stopSpin();
+    turn(nearest(angle.current, 360), false);
+    setBack(false);
+    // turn only touches refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduced]);
+  // Ends a press however it ends: released here or elsewhere, cancelled, or taken over by a scroll.
+  function release(e: ReactPointerEvent<HTMLElement>) {
+    const state = drag.current;
+    if (!state || state.id !== e.pointerId) return;
+    drag.current = null;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const away = e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom;
+    // While captured the stage hears no leave, so a press let go elsewhere ends the hover spin here.
+    if (state.moved) settle(180);
+    else if (away) settle(360);
+    // The captured press would click here even when let go elsewhere; that isn't a click on the box.
+    if (away) dragged.current = true;
+    // Only the click that this drag itself produces is swallowed.
+    window.setTimeout(() => { dragged.current = false; }, 80);
+  }
 
   // One small turn the first time a touch screen shows the box, so it reads as something to turn.
   useEffect(() => {
@@ -117,6 +141,8 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
           if (e.button !== 0 || drag.current || (!touchDrag && !mouse(e))) return;
           drag.current = { id: e.pointerId, x: e.clientX, from: angle.current, moved: false };
           dragged.current = false;
+          // Captured from the press, so a release anywhere still ends it.
+          e.currentTarget.setPointerCapture?.(e.pointerId);
         }}
         onPointerMove={(e) => {
           const state = drag.current;
@@ -129,20 +155,17 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
             stopSpin();
             state.from = angle.current;
             state.x = e.clientX;
-            e.currentTarget.setPointerCapture?.(e.pointerId);
             return;
           }
           turn(state.from + dx * 0.6, false);
         }}
-        onPointerUp={(e) => {
-          const state = drag.current;
-          if (!state || state.id !== e.pointerId) return;
-          drag.current = null;
-          if (state.moved) settle(180);
-        }}
-        onPointerCancel={() => { if (drag.current?.moved) settle(180); drag.current = null; }}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onLostPointerCapture={release}
         // A drag that ends over a link must not follow it.
         onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.preventDefault(); e.stopPropagation(); } }}
+        // Inside a link the browser would otherwise start dragging the link itself and cancel the pointer.
+        onMouseDown={(e) => e.preventDefault()}
         onDragStart={(e) => e.preventDefault()}
       >
         <div className="spin-box-body" ref={body} style={{ transform: `rotateY(${REST}deg)` }}>

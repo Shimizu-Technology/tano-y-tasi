@@ -14,8 +14,11 @@ RSpec.describe AddPlaceholderBoxFaces do
     images = product.images
     described_class.new.up
     expect(product.reload.images).to eq(images)
+    # Rolling back filters the list as it stands, keeping a merchant's later images and their order.
+    later = own.first.merge("base" => "/images/merchant-later", "role" => "gallery")
+    product.update!(images: [ later ] + product.images + [ later.merge("base" => "/images/merchant-last") ])
     described_class.new.down
-    expect(product.reload.images).to eq(own)
+    expect(product.reload.images.map { |image| image["base"] }).to eq([ "/images/merchant-later", *own.map { |image| image["base"] }, "/images/merchant-last" ])
   end
 
   it "leaves a product that already has a box face, has no images, or is another product" do

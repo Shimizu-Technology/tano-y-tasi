@@ -23,8 +23,10 @@ class AddPlaceholderBoxFaces < ActiveRecord::Migration[8.1]
 
   def down
     bases = BOXES.keys.flat_map { |slug| %w[front back left right].map { |face| "/images/products/#{slug}/box-placeholder-#{face}" } }
-    CatalogProduct.where(slug: BOXES.keys).find_each do |product|
-      product.update_columns(images: product.images.reject { |image| bases.include?(image["base"]) })
-    end
+    # One statement here too: it filters the list as it stands, in order, so a concurrent edit isn't overwritten.
+    CatalogProduct.where(slug: BOXES.keys).update_all([ <<~SQL.squish, bases ])
+      images = COALESCE((SELECT jsonb_agg(image ORDER BY position) FROM jsonb_array_elements(images) WITH ORDINALITY AS list(image, position)
+        WHERE NOT (image->>'base' = ANY(ARRAY[?]))), '[]'::jsonb)
+    SQL
   end
 end

@@ -39,8 +39,17 @@ it("replaces default tags with complete absolute product metadata and matching r
     expect(document.querySelector(`[property="og:${key}"]`)).toHaveAttribute("content", value);
   }
   expect(document.querySelector('[name="twitter:card"]')).toHaveAttribute("content", "summary_large_image");
-  expect(document.querySelector('link[as="image"]')).toHaveAttribute("imagesrcset", core.image.widths.map((w) => `${core.image.base}-${w}.webp ${w}w`).join(", "));
+  // The gallery leads with the box, so its front is what gets preloaded, at the box's sizes.
+  const front = core.box!.front;
+  expect(document.querySelector('link[as="image"]')).toHaveAttribute("imagesrcset", front.widths.map((w) => `${front.base}-${w}.webp ${w}w`).join(", "));
+  expect(document.querySelector('link[as="image"]')).toHaveAttribute("imagesizes", "(min-width: 900px) 34vw, 70vw");
   expect(document.querySelector('link[as="image"]')).toHaveAttribute("fetchpriority", "high");
+  // Without a box, or from an API that doesn't send one yet, the first photo leads.
+  for (const box of [null, undefined]) {
+    document.head.innerHTML = transformHtml(html, { ...data, product: { product: { ...core, box }, server_time } }, "https://custom.example");
+    expect(document.querySelector('link[as="image"]')).toHaveAttribute("imagesrcset", core.image.widths.map((w) => `${core.image.base}-${w}.webp ${w}w`).join(", "));
+    expect(document.querySelector('link[as="image"]')).toHaveAttribute("imagesizes", "(min-width: 900px) 58vw, calc(100vw - 32px)");
+  }
 });
 it("uses drop-specific OG and brand OG for other pages", () => {
   expect(transformHtml(html, { ...snapshot("/drop"), drop: { drop, server_time, receivedAt: snapshotTime } })).toContain(`/images/og/${MAP}.jpg`);
@@ -176,7 +185,7 @@ it("ignores malformed or mismatched snapshots", () => {
 it("preloads a product image stored on the media bucket under its absolute URL", () => {
   const base = "https://tano-y-tasi-media.s3.ap-southeast-1.amazonaws.com/products/new-puzzle/abc123";
   const art = { role: "hero", alt: "New puzzle", base, widths: [640, 1280], aspect: "4:3" };
-  const product = { ...core, slug: "new-puzzle", image: art, images: [art] };
+  const product = { ...core, slug: "new-puzzle", image: art, images: [art], box: null };
   const result = transformHtml(html, { ...snapshot("/products/new-puzzle"), product: { product, server_time } });
   expect(result).toContain(`imagesrcset="${base}-640.webp 640w, ${base}-1280.webp 1280w"`);
   expect(result).toContain("/images/og/brand.jpg");

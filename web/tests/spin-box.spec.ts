@@ -38,6 +38,53 @@ test("reduced motion keeps the box still under the mouse", async ({ page }, test
   expect(await turn(page)).toBe(-24);
 });
 
+test("turning reduced motion on stops a spin that is already running", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Hover is a mouse behaviour.");
+  await page.goto("/shop");
+  await page.locator(".spin-box-stage").first().hover();
+  await expect.poll(() => turn(page)).toBeGreaterThan(0);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(async () => (((await turn(page)) + 24) % 360 + 360) % 360).toBe(0);
+  const rest = await turn(page);
+  await page.waitForTimeout(300);
+  expect(await turn(page)).toBe(rest);
+});
+
+test("a mouse drags a card's box round without dragging the link or opening the product", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Mouse drag.");
+  await page.goto("/shop");
+  const at = await centre(page);
+  await page.mouse.move(at.x - 100, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x + 150, at.y, { steps: 8 });
+  // Mid-drag the box follows the pointer rather than spinning by itself.
+  const held = await turn(page);
+  await page.waitForTimeout(200);
+  expect(await turn(page)).toBe(held);
+  await page.mouse.up();
+  await expect.poll(async () => (((await turn(page)) + 24) % 180 + 180) % 180).toBe(0);
+  await expect(page).toHaveURL(/\/shop$/);
+  // A plain click still opens the product.
+  await page.mouse.move(2, 400);
+  await page.locator(".spin-box-stage").first().click();
+  await expect(page).toHaveURL(/\/products\//);
+});
+
+test("a press released outside the box doesn't leave it dragging", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Mouse drag.");
+  await page.goto("/shop");
+  const at = await centre(page);
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.mouse.move(at.x, at.y + 500, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (((await turn(page)) + 24) % 360 + 360) % 360).toBe(0);
+  const rest = await turn(page);
+  await page.mouse.move(at.x + 80, at.y + 500);
+  expect(await turn(page)).toBe(rest);
+  await expect(page).toHaveURL(/\/shop$/);
+});
+
 test("a finger drags a card's box round without opening the product or blocking the page scroll", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Touch drag.");
   await page.goto("/shop");
