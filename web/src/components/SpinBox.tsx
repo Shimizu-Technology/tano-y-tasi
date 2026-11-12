@@ -52,6 +52,7 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
   const frame = useRef(0);
   const drag = useRef<{ id: number; x: number; from: number; moved: boolean } | null>(null);
   const dragged = useRef(false);
+  const forget = useRef(0);
   const [back, setBack] = useState(false);
 
   function turn(next: number, animate: boolean) {
@@ -81,13 +82,15 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     };
     frame.current = requestAnimationFrame(tick);
   }
-  useEffect(() => stopSpin, []);
-  // Turning reduced motion on mid-spin stops it at once, facing front.
+  useEffect(() => () => { stopSpin(); clearTimeout(forget.current); }, []);
+  // Turning reduced motion on stops whatever is moving at once: a spin comes to the front, and a
+  // hint or a settle jumps to the pose it was heading for.
   useEffect(() => {
-    if (!reduced || !frame.current) return;
+    if (!reduced) return;
+    const next = nearest(angle.current, frame.current ? 360 : 180);
     stopSpin();
-    turn(nearest(angle.current, 360), false);
-    setBack(false);
+    turn(next, false);
+    setBack(showsBack(next));
     // turn only touches refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
@@ -104,7 +107,7 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     // The captured press would click here even when let go elsewhere; that isn't a click on the box.
     if (away) dragged.current = true;
     // Only the click that this drag itself produces is swallowed.
-    window.setTimeout(() => { dragged.current = false; }, 80);
+    forget.current = window.setTimeout(() => { dragged.current = false; }, 80);
   }
 
   // One small turn the first time a touch screen shows the box, so it reads as something to turn.
@@ -140,6 +143,8 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
         onPointerDown={(e) => {
           if (e.button !== 0 || drag.current || (!touchDrag && !mouse(e))) return;
           drag.current = { id: e.pointerId, x: e.clientX, from: angle.current, moved: false };
+          // An earlier press's timer must not clear this one's flag.
+          clearTimeout(forget.current);
           dragged.current = false;
           // Captured from the press, so a release anywhere still ends it.
           e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -165,7 +170,12 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
         // A drag that ends over a link must not follow it.
         onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.preventDefault(); e.stopPropagation(); } }}
         // Inside a link the browser would otherwise start dragging the link itself and cancel the pointer.
-        onMouseDown={(e) => e.preventDefault()}
+        // Cancelling the press also cancels its focus, so the link is focused by hand.
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          e.preventDefault();
+          e.currentTarget.closest("a")?.focus({ preventScroll: true });
+        }}
         onDragStart={(e) => e.preventDefault()}
       >
         <div className="spin-box-body" ref={body} style={{ transform: `rotateY(${REST}deg)` }}>

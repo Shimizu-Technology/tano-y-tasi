@@ -91,3 +91,31 @@ it("ends a press that is released away from the box, so the next click still ope
     expect(opened).toHaveBeenCalledOnce();
   } finally { vi.useRealTimers(); }
 });
+
+it("keeps swallowing a drag's click when the drag starts right after another press", () => {
+  vi.useFakeTimers();
+  try {
+    const opened = vi.fn();
+    const { container } = render(<MemoryRouter><div onClick={opened}><ProductCard product={product} /></div></MemoryRouter>);
+    const stage = container.querySelector(".spin-box-stage")!;
+    pointer(stage, "pointerdown", 100, "mouse");
+    pointer(stage, "pointerup", 100, "mouse");
+    // A second press inside the first one's 80 ms window turns into a drag.
+    vi.advanceTimersByTime(40);
+    pointer(stage, "pointerdown", 100, "mouse");
+    pointer(stage, "pointermove", 110, "mouse");
+    vi.advanceTimersByTime(60);
+    pointer(stage, "pointermove", 300, "mouse");
+    pointer(stage, "pointerup", 300, "mouse");
+    fireEvent.click(stage);
+    expect(opened).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+
+it("focuses the card's link on a mouse press, and leaves other buttons alone", () => {
+  const { container } = render(<MemoryRouter><ProductCard product={product} /></MemoryRouter>);
+  const stage = container.querySelector(".spin-box-stage")!;
+  expect(fireEvent.mouseDown(stage, { button: 1 })).toBe(true);
+  expect(fireEvent.mouseDown(stage, { button: 0 })).toBe(false);
+  expect(container.querySelector("a")).toHaveFocus();
+});
