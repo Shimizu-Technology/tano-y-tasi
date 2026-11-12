@@ -3,6 +3,7 @@ import type { Product } from "../types";
 import { money } from "../utils";
 import { ArtImage } from "./ArtImage";
 import { ProductCard } from "./Shared";
+import { SpinBox } from "./SpinBox";
 
 export function ProductCollection({ products }: { products: Product[] }) {
   if (products.length === 1) return <FeaturedProduct product={products[0]} />;
@@ -25,7 +26,9 @@ function FeaturedProduct({ product }: { product: Product }) {
   return (
     <article className="collection-feature core-collection">
       <Link className="feature-art" to={`/products/${product.slug}`} aria-label={`View ${product.name}`}>
-        <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />
+        {product.box
+          ? <SpinBox box={product.box} sizes="(min-width: 900px) 40vw, 70vw" />
+          : <ArtImage art={product.image} sizes="(min-width: 900px) 58vw, calc(100vw - 32px)" />}
       </Link>
       <div className="feature-info">
         {status && <p className="label muted">{status}</p>}

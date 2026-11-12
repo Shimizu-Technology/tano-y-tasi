@@ -73,7 +73,7 @@ module Orders
         products.each do |product|
           quantity = quantity_for(product)
           order.order_items.create!(product: product, product_slug: product.slug, name: product.name,
-            quantity: quantity, unit_price_cents: product.price_cents, image: product.images.first || {},
+            quantity: quantity, unit_price_cents: product.price_cents, image: product.gallery_images.first || {},
             preorder_ships: product.preorder ? product.preorder_ships : nil)
           Inventory.change!(product, order, -quantity, "reserve")
         end

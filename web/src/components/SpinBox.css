@@ -1,0 +1,65 @@
+/* A box folded from its flat faces. The frame is a size container, so the box fits a frame of any
+   shape and its depth scales with it. Only transform changes while it turns. */
+.spin-box {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  container-type: size;
+}
+.spin-box-stage {
+  /* Room is left around the box for its corners to swing through. */
+  width: min(78cqw, 78cqh * var(--box-ratio));
+  aspect-ratio: var(--box-ratio);
+  container-type: inline-size;
+  perspective: 340cqw;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.spin-box-stage:active { cursor: grabbing; }
+/* A sideways drag turns the box; an up-and-down one still scrolls the page. */
+.spin-box-stage[data-touch-drag] { touch-action: pan-y; }
+.spin-box-body {
+  --depth: calc(100cqw * var(--box-depth));
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.spin-box-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  background: var(--color-ink);
+  backface-visibility: hidden;
+  -webkit-user-drag: none;
+}
+.spin-box-front { transform: translateZ(calc(var(--depth) / 2)); }
+.spin-box-back { transform: rotateY(180deg) translateZ(calc(var(--depth) / 2)); }
+.spin-box-left, .spin-box-right { width: var(--depth); left: calc(50% - var(--depth) / 2); }
+.spin-box-left { transform: rotateY(-90deg) translateZ(50cqw); }
+.spin-box-right { transform: rotateY(90deg) translateZ(50cqw); }
+.spin-box-turn {
+  position: absolute;
+  left: 50%;
+  bottom: 4cqh;
+  translate: -50% 0;
+  min-height: 44px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+/* Where the box sits. */
+.feature-art .spin-box { aspect-ratio: 4 / 3; }
+.gallery-box { cursor: default; background: var(--color-tile); }
+/* The gallery's box leaves room under it for the button. */
+.gallery-box .spin-box-stage { width: min(66cqw, 62cqh * var(--box-ratio)); margin-bottom: 10cqh; }
+@media (min-width: 900px) {
+  .gallery-box .spin-box { aspect-ratio: 3 / 2; }
+}

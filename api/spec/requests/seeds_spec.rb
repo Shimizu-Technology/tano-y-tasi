@@ -13,10 +13,12 @@ RSpec.describe "Catalog seeds" do
     map = Product.find_by!(slug: "guahan-sunset-map")
     expect(core).to have_attributes(price_cents: 3500, stock_quantity: 50, status: "active")
     expect(core.specs).to include("piece_count" => 100, "finished_size" => "12 × 9 in")
-    expect(core.images.map { |image| image.fetch("base").split("/").last }).to eq(%w[finished-flat piece-detail finished-tabletop])
+    expect(core.gallery_images.map { |image| image.fetch("base").split("/").last }).to eq(%w[finished-flat piece-detail finished-tabletop])
+    expect(core.box.keys).to eq(%i[front back left right])
     expect(core.images.first).to include("role" => "hero", "aspect" => "12:7")
     expect(map).to have_attributes(price_cents: 4500, stock_quantity: 500, kind: "drop")
-    expect(map.images.size).to eq(4)
+    expect(map.gallery_images.size).to eq(4)
+    expect(map.box[:front]).to include("base" => "/images/products/guahan-sunset-map/box-placeholder-front", "aspect" => "4:5")
     expect(map.drop).to have_attributes(quantity: 500, per_customer_limit: 2, release_at: nil)
   end
 

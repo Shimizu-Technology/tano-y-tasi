@@ -159,7 +159,7 @@ describe("commerce states", () => {
     expect(screen.getByRole("button", { name: "ADD TO CART" })).toBeEnabled();
   });
   it("shows a drop with several products as a heading and a grid linking to each", () => {
-    const night = { ...map, slug: "night", name: "Night Map" };
+    const night = { ...map, slug: "night", name: "Night Map", box: null };
     showDrop({ ...dropSummary("live"), product: map, products: [map, night] });
     expect(screen.getByRole("heading", { level: 1, name: "Guåhan Sunset Map" })).toBeVisible();
     expect(screen.getByText("DROP 001 · AVAILABLE NOW")).toBeVisible();

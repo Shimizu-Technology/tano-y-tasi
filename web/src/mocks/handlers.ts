@@ -3,7 +3,7 @@ import { adminHandlers, mockAdminDrops, mockAdminProducts, onAdminStockChange } 
 import { catalog, CORE, extraProducts, MAP, DROP, dropSummary, mockSalesOpen, MAP_NIGHT, MAP_TIDES, type MockExtras } from "./data";
 import { mockStore, mockPages } from "./store";
 import { addressErrors, cleanAddress } from "../shippingAddress";
-import type { CartItem, CheckoutResult, DropState, DropSummary, Order, ProductDetail, Product, ShippingAddress, ShippingOption } from "../types";
+import type { Art, CartItem, CheckoutResult, DropState, DropSummary, Order, ProductDetail, Product, ShippingAddress, ShippingOption } from "../types";
 interface StoredOrder {
   order: Order;
   email: string;
@@ -82,13 +82,26 @@ function rawProducts() {
   }
   return items;
 }
+// As the API does: box faces are served apart from the ordered images, once there is a front and a back.
+const BOX_FACES = ["box_front", "box_back", "box_left", "box_right"];
+function splitImages(images: Art[]) {
+  const face = (role: string) => images.find((image) => image.role === role) ?? null;
+  const [front, back] = [face("box_front"), face("box_back")];
+  return {
+    images: images.filter((image) => !BOX_FACES.includes(image.role)),
+    box: front && back ? { front, back, left: face("box_left"), right: face("box_right") } : null,
+    faces: images.some((image) => BOX_FACES.includes(image.role)),
+  };
+}
 // What the admin saved shows on the storefront, as it would with the real API.
 function withAdminEdits(items: ProductDetail[]) {
   const edited = items.map((item) => {
     const saved = mockAdminProducts().find((p) => p.slug === item.slug);
     if (!saved?.images.length) return item;
+    const { images, box, faces } = splitImages(saved.images);
     return { ...item, name: saved.name, summary: saved.summary, description: saved.description, price_cents: saved.price_cents,
-      images: saved.images, image: saved.images[0], alt_image: saved.images[1] ?? null,
+      // The mock admin doesn't list the stand-in faces, so they stay until the merchant adds faces of their own.
+      images, image: images[0], alt_image: images[1] ?? null, box: faces ? box : item.box,
       kind: saved.kind as ProductDetail["kind"], drop: saved.drop ? ({ slug: saved.drop.slug } as DropSummary) : null,
       signature: saved.signature, preorder: saved.preorder, preorder_ships: saved.preorder_ships, per_customer_limit: saved.per_customer_limit };
   });
@@ -96,9 +109,10 @@ function withAdminEdits(items: ProductDetail[]) {
     .filter((p) => !items.some((item) => item.slug === p.slug) && p.status !== "draft" && p.images.length > 0)
     .map((p): ProductDetail => {
       db.stock[p.slug] ??= p.stock_quantity;
+      const { images, box } = splitImages(p.images);
       return { slug: p.slug, name: p.name, kind: p.kind as ProductDetail["kind"], price_cents: p.price_cents, currency: "USD", summary: p.summary, description: p.description,
         availability: { state: "closed", purchasable: false, remaining: null, low_stock: false },
-        drop: p.drop ? ({ slug: p.drop.slug } as DropSummary) : null, image: p.images[0], alt_image: p.images[1] ?? null, images: p.images, specs: p.specs as ProductDetail["specs"], includes: p.includes,
+        drop: p.drop ? ({ slug: p.drop.slug } as DropSummary) : null, image: images[0], alt_image: images[1] ?? null, box, images, specs: p.specs as ProductDetail["specs"], includes: p.includes,
         art: p.art, signature: p.signature, preorder: p.preorder, preorder_ships: p.preorder_ships, per_customer_limit: p.per_customer_limit, max_per_order: 0, placeholders: p.placeholders };
     });
   return [...edited, ...added];
@@ -227,6 +241,7 @@ function listProduct(p: ProductDetail): Product {
     drop: p.drop,
     image: p.image,
     alt_image: p.alt_image,
+    box: p.box ?? null,
   };
 }
 function listDrop(d: ReturnType<typeof publicDrops>[number]) {
