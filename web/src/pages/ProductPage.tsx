@@ -196,7 +196,7 @@ function ProductView({
           {d && !drop ? <Link to={`/drops/${d.slug}`}>DROP {dropNumber(d.number)}</Link> : <span>{d ? `DROP ${dropNumber(d.number)}` : p.name}</span>}
         </div>
         <div className="product-layout">
-          <Gallery images={p.images} name={p.name} />
+          <Gallery images={p.images} name={p.name} box={p.box} />
           <div className="product-info">
             {d ? <DropStatus drop={d} /> : p.signature && <p className="label product-state">SIGNATURE</p>}
             <h1>{p.name}</h1>

@@ -1,14 +1,18 @@
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Art } from "../types";
+import type { Art, Box } from "../types";
 import { ArtImage } from "./ArtImage";
 import { Modal } from "./Modal";
-export function Gallery({ images, name }: { images: Art[]; name: string }) {
+import { SpinBox } from "./SpinBox";
+import { GALLERY_BOX_SIZES, GALLERY_LEAD_SIZES } from "../gallerySizes";
+export function Gallery({ images, name, box }: { images: Art[]; name: string; box?: Box | null }) {
   const [index, setIndex] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
   if (images.length === 0) return null;
+  // The box, when there is one, is the first slide; the photos follow it.
+  const slides = images.length + (box ? 1 : 0);
   // A refreshed product can have fewer images than the remembered position.
-  const current = Math.min(index, images.length - 1);
+  const current = Math.min(index, slides - 1);
   return (
     <div className="gallery">
       <div
@@ -20,6 +24,10 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
           }
         }}
       >
+        {box && (
+          // A swipe here moves the gallery on a phone, so a finger turns the box with the button.
+          <div className="gallery-image gallery-box"><SpinBox box={box} sizes={GALLERY_BOX_SIZES} priority controls touchDrag={false} /></div>
+        )}
         {images.map((art, i) => (
           <button
             key={art.base}
@@ -27,16 +35,16 @@ export function Gallery({ images, name }: { images: Art[]; name: string }) {
             aria-label={`View image ${i + 1} of ${name}`}
             onClick={() => setViewer(i)}
           >
-            <ArtImage art={art} priority={i === 0} sizes={i === 0 ? "(min-width: 900px) 58vw, calc(100vw - 32px)" : "(min-width: 900px) 28vw, calc(100vw - 32px)"} />
+            <ArtImage art={art} priority={i === 0 && !box} sizes={i === 0 ? GALLERY_LEAD_SIZES : "(min-width: 900px) 28vw, calc(100vw - 32px)"} />
             <span className="gallery-zoom label">EXPLORE IMAGE <Plus aria-hidden="true" /></span>
           </button>
         ))}
       </div>
       <div className="gallery-counter label">
         <span>
-          {current + 1} / {images.length}
+          {current + 1} / {slides}
         </span>
-        {images.length > 1 && <span className="gallery-swipe">SWIPE TO EXPLORE</span>}
+        {slides > 1 && <span className="gallery-swipe">SWIPE TO EXPLORE</span>}
       </div>
       {viewer !== null && (
         <ImageViewer images={images} initial={Math.min(viewer, images.length - 1)} onClose={() => setViewer(null)} />

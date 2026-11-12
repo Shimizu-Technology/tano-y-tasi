@@ -16,7 +16,14 @@ Status codes: `400` malformed, `404` not found, `409` idempotency conflict, `422
 ```json
 { "role": "hero", "alt": "…", "base": "/images/products/guahan-sunset-map/artwork", "widths": [640, 1280, 2000, 2800], "aspect": "509:640" }
 ```
-The client builds `srcset` from `${base}-${w}.webp`. `base` is a site path under `/images/` or, for images uploaded in the admin, an absolute URL on the media bucket. Roles are `hero`, `gallery`, `detail`, `box`, `lifestyle`. Order is meaningful.
+The client builds `srcset` from `${base}-${w}.webp`. `base` is a site path under `/images/` or, for images uploaded in the admin, an absolute URL on the media bucket. Roles are `hero`, `gallery`, `detail`, `box`, `lifestyle`, and the four box faces `box_front`, `box_back`, `box_left`, `box_right`. Order is meaningful.
+
+Box faces are the flat sides of the product's box, which the storefront folds into a box that turns. They are stored with the product's images (so the admin sends and receives them in `images`), each role at most once, and a product with box faces must also have another image. Public responses never list them in `images`, `image` or `alt_image`; they are served as `box`:
+
+```json
+{ "front": { "role": "box_front", "...": "..." }, "back": { "role": "box_back", "...": "..." }, "left": { "role": "box_left", "...": "..." }, "right": null }
+```
+`box` is `null` until the product has both a front and a back. `left` and `right` are optional. A side's `aspect` gives the box its depth (a `1:5` side on a `4:3` front is a box 15% as deep as it is wide); without a side the client draws a slim box with plain sides.
 
 ### Product (list item)
 ```json
@@ -35,10 +42,11 @@ The client builds `srcset` from `${base}-${w}.webp`. `base` is a site path under
   "availability": { "state": "available", "purchasable": true, "remaining": null, "low_stock": false },
   "drop": null,
   "image": { "role": "hero", "...": "..." },
-  "alt_image": { "role": "detail", "...": "..." }
+  "alt_image": { "role": "detail", "...": "..." },
+  "box": null
 }
 ```
-`alt_image` is the second item in the product’s ordered images, or `null` when absent. It uses the same Art shape as `image` and is additive on all public product summaries (storefront, lists, nested drops) and detail responses. Clients may load it on demand for a second view; the primary `image` is unchanged.
+`image` and `alt_image` are the first and second of the product’s ordered images, not counting box faces; `alt_image` is `null` when absent. `box` (above) is additive on the same summaries and on detail. It uses the same Art shape as `image` and is additive on all public product summaries (storefront, lists, nested drops) and detail responses. Clients may load it on demand for a second view; the primary `image` is unchanged.
 
 Summary `specs` contains `piece_count` and `finished_size` when set, across storefront, product lists, and nested drop products. Detail responses include the full specs object.
 

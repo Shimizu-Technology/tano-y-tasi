@@ -119,7 +119,7 @@ CREATE TABLE public.email_deliveries (
     sent_at timestamp(6) without time zone,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
-    CONSTRAINT email_delivery_valid CHECK ((((status)::text = ANY ((ARRAY['pending'::character varying, 'sent'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[])) AND (attempts >= 0)))
+    CONSTRAINT email_delivery_valid CHECK ((((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('sent'::character varying)::text, ('failed'::character varying)::text, ('skipped'::character varying)::text])) AND (attempts >= 0)))
 );
 
 
@@ -281,7 +281,7 @@ CREATE TABLE public.orders (
     tracking_status character varying,
     tracking_status_at timestamp(6) without time zone,
     tax_enabled boolean DEFAULT false NOT NULL,
-    CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY ((ARRAY['unfulfilled'::character varying, 'fulfilled'::character varying])::text[]))),
+    CONSTRAINT fulfillment_status_valid CHECK (((fulfillment_status)::text = ANY (ARRAY[('unfulfilled'::character varying)::text, ('fulfilled'::character varying)::text]))),
     CONSTRAINT order_email_normalized CHECK (((email)::text = lower(btrim((email)::text)))),
     CONSTRAINT order_refund_valid CHECK (((refunded_cents >= 0) AND ((charged_cents IS NULL) OR (charged_cents >= 0)))),
     CONSTRAINT order_shipping_valid CHECK (((shipping_cents >= 0) AND (tax_cents >= 0) AND ((fulfillment_method)::text = ANY ((ARRAY['ship'::character varying, 'pickup'::character varying])::text[])))),
@@ -582,7 +582,7 @@ CREATE TABLE public.store_settings (
     tagline character varying DEFAULT 'A piece of home.'::character varying NOT NULL,
     secondary_tagline character varying DEFAULT 'Grounded by land, guided by sea.'::character varying NOT NULL,
     story text DEFAULT 'Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.'::text NOT NULL,
-    mission_lines jsonb DEFAULT '["A piece of home.", "Keeping us connected to where we come from.", "Carrying a piece of home wherever we are."]'::jsonb NOT NULL,
+    mission_lines jsonb DEFAULT '["Keeping us connected to where we come from.", "Carrying a piece of home wherever we are."]'::jsonb NOT NULL,
     created_at timestamp(6) without time zone NOT NULL,
     updated_at timestamp(6) without time zone NOT NULL,
     tax_enabled boolean DEFAULT false NOT NULL,
@@ -1164,7 +1164,7 @@ CREATE UNIQUE INDEX one_store_settings_row ON public.store_settings USING btree 
 -- Name: orders_unclosed_sessions; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX orders_unclosed_sessions ON public.orders USING btree (updated_at) WHERE (((provider)::text = 'stripe'::text) AND ((status)::text = ANY ((ARRAY['canceled'::character varying, 'expired'::character varying])::text[])) AND (provider_session_id IS NOT NULL) AND (provider_session_closed_at IS NULL));
+CREATE INDEX orders_unclosed_sessions ON public.orders USING btree (updated_at) WHERE (((provider)::text = 'stripe'::text) AND ((status)::text = ANY (ARRAY[('canceled'::character varying)::text, ('expired'::character varying)::text])) AND (provider_session_id IS NOT NULL) AND (provider_session_closed_at IS NULL));
 
 
 --
@@ -1283,6 +1283,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261113000001'),
 ('20261104000005'),
 ('20261104000004'),
 ('20261104000003'),

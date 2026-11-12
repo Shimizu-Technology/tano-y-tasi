@@ -74,6 +74,15 @@ All home copy comes from `web/src/brand.ts` (tagline, mission lines, story parag
 6. **Signup.** `New drops, first.` with an email field and `SIGN UP`. When the drop is upcoming or coming soon, its section carries the form instead, so the page never shows two.
 7. **Footer.** A full-width `--color-paper-deep` band with the small rounded logo (served at 240/480/960px WebP, not the full-size original), "Made for Guåhan and everyone carrying it with them," links to Shipping and FAQ, and © year. Contact stays a route but is not linked until contact details are supplied.
 
+### The box that turns
+A product with box art shows its box in place of the flat image: on product cards, on the single-product feature, and as the first slide of the product gallery. The box is folded from four flat images (front, back and two sides) with CSS 3D transforms, with no 3D library, and rests turned 24° so a side shows. It sits on `--color-tile` with room around it to swing.
+
+- **Mouse:** it turns slowly (one turn in six seconds) while the pointer is over it and comes back to rest on leaving. Dragging turns it by hand.
+- **Touch:** a sideways drag turns it and it rests on the nearer of front or back; an up-and-down drag still scrolls the page, and a drag never opens the product. The first time a touch screen shows a box it makes one small turn and returns, so it reads as something to turn.
+- **Product gallery:** a swipe there moves the gallery, so a `SHOW THE BACK` / `SHOW THE FRONT` button under the box turns it. The button also serves keyboards.
+- **Reduced motion:** no hover spin and no hint. Dragging and the button still work, without the settle animation.
+- A product without box art keeps its flat image. The merchant adds the faces in the admin image manager ("Box that turns: front", and so on). Until Christian supplies real box art, the two launch puzzles use stand-in faces drawn by `web/scripts/build-box-placeholders.mjs`.
+
 ### Shop
 A signature product comes first and reads `SIGNATURE · 100 PIECES` in the same quiet label under its card. It's a word, not a badge. Title `Shop` with a muted `1 item` / `N items` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
 
@@ -119,7 +128,7 @@ Route loading states reserve the hero grid (emblem, headline and photo at their 
 
 Subtle and fast: image fade-in on load (150ms), drawer and sheet enter (220ms) and faster exit (160ms), progressive native accordion height, and 140ms press feedback. Drawers use `cubic-bezier(0.32, 0.72, 0, 1)`; other motion uses `cubic-bezier(0.23, 1, 0.32, 1)`. Keep overlays interruptible and retain focus and scroll lock until exit finishes. Phone carts dismiss with a rightward swipe; artwork inspection uses anchored transform zoom up to 4×. Adding an item briefly ticks the cart count.
 
-The home has one ambient motion, the mission strip, and it is pausable. There is no hero entrance animation. Reduced motion keeps short opacity and colour fades, removes decorative transforms, the live pulse and the strip's movement, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
+The mission strip is the only thing that moves by itself, and it is pausable. Everything else moves because someone touched it: the box turns under a pointer or a finger (see "The box that turns"). The one exception is the box's single hint turn on touch screens. There is no hero entrance animation. Reduced motion keeps short opacity and colour fades, removes decorative transforms, the live pulse and the strip's movement, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
 
 ## Imagery
 

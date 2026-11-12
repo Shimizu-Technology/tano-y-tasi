@@ -10,6 +10,11 @@ const roles: { value: string; label: string }[] = [
   { value: "detail", label: "Close-up" },
   { value: "box", label: "Box" },
   { value: "lifestyle", label: "In use" },
+  // The four flat faces the storefront folds into a box that turns. It needs a front and a back.
+  { value: "box_front", label: "Box that turns: front" },
+  { value: "box_back", label: "Box that turns: back" },
+  { value: "box_left", label: "Box that turns: left side" },
+  { value: "box_right", label: "Box that turns: right side" },
 ];
 type Item = AdminImage & { key: string; preview?: string };
 type Row = {

@@ -6,6 +6,13 @@ export interface Art {
   widths: number[];
   aspect: string;
 }
+// The flat faces of a product's box. A side's aspect gives the box its depth.
+export interface Box {
+  front: Art;
+  back: Art;
+  left: Art | null;
+  right: Art | null;
+}
 export interface DropSummary {
   slug: string;
   number: number;
@@ -39,6 +46,8 @@ export interface Product {
   drop: DropSummary | null;
   image: Art;
   alt_image: Art | null;
+  // Optional for the same reason; null until the product has a box front and back.
+  box?: Box | null;
 }
 export interface ProductDetail extends Product {
   description: string;

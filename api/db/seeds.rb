@@ -7,6 +7,13 @@ end
 image = lambda do |slug, file, widths, aspect, role, alt|
   { role: role, alt: alt, base: "/images/products/#{slug}/#{file}", widths: widths, aspect: aspect }
 end
+# Stand-in box faces, drawn by web/scripts/build-box-placeholders.mjs, until the real box art is uploaded.
+box_faces = lambda do |slug, name, widths, aspect, side_aspect|
+  [ [ "front", widths, aspect, "Front of the #{name} puzzle box." ], [ "back", widths, aspect, "Back of the #{name} puzzle box." ],
+    [ "left", [ 96, 192 ], side_aspect, "Side of the #{name} puzzle box." ], [ "right", [ 96, 192 ], side_aspect, "Side of the #{name} puzzle box." ] ].map do |face, sizes, shape, alt|
+    image.call(slug, "box-placeholder-#{face}", sizes, shape, "box_#{face}", alt)
+  end
+end
 core_slug = "hafa-adai-from-tumon-bay"
 core = Product.find_or_create_by!(slug: core_slug) do |record|
   record.assign_attributes(stock_quantity: 50, name: "Håfa Adai from Tumon Bay", kind: "core", status: "active", price_cents: 3500, currency: "USD", position: 1,
@@ -19,7 +26,8 @@ core = Product.find_or_create_by!(slug: core_slug) do |record|
     images: [
       image.call(core_slug, "finished-flat", [ 640, 1280, 2000 ], "12:7", "hero", "Finished puzzle of the colorful GUAM sign at Tumon Bay, with blue water and open sky."),
       image.call(core_slug, "piece-detail", [ 640, 1071 ], "4:3", "detail", "Close view of interlocking pieces in the Tumon Bay puzzle."),
-      image.call(core_slug, "finished-tabletop", [ 640, 1280, 2000 ], "3:4", "lifestyle", "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay.") ])
+      image.call(core_slug, "finished-tabletop", [ 640, 1280, 2000 ], "3:4", "lifestyle", "Finished Håfa Adai puzzle on a tabletop, showing the GUAM sign and Tumon Bay."),
+      *box_faces.call(core_slug, "Håfa Adai from Tumon Bay", [ 640, 1280 ], "4:3", "1:5") ])
 end
 
 map_slug = "guahan-sunset-map"
@@ -35,7 +43,8 @@ map = Product.find_or_create_by!(slug: map_slug) do |record|
       image.call(map_slug, "artwork", [ 640, 1280, 2000, 2800 ], "509:640", "hero", "Illustrated map of Guåhan in sunset colors, showing villages and coastal landmarks."),
       image.call(map_slug, "detail-two-lovers-point", [ 640, 1280, 2000 ], "4:3", "detail", "Map detail showing Two Lovers Point on Guåhan's northern coast."),
       image.call(map_slug, "detail-humatak", [ 640, 1280, 2000 ], "4:3", "detail", "Illustrated map detail of Humåtak and its bay."),
-      image.call(map_slug, "detail-koko", [ 640, 1280, 2000 ], "4:3", "detail", "A ko'ko' bird among the small illustrations on the Guåhan map.") ])
+      image.call(map_slug, "detail-koko", [ 640, 1280, 2000 ], "4:3", "detail", "A ko'ko' bird among the small illustrations on the Guåhan map."),
+      *box_faces.call(map_slug, "Guåhan Sunset Map", [ 512, 1024 ], "4:5", "3:20") ])
 end
 StoreSetting.current
 { "shipping" => "Shipping", "returns" => "Returns & refunds", "privacy" => "Privacy policy", "terms" => "Terms" }.each do |slug, title|

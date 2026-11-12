@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
 import { ArtImage } from "./ArtImage";
+import { SpinBox } from "./SpinBox";
 import type { Product } from "../types";
 import { dropNumber, money, releaseDate, releaseTimes, countdown, remainingMs } from "../utils";
 export function Meta({
@@ -105,7 +106,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <Link className="product-card" to={`/products/${product.slug}`}>
       <div className="tile">
-        <ArtImage art={product.image} />
+        {product.box ? <SpinBox box={product.box} sizes="(min-width: 900px) 24vw, 36vw" /> : <ArtImage art={product.image} />}
       </div>
       <div className="card-caption">
         <p>{product.name}</p>

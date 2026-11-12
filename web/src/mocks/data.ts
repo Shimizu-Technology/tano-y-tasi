@@ -1,4 +1,4 @@
-import type { Art, DropSummary, ProductDetail, DropState } from "../types";
+import type { Art, Box, DropSummary, ProductDetail, DropState } from "../types";
 const art = (slug: string, file: string, widths: number[], aspect: string, alt: string, role = "gallery"): Art => ({
   base: `/images/products/${slug}/${file}`,
   widths,
@@ -36,6 +36,17 @@ export function dropSummary(state: DropState): DropSummary {
     per_customer_limit: 2,
   };
 }
+// The stand-in box faces from scripts/build-box-placeholders.mjs.
+const boxFaces = (slug: string, name: string, widths: number[], aspect: string, sideAspect: string): Box => ({
+  front: art(slug, "box-placeholder-front", widths, aspect, `Front of the ${name} puzzle box.`, "box_front"),
+  back: art(slug, "box-placeholder-back", widths, aspect, `Back of the ${name} puzzle box.`, "box_back"),
+  left: art(slug, "box-placeholder-left", [96, 192], sideAspect, `Side of the ${name} puzzle box.`, "box_left"),
+  right: art(slug, "box-placeholder-right", [96, 192], sideAspect, `Side of the ${name} puzzle box.`, "box_right"),
+});
+const boxes: Record<string, Box> = {
+  [CORE]: boxFaces(CORE, "Håfa Adai from Tumon Bay", [640, 1280], "4:3", "1:5"),
+  [MAP]: boxFaces(MAP, "Guåhan Sunset Map", [512, 1024], "4:5", "3:20"),
+};
 const coreImages = [
   art(CORE, "finished-flat", [640, 1280, 2000], "12:7",
     "Finished puzzle of the colorful GUAM sign at Tumon Bay, with blue water and open sky.", "hero"),
@@ -124,6 +135,7 @@ export function catalog(state: DropState, stock: Record<string, number>): Produc
       drop: kind === "drop" ? dropSummary(state) : null,
       image: images[0],
       alt_image: images[1] ?? null,
+      box: boxes[slug] ?? null,
       images,
       specs: {
         piece_count: kind === "core" ? 100 : 500,

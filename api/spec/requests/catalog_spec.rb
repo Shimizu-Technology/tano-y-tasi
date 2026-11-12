@@ -46,6 +46,29 @@ RSpec.describe "Catalog", type: :request do
     end
   end
 
+  it "serves box faces apart from the ordered images, and only once there is a front and a back" do
+    hero = core.images.first
+    face = ->(side) { hero.merge("role" => "box_#{side}", "base" => "/images/box-#{side}") }
+    core.update!(images: [ face.call("front"), hero, face.call("left") ])
+    get "/api/v1/products/#{core.slug}"
+    expect(response.parsed_body["product"]).to include("box" => nil, "image" => hero, "alt_image" => nil, "images" => [ hero ])
+    core.update!(images: [ face.call("front"), hero, face.call("back"), face.call("left") ])
+    get "/api/v1/products/#{core.slug}"
+    expect(response.parsed_body.dig("product", "box")).to eq("front" => face.call("front"), "back" => face.call("back"), "left" => face.call("left"), "right" => nil)
+    expect(response.parsed_body.dig("product", "images")).to eq([ hero ])
+    get "/api/v1/storefront"
+    expect(response.parsed_body["core_products"].first).to include("image" => hero, "box" => hash_including("front" => face.call("front")))
+  end
+
+  it "rejects a repeated box face, or box faces with no main image" do
+    hero = core.images.first
+    front = hero.merge("role" => "box_front")
+    expect(core.update(images: [ hero, front, front ])).to be(false)
+    expect(core.errors[:images]).to include("can have only one box front image")
+    expect(core.update(images: [ front ])).to be(false)
+    expect(core.errors[:images]).to include("need a main image besides the box sides")
+  end
+
   it "adds the second ordered image, or null, to public summaries and detail" do
     alt = core.images.first.merge("base" => "/images/piece-detail", "role" => "detail")
     core.update!(images: [ core.images.first, alt, alt.merge("base" => "/images/third") ])

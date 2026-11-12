@@ -1,6 +1,8 @@
 class Product < ApplicationRecord
   INTEGER_MAX = 2_147_483_647
-  IMAGE_ROLES = %w[hero gallery detail box lifestyle].freeze
+  # The four flat faces of the box, which the storefront folds into a box that turns.
+  BOX_FACE_ROLES = %w[box_front box_back box_left box_right].freeze
+  IMAGE_ROLES = (%w[hero gallery detail box lifestyle] + BOX_FACE_ROLES).freeze
   PREORDER_SHIPS_MAX = 120
 
   belongs_to :drop, optional: true
@@ -33,6 +35,18 @@ class Product < ApplicationRecord
 
   def on_sale?
     status == "active" && images.present?
+  end
+
+  # The photos and artwork, in order. Box faces are served apart from them.
+  def gallery_images
+    Array(images).reject { |image| BOX_FACE_ROLES.include?(image["role"]) }
+  end
+
+  # A box turns only when it has a front and a back; the sides are optional.
+  def box
+    faces = BOX_FACE_ROLES.index_with { |role| Array(images).find { |image| image["role"] == role } }
+    return unless faces["box_front"] && faces["box_back"]
+    faces.transform_keys { |role| role.delete_prefix("box_").to_sym }
   end
 
   # A product's own limit wins. Otherwise it follows its drop, and core products have none.
@@ -83,5 +97,11 @@ class Product < ApplicationRecord
       errors.add(:images, "need widths as positive whole numbers (image #{number})") unless image["widths"].is_a?(Array) && image["widths"].any? && image["widths"].all? { |width| width.is_a?(Integer) && width.positive? }
       errors.add(:images, "need a base under /images/ or the product bucket (image #{number})") unless ImageStorage.allowed_base?(image["base"])
     end
+    roles = images.map { |entry| entry.stringify_keys["role"] }
+    BOX_FACE_ROLES.each do |role|
+      errors.add(:images, "can have only one #{role.tr("_", " ")} image") if roles.count(role) > 1
+    end
+    # The storefront leads with a photo or the artwork, never a box face.
+    errors.add(:images, "need a main image besides the box sides") if roles.any? && (roles - BOX_FACE_ROLES).empty?
   end
 end

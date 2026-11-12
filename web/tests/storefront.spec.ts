@@ -364,7 +364,8 @@ test("policy pages render from the store, with the current contact email", async
 test("gallery keeps one fixed frame on phones and still swipes", async ({ page }, info) => {
   for (const route of ["/drop", "/products/hafa-adai-from-tumon-bay"]) {
     await go(page, route);
-    const image = page.locator(".gallery-image img").first();
+    // The box is the first slide; the photos follow it.
+    const image = page.locator(".gallery-image .art-image").first();
     const dimensions = await image.boundingBox();
     if (info.project.name === "mobile") {
       // One fixed square frame on phones: swiping must never resize the gallery or move the page.
@@ -381,12 +382,12 @@ test("gallery keeps one fixed frame on phones and still swipes", async ({ page }
       await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeVisible();
     } else {
       await expect(page.getByText("SWIPE TO EXPLORE", { exact: true })).toBeHidden();
-      const nextImage = await page.locator(".gallery-image img").nth(1).boundingBox();
+      const nextImage = await page.locator(".gallery-image .art-image").nth(1).boundingBox();
       expect(nextImage!.y).toBeGreaterThanOrEqual(dimensions!.y + dimensions!.height);
-      const thirdImage = await page.locator(".gallery-image img").nth(2).boundingBox();
+      const thirdImage = await page.locator(".gallery-image .art-image").nth(2).boundingBox();
       expect(thirdImage!.y).toBe(nextImage!.y);
       expect(thirdImage!.x).toBeGreaterThan(nextImage!.x);
-      for (const img of await page.locator(".gallery-image img").all()) {
+      for (const img of await page.locator(".gallery-image .art-image").all()) {
         const ratio = await img.evaluate((el: HTMLImageElement) => ({ rendered: el.width / el.height, expected: Number(el.getAttribute("width")) / Number(el.getAttribute("height")) }));
         expect(ratio.rendered).toBeCloseTo(ratio.expected, 1);
       }

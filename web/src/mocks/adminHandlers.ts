@@ -246,7 +246,7 @@ const validBase = (base: unknown) =>
 function imageProblem(images: AdminImage[]) {
   const position = images.findIndex(
     (image) =>
-      !["hero", "gallery", "detail", "box", "lifestyle"].includes(image.role) ||
+      !["hero", "gallery", "detail", "box", "lifestyle", "box_front", "box_back", "box_left", "box_right"].includes(image.role) ||
       !image.alt?.trim() ||
       !/^[1-9]\d*:[1-9]\d*$/.test(image.aspect ?? "") ||
       !image.widths?.length ||

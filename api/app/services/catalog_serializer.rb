@@ -11,11 +11,12 @@ class CatalogSerializer
   def self.product(product, detail: false)
     availability = product.availability
     limit = product.effective_limit
+    images = product.gallery_images
     data = product.slice(:slug, :name, :kind, :price_cents, :currency, :summary, :signature, :preorder).symbolize_keys.merge(
       preorder_ships: product.preorder ? product.preorder_ships : nil, per_customer_limit: limit,
-      specs: summary_specs(product), availability: availability, drop: product.drop && drop(product.drop), image: product.images.first, alt_image: product.images.second)
+      specs: summary_specs(product), availability: availability, drop: product.drop && drop(product.drop), image: images.first, alt_image: images.second, box: product.box)
     if detail
-      data.merge!(product.slice(:description, :specs, :includes, :art, :images, :placeholders).symbolize_keys)
+      data.merge!(product.slice(:description, :specs, :includes, :art, :placeholders).symbolize_keys, images: images)
       # Checkout takes at most ten of a product per order, even when the limit is higher.
       data[:max_per_order] = availability[:purchasable] ? [ limit, 10, product.stock_quantity ].compact.min : 0
     end
