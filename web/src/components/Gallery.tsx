@@ -25,8 +25,8 @@ export function Gallery({ images, name, box }: { images: Art[]; name: string; bo
         }}
       >
         {box && (
-          // A swipe here moves the gallery on a phone, so a finger turns the box with the button.
-          <div className="gallery-image gallery-box"><SpinBox box={box} sizes={GALLERY_BOX_SIZES} priority controls touchDrag={false} /></div>
+          // On a phone a drag on the box turns it; a swipe on the tile around it moves the gallery.
+          <div className="gallery-image gallery-box"><SpinBox box={box} sizes={GALLERY_BOX_SIZES} priority controls /></div>
         )}
         {images.map((art, i) => (
           <button

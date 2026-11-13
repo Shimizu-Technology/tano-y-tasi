@@ -73,7 +73,7 @@ export function Archive() {
     <div className="page archive">
       <Meta title="Archive" />
       <div className="page-heading">
-        <h1>ARCHIVE</h1>
+        <h1>Archive</h1>
         <p className="muted">One-time releases. A record of what came before.</p>
       </div>
       {q.data.archive.length ? (

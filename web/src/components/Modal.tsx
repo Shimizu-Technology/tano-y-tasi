@@ -35,7 +35,7 @@ export function Modal({
     const before = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     dialog.showModal();
-    dialog.querySelector<HTMLElement>("button,a[href],input")?.focus({ preventScroll: true });
+    (dialog.querySelector<HTMLElement>("[data-autofocus]") ?? dialog.querySelector<HTMLElement>("button,a[href],input"))?.focus({ preventScroll: true });
     document.body.style.overflow = "hidden";
     return () => {
       if (timer.current) clearTimeout(timer.current);

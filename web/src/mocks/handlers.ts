@@ -451,13 +451,16 @@ export const handlers = [
     return HttpResponse.json({ order: stored.order });
   }),
   http.post(path("/subscribers"), async ({ request }) => {
-    let body: { email?: unknown };
+    let body: { email?: unknown; source?: unknown };
     try {
       body = (await request.json()) as typeof body;
     } catch {
       return error("malformed", "Provide a valid JSON request.", 400);
     }
     if (!validEmail(body.email)) return error("invalid_email", "Enter a valid email address.");
+    // The API accepts only these sources (api/app/models/subscriber.rb).
+    if (body.source != null && !["home", "drop", "product", "footer"].includes(body.source as string))
+      return error("malformed", "Check your email address and signup details.", 400);
     const email = body.email.toLowerCase().trim();
     const exists = db.subscribers.includes(email);
     if (!exists) db.subscribers.push(email);

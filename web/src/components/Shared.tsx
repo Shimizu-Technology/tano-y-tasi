@@ -1,8 +1,9 @@
 import { Minus, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { api, ApiError } from "../api";
+import type { SignupSource } from "../api";
 import { ArtImage } from "./ArtImage";
 import { SpinBox } from "./SpinBox";
 import type { Product } from "../types";
@@ -116,12 +117,13 @@ export function ProductCard({ product }: { product: Product }) {
     </Link>
   );
 }
-export function Signup({ source = "home", dropSlug, inline = false, cta = "SIGN UP" }: { source?: string; dropSlug?: string; inline?: boolean; cta?: string }) {
+// `inline` is the bare form, for a place that has its own heading; only the page's own section is the `#notify` target.
+export function Signup({ source = "home", dropSlug, inline = false, cta = "SIGN UP", autoFocus = false }: { source?: SignupSource; dropSlug?: string; inline?: boolean; cta?: string; autoFocus?: boolean }) {
   const [email, setEmail] = useState("");
   const mutation = useMutation({ mutationFn: () => api.subscribe(email, source, dropSlug) });
-  const id = `signup-${source}`;
+  const id = useId();
   return (
-    <section className={`signup${inline ? " signup-inline" : ""}`} id="notify" aria-label={inline ? "Drop alerts" : undefined}>
+    <section className={`signup${inline ? " signup-inline" : ""}`} id={inline ? undefined : "notify"} aria-label={inline ? "Drop alerts" : undefined}>
       {!inline && (
         <div>
           <h2>New drops, first.</h2>
@@ -149,6 +151,7 @@ export function Signup({ source = "home", dropSlug, inline = false, cta = "SIGN 
               required
               autoComplete="email"
               placeholder="Your email address"
+              data-autofocus={autoFocus || undefined}
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);

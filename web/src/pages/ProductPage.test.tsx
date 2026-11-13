@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -27,6 +27,41 @@ it("hides unknown specs while keeping confirmed details and factual shipping ava
     await userEvent.click(screen.getByText("Shipping", { exact: true }));
     expect(screen.getByText("Shipping is calculated at checkout. We ship to all 50 states, Guam, Puerto Rico and the other U.S. territories.")).toBeVisible();
     expect(screen.getByRole("button", { name: "ADD TO CART" })).toBeEnabled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("offers the alert in a dialog, in place of a buy button, for a product that isn't out yet", async () => {
+  vi.stubGlobal("IntersectionObserver", class { observe() {} disconnect() {} });
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+  const subscribed = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+    subscribed(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify({ subscribed: true }), { status: 201, headers: { "Content-Type": "application/json" } });
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  const product = catalog("upcoming", { [CORE]: 40, [MAP]: 100 })[0];
+  product.availability = { ...product.availability, state: "coming_soon", purchasable: false };
+  client.setQueryData(["product", CORE], { product, server_time: "2026-10-29T00:00:00Z" });
+  try {
+    const { container } = render(
+      <QueryClientProvider client={client}><MemoryRouter initialEntries={[`/products/${CORE}`]}>
+        <Routes><Route path="/products/:slug" element={<ProductPage />} /></Routes>
+      </MemoryRouter></QueryClientProvider>
+    );
+    expect(container.querySelector(".product-state")).toHaveTextContent("COMING SOON");
+    expect(screen.queryByRole("button", { name: /ADD TO CART|COMING SOON/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Quantity" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "NOTIFY ME" }));
+    const dialog = screen.getByRole("dialog", { name: "Get notified" });
+    expect(within(dialog).getByRole("heading", { name: product.name })).toBeVisible();
+    // The email field takes focus, so one tap and typing is all it takes.
+    expect(within(dialog).getByLabelText("Email for drop alerts")).toHaveFocus();
+    await userEvent.type(within(dialog).getByLabelText("Email for drop alerts"), "soon@example.com{Enter}");
+    expect(await within(dialog).findByRole("status")).toHaveTextContent("You’re on the list.");
+    expect(subscribed).toHaveBeenCalledWith({ email: "soon@example.com", source: "product" });
   } finally {
     vi.unstubAllGlobals();
   }

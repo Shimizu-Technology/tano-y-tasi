@@ -5,7 +5,7 @@ Retro and a little modern, simple, and unmistakably the island. That was Christi
 ## Principles
 
 1. **Mission first, then product.** The first screen says what the brand is for ("A piece of home.", "Keeping us connected to where we come from.") and shows real artwork. The brand is expected to sell more than puzzles, so navigation and collection framing use neutral words (`Shop`, `collection`, `items`); only product data says "puzzle".
-2. **Restraint signals premium.** Few links, no badges or popups, no gradients, no fake urgency, no discount banner.
+2. **Restraint signals premium.** Few links, no badges, no gradients, no fake urgency, no discount banner. Nothing pops up unasked: the only dialogs are ones a shopper opens (menu, cart, image viewer, the alert signup).
 3. **Show the evidence.** Piece count, size, what's included, credit and drop terms are easy to find. Minimal never means vague.
 4. **One system everywhere.** The same tokens, image ratios and type scale on every page.
 5. **Phones first.** Thumb-reachable primary actions, 44px minimum touch targets, no horizontal scroll, fast image loading. Verify at 390×844 and 1440×900.
@@ -37,7 +37,8 @@ No gradients, no card shadows, no pill cards. Corner radius is 0 everywhere.
 - Scale (mobile → desktop):
   - `home h1` clamp(30px, 9vw, 44px) → clamp(44px, 3.9vw, 56px), weight 800, leading 1.05.
   - section `h2` 32px → 48px (home drop and story), 24px → 32px (collection, signup).
-  - `title` 20px → 24px, weight 600: product names.
+  - `title` 20px → 24px, weight 600: product names on cards and in the collection feature.
+  - product page `h1` 28px → 40px, weight 800, leading 1.05: the name is the page's headline.
   - `label` 12px, uppercase, tracking 0.08em, weight 600: nav, state labels.
   - `body` 16px, weight 400, line-height 1.5. Mission line 18px → 20px.
 - Buttons use 13px. No storefront text is smaller than 12px. Prices use tabular numbers. Email placeholders use `--color-ink-muted`.
@@ -60,7 +61,7 @@ No gradients, no card shadows, no pill cards. Corner radius is 0 everywhere.
 All home copy comes from `web/src/brand.ts` (tagline, mission lines, story paragraph, secondary tagline) so an admin setting can supply it later.
 
 1. **Hero.** The rounded logo emblem, `A piece of home.` as the h1, the first mission line, then the tabletop puzzle photo, a one-line description of the first buyable product (from the API, omitted if there is none), and the actions. The hero never depends on a drop or a particular product: it is the same in every drop state, and the edge preload (`web/netlify/lib/storefront.ts`) names the same image and `sizes` (`web/src/homeHero.ts`).
-   - Primary action: `SHOP THE COLLECTION`. A secondary text link appears only for a drop that is live (`SHOP THE DROP`) or upcoming (`NOTIFY ME`, jumping to the alert form below).
+   - Primary action: `SHOP THE COLLECTION`. A secondary text link appears only for a drop that is live (`SHOP THE DROP`) or upcoming (`NOTIFY ME`, opening the alert signup in a dialog; see "Alert signup").
    - Mobile (390×844): copy, then a 5:4 photo, then actions, so the mission and the photo are both on the first screen. Desktop ≥900px: two columns, copy and actions left, a square photo right, all inside 900px of height.
 2. **Mission strip.** A green band with the tagline and both mission lines separated by sun-and-hill marks, moving slowly (55s loop). A 44px pause/play button controls it (WCAG 2.2.2). With reduced motion the lines sit still, once, wrapped and centred, with no duplicated copy and no button.
 3. **The core collection.** `h2`, `Shop all`, then the product collection.
@@ -77,17 +78,23 @@ All home copy comes from `web/src/brand.ts` (tagline, mission lines, story parag
 ### The box that turns
 A product with box art shows its box in place of the flat image: on product cards, on the single-product feature, and as the first slide of the product gallery. The box is folded from four flat images (front, back and two sides) with CSS 3D transforms, with no 3D library, and rests turned 24° so a side shows. It sits on `--color-tile` with room around it to swing.
 
-- **Mouse:** it turns slowly (one turn in six seconds) while the pointer is over it and comes back to rest on leaving. Dragging turns it by hand.
-- **Touch:** a sideways drag turns it and it rests on the nearer of front or back; an up-and-down drag still scrolls the page, and a drag never opens the product. The first time a touch screen shows a box it makes one small turn and returns, so it reads as something to turn.
-- **Product gallery:** a swipe there moves the gallery, so a `SHOW THE BACK` / `SHOW THE FRONT` button under the box turns it. The button also serves keyboards.
-- **Reduced motion:** no hover spin and no hint. Dragging and the button still work, without the settle animation.
+- **It stays where it is left.** Let go, the box keeps the angle it was turned to; it does not snap to the front or the back. A flick carries on and slows to a stop (speed falls by e every 320ms). The one correction: it never rests within 20° of edge-on, where it would be a sliver, and eases just off that.
+- **Mouse:** it turns slowly (one turn in six seconds) while the pointer is over it and glides to a stop on leaving. Dragging turns it by hand.
+- **Touch:** a sideways drag turns it; an up-and-down drag still scrolls the page, and a drag never opens the product. The first time a touch screen shows a box it makes one small turn and returns, so it reads as something to turn.
+- **Product gallery:** the same box, turned the same ways. On a phone a drag on the box turns it and a swipe on the tile around it moves the gallery. A `SHOW THE BACK` / `SHOW THE FRONT` button under it turns to the face not showing, squarely; it also serves keyboards.
+- **Reduced motion:** no hover spin, no glide and no hint. Dragging and the button still work, without the settle animation.
 - A product without box art keeps its flat image. The merchant adds the faces in the admin image manager ("Box that turns: front", and so on). Until Christian supplies real box art, the two launch puzzles use stand-in faces drawn by `web/scripts/build-box-placeholders.mjs`.
+
+### Alert signup
+`NOTIFY ME` never moves the page. It opens a small dialog on `--color-paper-raised`: `GET NOTIFIED`, the name of the drop or product as the heading, "One email when it's ready. No spam.", and the email field with `NOTIFY ME`. The field takes focus on opening; success replaces the form with "You're on the list. We'll keep you posted." It closes with `CLOSE`, Esc or a click outside, and focus returns to the button that opened it. On a phone it sits 12svh from the top, clear of the keyboard; on desktop it is centred, 440px wide. It enters with a 12px rise and fade (220ms) and leaves faster (160ms); reduced motion keeps only the fade.
+
+It opens from the home hero's `NOTIFY ME` and from the product page's buy button when the product isn't out yet. The forms already on the page stay: the one in the home drop section and the list at the bottom of drop pages.
 
 ### Shop
 A signature product comes first and reads `SIGNATURE · 100 PIECES` in the same quiet label under its card. It's a word, not a badge. Title `Shop` with a muted `1 item` / `N items` count on the baseline, then the core collection grid. If a drop is live, show one wide card at the top linking to it.
 
 ### Drop (`/drop` → current or next drop; `/drops/:slug` for any)
-- **Upcoming:** large artwork, `DROP 001 — GUÅHAN SUNSET MAP`, the release time in **ChST**, plus PT and HT on a second line, quantity ("100 made"), limit ("Limit 2 per customer"), price, a detail gallery, and the drop-alert form. The add-to-cart button is disabled and reads `RELEASES DEC 5`. A countdown is optional and must only show inside the final 48 hours.
+- **Upcoming:** large artwork, `DROP 001 — GUÅHAN SUNSET MAP`, the release time in **ChST**, plus PT and HT on a second line, quantity ("100 made"), limit ("Limit 2 per customer"), price, a detail gallery, and the drop-alert form. In place of add-to-cart the button reads `NOTIFY ME` and opens the alert signup; the release time sits above it. A countdown is optional and must only show inside the final 48 hours.
 - **Live:** same layout; the button becomes `ADD TO CART`, and the state line shows "Available now" with the sun dot. Show a remaining count only when 20 or fewer are left ("Only 12 left"), and only from real data.
 - **Sold out:** artwork stays; the button is disabled `SOLD OUT`; a line reads "Drop 001 sold out on Dec 5." plus a drop-alert form for the next drop.
 - **Closed:** like sold out, with the reason "This drop has closed."
@@ -96,7 +103,8 @@ A signature product comes first and reads `SIGNATURE · 100 PIECES` in the same 
 ### Product detail
 - Mobile: a horizontally swipeable gallery (CSS scroll-snap) with an `1 / 5` counter and `SWIPE TO EXPLORE` only when there are multiple images on mobile, then the info block, then a full-width sticky-bottom `ADD TO CART` bar once the main button scrolls out of view.
 - Desktop: two columns. The gallery on the left (about 60%) has a large lead image, then a two-column grid of the remaining images at their natural aspects; the info column on the right is sticky.
-- Info order: drop state label when applicable (core context is already in the breadcrumb), name (`title`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** ("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."). Hide unknown spec rows (`TBD` or `To be confirmed`) and omit internal preview notes.
+- A product that isn't out yet (coming soon, or an upcoming drop) has no dead button: the state label reads `COMING SOON`, the quantity stepper is left out, and the primary button is `NOTIFY ME`, opening the alert signup. Sold-out and closed products keep a disabled button that says so.
+- Info order: drop state label when applicable (core context is already in the breadcrumb), name (the page `h1`), price, one-sentence description, quantity stepper (bounded by the drop limit and available stock), primary button, then accordions: **Details** (piece count, finished size, box size, material, cut, made in), **What's in the box**, **The art** (credit + story), **Shipping** ("Shipping is calculated at checkout. We ship to the United States, Guam and Puerto Rico."). Hide unknown spec rows (`TBD` or `To be confirmed`) and omit internal preview notes.
 - Images open in a full-screen viewer with pinch/zoom on mobile. The map is high resolution, so let people inspect it.
 
 ### Preorders
@@ -128,7 +136,7 @@ Route loading states reserve the hero grid (emblem, headline and photo at their 
 
 Subtle and fast: image fade-in on load (150ms), drawer and sheet enter (220ms) and faster exit (160ms), progressive native accordion height, and 140ms press feedback. Drawers use `cubic-bezier(0.32, 0.72, 0, 1)`; other motion uses `cubic-bezier(0.23, 1, 0.32, 1)`. Keep overlays interruptible and retain focus and scroll lock until exit finishes. Phone carts dismiss with a rightward swipe; artwork inspection uses anchored transform zoom up to 4×. Adding an item briefly ticks the cart count.
 
-The mission strip is the only thing that moves by itself, and it is pausable. Everything else moves because someone touched it: the box turns under a pointer or a finger (see "The box that turns"). The one exception is the box's single hint turn on touch screens. There is no hero entrance animation. Reduced motion keeps short opacity and colour fades, removes decorative transforms, the live pulse and the strip's movement, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
+The mission strip is the only thing that moves by itself, and it is pausable. Everything else moves because someone touched it: the box turns under a pointer or a finger and glides to a stop when let go (see "The box that turns"). The one exception is the box's single hint turn on touch screens. There is no hero entrance animation. Reduced motion keeps short opacity and colour fades, removes decorative transforms, the live pulse and the strip's movement, and keeps explicit image zoom usable. No parallax, scroll-jacking or Lenis.
 
 ## Imagery
 
