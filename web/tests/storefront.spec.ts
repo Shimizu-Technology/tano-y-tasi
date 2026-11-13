@@ -47,7 +47,7 @@ async function checkout(page: Page, email = "qa@example.com") {
 test("home upcoming: hero, collection and island identity", async ({ page }, info) => {
   await go(page, "/");
   await expect(page.getByRole("heading", { name: "A piece of home.", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "NOTIFY ME" })).toBeVisible();
+  await expect(page.locator(".home-hero").getByRole("button", { name: "NOTIFY ME" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "The core collection", exact: true })).toBeVisible();
   await shot(page, info, "home-upcoming");
   await overflow(page);
@@ -69,7 +69,7 @@ test("upcoming drop: Guam first, Pacific and Hawaii dates, disabled purchase", a
   await expect(page.getByText("Sat, Dec 5, 10:00 AM ChST", { exact: true })).toBeVisible();
   await expect(page.getByText(/Fri, Dec 4, 4:00 PM PT/)).toBeVisible();
   await expect(page.getByText(/Fri, Dec 4, 2:00 PM HT/)).toBeVisible();
-  await expect(page.getByRole("button", { name: "RELEASES DEC 5" })).toBeDisabled();
+  await expect(page.locator(".buy-controls").getByRole("button", { name: "NOTIFY ME", exact: true })).toBeVisible();
   await shot(page, info, "drop-upcoming");
   await overflow(page);
 });
@@ -189,7 +189,7 @@ test("archive: empty first-drop state", async ({ page }, info) => {
   await shot(page, info, "archive-empty");
   await overflow(page);
   await page.getByRole("link", { name: "Meet Drop 001", exact: true }).click();
-  await expect(page.getByRole("button", { name: "RELEASES DEC 5" })).toBeDisabled();
+  await expect(page.locator(".buy-controls").getByRole("button", { name: "NOTIFY ME", exact: true })).toBeVisible();
 });
 test("signup: valid email saves and invalid input stays local", async ({ page }) => {
   await go(page, "/", "live");
@@ -324,7 +324,17 @@ test("a coming-soon drop shows no date or quantity and cannot be bought", async 
   await go(page, "/drop", "coming_soon");
   await expect(page.locator(".product-state")).toContainText("COMING SOON");
   await expect(page.getByText("The release date goes to the list first.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
+  // Nothing to buy yet, so the buy button asks for the alert instead, without leaving the page.
+  await expect(page.getByRole("button", { name: /ADD TO CART|COMING SOON/ })).toHaveCount(0);
+  await page.locator(".buy-controls").getByRole("button", { name: "NOTIFY ME", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Get notified" });
+  await expect(dialog.getByRole("heading", { name: "Guåhan Sunset Map" })).toBeVisible();
+  await dialog.getByLabel("Email for drop alerts").fill("drop@example.com");
+  await dialog.getByRole("button", { name: "NOTIFY ME", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");
+  await dialog.getByRole("button", { name: "CLOSE" }).click();
+  await expect(dialog).toHaveCount(0);
+  await overflow(page);
   await expect(page.getByText(/\d+ made/)).toHaveCount(0);
   await expect(page.getByText(/ChST/)).toHaveCount(0);
   await expect(page.locator(".product-price")).toHaveCount(0);
@@ -337,7 +347,9 @@ test("a coming-soon drop shows no date or quantity and cannot be bought", async 
 
 test("a closed store shows Coming soon everywhere and can't start a checkout", async ({ page }) => {
   await page.goto("/products/hafa-adai-from-tumon-bay?mockStore=closed");
-  await expect(page.getByRole("button", { name: "COMING SOON", exact: true }).first()).toBeDisabled();
+  await expect(page.locator(".product-state")).toHaveText("COMING SOON");
+  await expect(page.getByRole("button", { name: "ADD TO CART" })).toHaveCount(0);
+  await expect(page.locator(".buy-controls").getByRole("button", { name: "NOTIFY ME", exact: true })).toBeVisible();
   await page.goto("/shop");
   await expect(page.getByText("COMING SOON").first()).toBeVisible();
   await overflow(page);

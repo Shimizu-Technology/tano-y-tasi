@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
@@ -6,6 +7,7 @@ import { useStoreSettings } from "../useStore";
 import { HOME_HERO_ART, HOME_HERO_SIZES } from "../homeHero";
 import { ArtImage } from "../components/ArtImage";
 import { Emblem } from "../components/Emblem";
+import { NotifyDialog } from "../components/NotifyDialog";
 import { MissionMarquee, SunHillMark } from "../components/MissionMarquee";
 import { ProductCollection } from "../components/ProductCollection";
 import { Failure, Loading, Meta, Signup } from "../components/Shared";
@@ -26,6 +28,7 @@ function dropStatus(drop: Drop) {
 
 function Hero({ drop, coreSummary }: { drop: Drop | null; coreSummary?: string }) {
   const brand = useStoreSettings();
+  const [notify, setNotify] = useState(false);
   return (
     <section className="home-hero" aria-labelledby="home-title">
       <div className="home-hero-copy">
@@ -42,9 +45,10 @@ function Hero({ drop, coreSummary }: { drop: Drop | null; coreSummary?: string }
         <div className="home-actions">
           <Link className="button" to="/shop">SHOP THE COLLECTION <ArrowRight aria-hidden="true" /></Link>
           {drop?.state === "live" && <Link className="text-link label" to="/drop">SHOP THE DROP<ArrowRight aria-hidden="true" /></Link>}
-          {drop?.state === "upcoming" && <a className="text-link label" href="#notify">NOTIFY ME<ArrowRight aria-hidden="true" /></a>}
+          {drop?.state === "upcoming" && <button type="button" className="text-link label" aria-haspopup="dialog" onClick={() => setNotify(true)}>NOTIFY ME<ArrowRight aria-hidden="true" /></button>}
         </div>
       </div>
+      {notify && drop && <NotifyDialog name={drop.name} source="home" dropSlug={drop.slug} onClose={() => setNotify(false)} />}
     </section>
   );
 }

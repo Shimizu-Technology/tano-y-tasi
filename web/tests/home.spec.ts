@@ -38,7 +38,7 @@ for (const state of states) {
 test("home with no drop at all has no drop section or drop language", async ({ page }) => {
   await open(page, "/", "closed");
   await expect(page.locator(".home-drop")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /NOTIFY ME|SHOP THE DROP/ })).toHaveCount(0);
+  await expect(page.locator(".home-hero").getByRole("button", { name: "NOTIFY ME" }).or(page.getByRole("link", { name: "SHOP THE DROP" }))).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "New drops, first." })).toBeVisible();
 });
 
@@ -50,9 +50,18 @@ test("home coming soon: anticipatory, no date, quantity or price, and the signup
   await expect(section).not.toContainText(/ChST|\d+ made|\$\d/);
   await expect(section.getByLabel("Email for drop alerts")).toBeVisible();
   await expect(page.getByRole("heading", { name: "New drops, first." })).toHaveCount(0);
-  // The hero's secondary link goes to that form.
-  await page.getByRole("link", { name: "NOTIFY ME", exact: true }).click();
-  await expect(section.getByLabel("Email for drop alerts")).toBeInViewport();
+  // The hero's secondary action opens the alert signup in place: the page doesn't move.
+  await page.getByRole("button", { name: "NOTIFY ME", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Get notified" });
+  await expect(dialog.getByRole("heading", { name: "Guåhan Sunset Map" })).toBeVisible();
+  await expect(dialog.getByLabel("Email for drop alerts")).toBeFocused();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  await dialog.getByLabel("Email for drop alerts").fill("hero@example.com");
+  await dialog.getByRole("button", { name: "NOTIFY ME", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".home-hero").getByRole("button", { name: "NOTIFY ME", exact: true })).toBeFocused();
   await section.getByLabel("Email for drop alerts").fill("soon@example.com");
   await section.getByRole("button", { name: "NOTIFY ME", exact: true }).click();
   await expect(section.getByRole("status")).toHaveText("You’re on the list. We’ll keep you posted.");

@@ -18,10 +18,10 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  /* A sideways drag turns the box; an up-and-down one still scrolls the page. */
+  touch-action: pan-y;
 }
 .spin-box-stage:active { cursor: grabbing; }
-/* A sideways drag turns the box; an up-and-down one still scrolls the page. */
-.spin-box-stage[data-touch-drag] { touch-action: pan-y; }
 .spin-box-body {
   --depth: calc(100cqw * var(--box-depth));
   position: relative;
@@ -62,4 +62,5 @@
 .gallery-box .spin-box-stage { width: min(66cqw, 62cqh * var(--box-ratio)); margin-bottom: 10cqh; }
 @media (min-width: 900px) {
   .gallery-box .spin-box { aspect-ratio: 3 / 2; }
+  .gallery-box .spin-box-stage { width: min(66cqw, 72cqh * var(--box-ratio)); }
 }

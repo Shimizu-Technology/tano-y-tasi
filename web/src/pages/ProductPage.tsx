@@ -6,6 +6,7 @@ import { api } from "../api";
 import { useCart } from "../cart";
 import { useOpenCart } from "../components/Layout";
 import { Gallery } from "../components/Gallery";
+import { NotifyDialog } from "../components/NotifyDialog";
 import { ProductCollection } from "../components/ProductCollection";
 import { VillageFinder } from "../components/village/VillageFinder";
 import { Countdown, Failure, Loading, Meta, Quantity, ReleaseTimes, Signup } from "../components/Shared";
@@ -130,6 +131,7 @@ function ProductView({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [visible, setVisible] = useState(true);
+  const [notify, setNotify] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const seenButton = useRef(false);
   const add = useCart((s) => s.add);
@@ -185,6 +187,8 @@ function ProductView({
         !p.placeholders.includes(`specs.${key}`)
     )
     .map(([label, , value]) => [label, value] as const);
+  // Something not out yet can't be bought, but its alert can be asked for right here.
+  const awaited = purchase.disabled && ["coming_soon", "upcoming"].includes(p.availability.state);
   const label = purchase.disabled ? purchase.label : room === 0 ? "VIEW CART" : purchase.label;
   return (
     <>
@@ -198,7 +202,9 @@ function ProductView({
         <div className="product-layout">
           <Gallery images={p.images} name={p.name} box={p.box} />
           <div className="product-info">
-            {d ? <DropStatus drop={d} /> : p.signature && <p className="label product-state">SIGNATURE</p>}
+            {d ? <DropStatus drop={d} /> : (p.signature || awaited) && (
+              <p className="label product-state">{[p.signature && "SIGNATURE", awaited && "COMING SOON"].filter(Boolean).join(" · ")}</p>
+            )}
             <h1>{p.name}</h1>
             {/* The price of an unannounced drop isn't confirmed, as on the home page. */}
             {!(d?.state === "upcoming" && !d.release_at) && <p className="product-price">{money(p.price_cents)}</p>}
@@ -223,9 +229,15 @@ function ProductView({
               {!purchase.disabled && room > 0 && (
                 <Quantity value={Math.min(quantity, room)} max={room} onChange={setQuantity} />
               )}
-              <button ref={button} className="button" onClick={buy} disabled={purchase.disabled}>
-                {label}
-              </button>
+              {awaited ? (
+                <button ref={button} className="button" aria-haspopup="dialog" onClick={() => setNotify(true)}>
+                  NOTIFY ME
+                </button>
+              ) : (
+                <button ref={button} className="button" onClick={buy} disabled={purchase.disabled}>
+                  {label}
+                </button>
+              )}
             </div>
             {inCart > 0 && !purchase.disabled && (
               <p className="muted small">
@@ -276,6 +288,7 @@ function ProductView({
           <Signup source="drop" dropSlug={d.slug} />
         </div>
       )}
+      {notify && <NotifyDialog name={p.name} source={d ? "drop" : "product"} dropSlug={d?.slug} onClose={() => setNotify(false)} />}
       {!visible && !purchase.disabled && (
         <div className="sticky-buy">
           <span>

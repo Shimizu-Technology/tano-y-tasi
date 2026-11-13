@@ -7,9 +7,13 @@ import { catalog, CORE, MAP } from "../mocks/data";
 const product = catalog("upcoming", { [CORE]: 40, [MAP]: 100 })[0];
 const box = product.box!;
 const body = (container: HTMLElement) => container.querySelector<HTMLElement>(".spin-box-body")!;
-function pointer(target: Element, type: string, x: number, pointerType = "touch") {
+const angleOf = (container: HTMLElement) => Number(/rotateY\((-?[\d.]+)deg\)/.exec(body(container).style.transform)![1]);
+let clock = 0;
+// `at` is the event's time in ms; left out, each event comes a millisecond after the last.
+function pointer(target: Element, type: string, x: number, pointerType = "touch", at = clock + 1) {
+  clock = at;
   const event = new Event(type, { bubbles: true });
-  Object.defineProperties(event, Object.fromEntries(Object.entries({ pointerId: 1, clientX: x, clientY: 0, button: 0, pointerType }).map(([key, value]) => [key, { value }])));
+  Object.defineProperties(event, Object.fromEntries(Object.entries({ pointerId: 1, clientX: x, clientY: 0, button: 0, pointerType, timeStamp: at }).map(([key, value]) => [key, { value }])));
   fireEvent(target, event);
 }
 
@@ -40,16 +44,17 @@ it("turns to the back and to the front again with the button", () => {
   expect(body(container).style.transform).toBe("rotateY(336deg)");
 });
 
-it("follows a sideways drag, rests on the nearer face, and doesn't open the product", () => {
+it("follows a sideways drag, stays where it is let go, and doesn't open the product", () => {
   const opened = vi.fn();
   const { container } = render(<MemoryRouter><div onClick={opened}><ProductCard product={product} /></div></MemoryRouter>);
   const stage = container.querySelector(".spin-box-stage")!;
   pointer(stage, "pointerdown", 100);
   pointer(stage, "pointermove", 110);
-  pointer(stage, "pointermove", 310);
-  expect(body(container).style.transform).toBe("rotateY(96deg)");
-  pointer(stage, "pointerup", 310);
-  expect(body(container).style.transform).toBe("rotateY(156deg)");
+  pointer(stage, "pointermove", 210);
+  expect(body(container).style.transform).toBe("rotateY(36deg)");
+  // Held still before the let-go, so there is no flick to carry it on.
+  pointer(stage, "pointerup", 210, "touch", 500);
+  expect(body(container).style.transform).toBe("rotateY(36deg)");
   // The click that ends a drag is swallowed; the next one is a real tap.
   fireEvent.click(stage);
   expect(opened).not.toHaveBeenCalled();
@@ -57,17 +62,53 @@ it("follows a sideways drag, rests on the nearer face, and doesn't open the prod
   expect(opened).toHaveBeenCalledOnce();
 });
 
-it("leaves a finger's swipe to the gallery when touch dragging is off", () => {
-  const { container } = render(<SpinBox box={box} controls touchDrag={false} />);
+it("glides on after a flick and slows to a stop", () => {
+  vi.useFakeTimers();
+  try {
+    const { container } = render(<SpinBox box={box} />);
+    const stage = container.querySelector(".spin-box-stage")!;
+    pointer(stage, "pointerdown", 100, "touch", 0);
+    pointer(stage, "pointermove", 110, "touch", 16);
+    pointer(stage, "pointermove", 150, "touch", 32);
+    pointer(stage, "pointermove", 190, "touch", 48);
+    pointer(stage, "pointerup", 190, "touch", 56);
+    const let_go = angleOf(container);
+    expect(let_go).toBe(24);
+    vi.advanceTimersByTime(200);
+    const gliding = angleOf(container);
+    expect(gliding).toBeGreaterThan(let_go + 20);
+    vi.advanceTimersByTime(4000);
+    const stopped = angleOf(container);
+    expect(stopped).toBeGreaterThan(gliding);
+    vi.advanceTimersByTime(1000);
+    expect(angleOf(container)).toBe(stopped);
+  } finally { vi.useRealTimers(); }
+});
+
+it("eases off an edge-on pose, where the box would be a sliver", () => {
+  const { container } = render(<SpinBox box={box} />);
   const stage = container.querySelector(".spin-box-stage")!;
   pointer(stage, "pointerdown", 100);
-  pointer(stage, "pointermove", 300);
-  expect(body(container).style.transform).toBe("rotateY(-24deg)");
-  pointer(stage, "pointerup", 300);
-  pointer(stage, "pointerdown", 100, "mouse");
-  pointer(stage, "pointermove", 110, "mouse");
-  pointer(stage, "pointermove", 160, "mouse");
-  expect(body(container).style.transform).toBe("rotateY(6deg)");
+  pointer(stage, "pointermove", 110);
+  // 180px at 0.6 degrees a pixel: from -24 to 84, six degrees short of edge-on.
+  pointer(stage, "pointermove", 290);
+  expect(body(container).style.transform).toBe("rotateY(84deg)");
+  pointer(stage, "pointerup", 290, "touch", 500);
+  expect(body(container).style.transform).toBe("rotateY(70deg)");
+});
+
+it("turns to the face it isn't showing from wherever it was left", () => {
+  const { container } = render(<SpinBox box={box} controls />);
+  const stage = container.querySelector(".spin-box-stage")!;
+  pointer(stage, "pointerdown", 100);
+  pointer(stage, "pointermove", 110);
+  // To 126 degrees: the back is showing.
+  pointer(stage, "pointermove", 360);
+  pointer(stage, "pointerup", 360, "touch", 500);
+  expect(body(container).style.transform).toBe("rotateY(126deg)");
+  fireEvent.click(screen.getByRole("button", { name: "SHOW THE FRONT" }));
+  expect(body(container).style.transform).toBe("rotateY(336deg)");
+  expect(screen.getByRole("button", { name: "SHOW THE BACK" })).toBeVisible();
 });
 
 it("ends a press that is released away from the box, so the next click still opens the product", () => {
@@ -80,11 +121,11 @@ it("ends a press that is released away from the box, so the next click still ope
     pointer(stage, "pointermove", 110, "mouse");
     pointer(stage, "pointermove", 140, "mouse");
     // The release lands elsewhere; the stage only hears that it lost the pointer.
-    pointer(stage, "lostpointercapture", 140, "mouse");
-    expect(body(container).style.transform).toBe("rotateY(-24deg)");
+    pointer(stage, "lostpointercapture", 140, "mouse", 900);
+    expect(body(container).style.transform).toBe("rotateY(-6deg)");
     // Moving back over it with no button down must not turn it.
     pointer(stage, "pointermove", 300, "mouse");
-    expect(body(container).style.transform).toBe("rotateY(-24deg)");
+    expect(body(container).style.transform).toBe("rotateY(-6deg)");
     // No click followed that drag, so a later one (a keyboard Enter on the link, say) goes through.
     vi.advanceTimersByTime(100);
     fireEvent.click(stage);

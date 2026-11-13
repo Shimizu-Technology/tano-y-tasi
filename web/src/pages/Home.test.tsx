@@ -39,7 +39,7 @@ it("shows no drop section and no drop language when no drop is announced", () =>
   const { container } = show(storefront(null));
   expect(container.querySelector(".home-drop")).toBeNull();
   expect(screen.queryByText(/DROP 00/i)).not.toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /NOTIFY ME|SHOP THE DROP/ })).not.toBeInTheDocument();
+  expect(container.querySelector(".home-actions")!.querySelector("button, a[href='/drop']")).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "New drops, first." })).toBeVisible();
 });
 
@@ -51,7 +51,9 @@ it("a dated upcoming drop shows its release in ChST and leads with the alert sig
   expect(within(section).getByRole("button", { name: "NOTIFY ME" })).toBeVisible();
   // One alert form on the page: the drop section carries it instead of a second general list.
   expect(screen.getAllByLabelText("Email for drop alerts")).toHaveLength(1);
-  expect(screen.getByRole("link", { name: "NOTIFY ME" })).toHaveAttribute("href", "#notify");
+  // The hero's action opens the same signup in a dialog, in place.
+  const hero = container.querySelector<HTMLElement>(".home-hero")!;
+  expect(within(hero).getByRole("button", { name: "NOTIFY ME" })).toHaveAttribute("aria-haspopup", "dialog");
 });
 
 it("a coming-soon drop reads anticipatory: no date, quantity or price, and the signup is the action", () => {
@@ -80,7 +82,7 @@ it.each([["sold_out", "Drop 001 · Sold out"], ["closed", "Drop 001 · This drop
   const section = container.querySelector<HTMLElement>(".home-drop")!;
   expect(within(section).getByText(status)).toBeVisible();
   expect(within(section).getByRole("link", { name: "VIEW THE DROP" })).toBeVisible();
-  expect(screen.queryByRole("link", { name: /SHOP THE DROP|NOTIFY ME/ })).not.toBeInTheDocument();
+  expect(container.querySelector(".home-actions")!.querySelector("button, a[href='/drop']")).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "New drops, first." })).toBeVisible();
 });
 

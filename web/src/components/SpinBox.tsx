@@ -8,13 +8,25 @@ import "./SpinBox.css";
 const REST = -24;
 const SPIN_PER_MS = 360 / 6000;
 const SETTLE_MS = 600;
+// A let-go box keeps turning and slows down: its speed falls by e every GLIDE_MS.
+const GLIDE_MS = 320;
+const MAX_FLICK = 1.2;
+const STILL = 0.004;
+// Seen edge-on a box is a sliver, so it never rests within this many degrees of that.
+const EDGE = 20;
 const ratio = (art: Art) => {
   const [w, h] = art.aspect.split(":").map(Number);
   return w / h;
 };
-// The nearest resting pose: every `step` degrees from REST.
-const nearest = (angle: number, step: number) => REST + Math.round((angle - REST) / step) * step;
-const showsBack = (angle: number) => Math.abs(Math.round((angle - REST) / 180)) % 2 === 1;
+// The nearest pose facing squarely front or back: every 180 degrees from REST.
+const nearest = (angle: number) => REST + Math.round((angle - REST) / 180) * 180;
+const showsBack = (angle: number) => Math.cos((angle * Math.PI) / 180) < 0;
+// Where a box left at `angle` rests: where it is, unless that is edge-on.
+function resting(angle: number) {
+  const within = ((angle % 180) + 180) % 180;
+  if (Math.abs(within - 90) >= EDGE) return angle;
+  return angle - within + (within < 90 ? 90 - EDGE : 90 + EDGE);
+}
 
 function Face({ art, side, sizes, priority, silent = false }: { art: Art | null; side: string; sizes: string; priority: boolean; silent?: boolean }) {
   if (!art) return <span className={`spin-box-face spin-box-${side}`} aria-hidden="true" />;
@@ -35,63 +47,71 @@ function Face({ art, side, sizes, priority, silent = false }: { art: Art | null;
 
 /**
  * A puzzle box built from its flat faces. A mouse turns it by hovering or dragging; a finger drags
- * it, after one small turn the first time it is seen. `controls` adds a button for keyboards and
- * for places where a swipe already means something else (`touchDrag={false}`).
+ * it, after one small turn the first time it is seen. Let go, it glides to a stop and stays where
+ * it was left. `controls` adds a button that turns it to the other face, for keyboards.
  */
-export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority = false, controls = false, touchDrag = true }: {
+export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority = false, controls = false }: {
   box: Box;
   sizes?: string;
   priority?: boolean;
   controls?: boolean;
-  touchDrag?: boolean;
 }) {
   const reduced = useReducedMotion();
   const root = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const angle = useRef(REST);
   const frame = useRef(0);
-  const drag = useRef<{ id: number; x: number; from: number; moved: boolean } | null>(null);
+  // What the running frame loop is doing: the hover spin, or the glide after a let-go.
+  const motion = useRef<"spin" | "glide" | null>(null);
+  const drag = useRef<{ id: number; x: number; from: number; moved: boolean; at: number; speed: number } | null>(null);
   const dragged = useRef(false);
   const forget = useRef(0);
   const [back, setBack] = useState(false);
 
   function turn(next: number, animate: boolean) {
     angle.current = next;
+    setBack(showsBack(next));
     const el = body.current;
     if (!el) return;
     el.style.transition = animate && !reduced ? `transform ${SETTLE_MS}ms var(--ease-out)` : "none";
-    el.style.transform = `rotateY(${next}deg)`;
+    el.style.transform = `rotateY(${Number(next.toFixed(2))}deg)`;
   }
-  function stopSpin() {
+  function stop() {
     cancelAnimationFrame(frame.current);
     frame.current = 0;
+    motion.current = null;
   }
-  function settle(step: number) {
-    stopSpin();
-    const next = nearest(angle.current, step);
-    turn(next, true);
-    setBack(showsBack(next));
+  // Leaves the box where it is, eased off an edge-on pose.
+  function rest() {
+    stop();
+    const next = resting(angle.current);
+    if (next !== angle.current) turn(next, true);
   }
-  function spin() {
-    if (frame.current || reduced || drag.current) return;
+  function run(kind: "spin" | "glide", speed: number) {
+    stop();
+    if (reduced || (kind === "glide" && Math.abs(speed) < STILL)) return rest();
+    motion.current = kind;
     let last = performance.now();
     const tick = (now: number) => {
-      turn(angle.current + (now - last) * SPIN_PER_MS, false);
+      const dt = Math.min(now - last, 64);
       last = now;
+      if (kind === "glide") {
+        speed *= Math.exp(-dt / GLIDE_MS);
+        if (Math.abs(speed) < STILL) return rest();
+      }
+      turn(angle.current + speed * dt, false);
       frame.current = requestAnimationFrame(tick);
     };
     frame.current = requestAnimationFrame(tick);
   }
-  useEffect(() => () => { stopSpin(); clearTimeout(forget.current); }, []);
-  // Turning reduced motion on stops whatever is moving at once: a spin comes to the front, and a
-  // hint or a settle jumps to the pose it was heading for.
+  useEffect(() => () => { stop(); clearTimeout(forget.current); }, []);
+  // Turning reduced motion on stops whatever is moving at once: a spin or a glide stops where it
+  // is, and a hint or a settle jumps to the pose it was heading for.
   useEffect(() => {
     if (!reduced) return;
-    const next = nearest(angle.current, frame.current ? 360 : 180);
-    stopSpin();
-    turn(next, false);
-    setBack(showsBack(next));
-    // turn only touches refs.
+    stop();
+    turn(resting(angle.current), false);
+    // turn only touches refs and a state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
   // Ends a press however it ends: released here or elsewhere, cancelled, or taken over by a scroll.
@@ -101,9 +121,10 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     drag.current = null;
     const rect = e.currentTarget.getBoundingClientRect();
     const away = e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom;
+    // A flick carries on; a box held still before the let-go stays put.
+    if (state.moved) run("glide", e.timeStamp - state.at > 90 ? 0 : Math.max(-MAX_FLICK, Math.min(MAX_FLICK, state.speed)));
     // While captured the stage hears no leave, so a press let go elsewhere ends the hover spin here.
-    if (state.moved) settle(180);
-    else if (away) settle(360);
+    else if (away && motion.current === "spin") run("glide", SPIN_PER_MS);
     // The captured press would click here even when let go elsewhere; that isn't a click on the box.
     if (away) dragged.current = true;
     // Only the click that this drag itself produces is swallowed.
@@ -124,7 +145,7 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     }, { threshold: 0.75 });
     observer.observe(el);
     return () => { observer.disconnect(); clearTimeout(timer); };
-    // turn only touches refs.
+    // turn only touches refs and a state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
 
@@ -137,12 +158,13 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     <div className="spin-box" ref={root} style={{ "--box-ratio": front, "--box-depth": depth } as CSSProperties}>
       <div
         className="spin-box-stage"
-        data-touch-drag={touchDrag || undefined}
-        onPointerEnter={(e) => { if (mouse(e)) spin(); }}
-        onPointerLeave={(e) => { if (mouse(e) && !drag.current) settle(360); }}
+        onPointerEnter={(e) => { if (mouse(e) && !drag.current) run("spin", SPIN_PER_MS); }}
+        onPointerLeave={(e) => { if (mouse(e) && !drag.current && motion.current === "spin") run("glide", SPIN_PER_MS); }}
         onPointerDown={(e) => {
-          if (e.button !== 0 || drag.current || (!touchDrag && !mouse(e))) return;
-          drag.current = { id: e.pointerId, x: e.clientX, from: angle.current, moved: false };
+          if (e.button !== 0 || drag.current) return;
+          drag.current = { id: e.pointerId, x: e.clientX, from: angle.current, moved: false, at: e.timeStamp, speed: 0 };
+          // A finger stops a gliding box where it catches it; a mouse's hover spin runs on until it drags.
+          if (motion.current === "glide") stop();
           // An earlier press's timer must not clear this one's flag.
           clearTimeout(forget.current);
           dragged.current = false;
@@ -157,12 +179,18 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
             if (Math.abs(dx) < 6) return;
             state.moved = true;
             dragged.current = true;
-            stopSpin();
+            stop();
             state.from = angle.current;
             state.x = e.clientX;
+            state.at = e.timeStamp;
             return;
           }
-          turn(state.from + dx * 0.6, false);
+          const next = state.from + dx * 0.6;
+          const dt = e.timeStamp - state.at;
+          // Smoothed, so one jittery sample doesn't decide the flick.
+          if (dt > 0) state.speed = state.speed * 0.4 + ((next - angle.current) / dt) * 0.6;
+          state.at = e.timeStamp;
+          turn(next, false);
         }}
         onPointerUp={release}
         onPointerCancel={release}
@@ -187,7 +215,16 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
         </div>
       </div>
       {controls && (
-        <button type="button" className="spin-box-turn text-button label" onClick={() => { stopSpin(); const next = nearest(angle.current, 180) + 180; turn(next, true); setBack(showsBack(next)); }}>
+        <button
+          type="button"
+          className="spin-box-turn text-button label"
+          onClick={() => {
+            stop();
+            // The squarely facing pose nearest to where the box is, on the side it isn't showing.
+            const square = nearest(angle.current);
+            turn(showsBack(square) === showsBack(angle.current) ? square + 180 : square, true);
+          }}
+        >
           {back ? "SHOW THE FRONT" : "SHOW THE BACK"}
         </button>
       )}

@@ -225,6 +225,11 @@ img {
   align-items: center;
   gap: 8px;
 }
+button.text-link {
+  padding: 0;
+  border: 0;
+  color: inherit;
+}
 .inline-link {
   font: inherit;
   padding: 0 0 0 4px;
@@ -818,6 +823,55 @@ dialog::backdrop {
   bottom: 48px;
   line-height: 2;
 }
+/* The alert signup, opened where it was asked for: a card high on a phone, clear of the keyboard, and centred on a desktop. */
+.notify-dialog {
+  inset: 0;
+  margin: 12svh auto auto;
+  width: calc(100% - 2 * var(--gutter));
+  max-width: 440px;
+  padding: 0 24px 32px;
+  transition:
+    transform 220ms var(--ease-out),
+    opacity 220ms var(--ease-out);
+}
+@starting-style {
+  .notify-dialog {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+.notify-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 56px;
+}
+.notify-dialog h2 {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-top: 8px;
+  text-wrap: balance;
+}
+.notify-dialog h2 + p {
+  margin-top: 12px;
+}
+.notify-dialog .signup {
+  margin-top: 24px;
+  display: block;
+}
+.notify-dialog .signup > form,
+.notify-dialog .signup-success {
+  width: 100%;
+  max-width: none;
+}
+@media (min-width: 900px) {
+  .notify-dialog {
+    margin: auto;
+    padding: 0 32px 40px;
+  }
+}
 .product-page {
   max-width: 1440px;
   margin: auto;
@@ -905,10 +959,13 @@ dialog::backdrop {
   color: var(--color-ink-muted);
 }
 .product-info h1 {
-  font-size: 20px;
-  margin-top: 16px;
-  letter-spacing: -0.02em;
-  max-width: 24ch;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.05;
+  margin-top: 12px;
+  letter-spacing: -0.03em;
+  max-width: 16ch;
+  text-wrap: balance;
 }
 .product-price {
   margin-top: 16px;
@@ -1475,7 +1532,7 @@ dd {
     padding-bottom: 32px;
   }
   .product-info h1 {
-    font-size: 24px;
+    font-size: 40px;
   }
   .product-price {
     font-size: 20px;
@@ -1607,6 +1664,7 @@ dialog[data-state="closing"]::backdrop {
 }
 .cart-dialog[data-state="closing"] { transform: translateX(100%); }
 .menu-dialog[data-state="closing"] { transform: translateY(-8px); opacity: 0; }
+.notify-dialog[data-state="closing"] { transform: translateY(8px); opacity: 0; }
 .viewer-dialog[data-state="closing"],
 dialog[data-state="closing"]::backdrop { opacity: 0; }
 .cart-dialog[data-dragging] { transition: none; }
@@ -1633,12 +1691,12 @@ button:active:not(:disabled), .text-link:active, summary:active { transform: sca
 .cart-count { display: inline-block; }
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
-  .cart-dialog, .menu-dialog,
-  .cart-dialog[data-state="closing"], .menu-dialog[data-state="closing"],
+  .cart-dialog, .menu-dialog, .notify-dialog,
+  .cart-dialog[data-state="closing"], .menu-dialog[data-state="closing"], .notify-dialog[data-state="closing"],
   button:active:not(:disabled), .product-card:active, .archive-card:active, .feature-art:active, .gallery-image:active,
   .wide-drop:active, .text-link:active, summary:active { transform: none; }
   .cart-dialog[data-state="closing"] { opacity: 0; }
-  @starting-style { .cart-dialog[open], .menu-dialog[open] { transform: none; opacity: 0; } }
+  @starting-style { .cart-dialog[open], .menu-dialog[open], .notify-dialog[open] { transform: none; opacity: 0; } }
   .accordions details::details-content { transition: opacity 100ms var(--ease-out); }
 }
 .page-body { display: grid; gap: 16px; max-width: 65ch; }
