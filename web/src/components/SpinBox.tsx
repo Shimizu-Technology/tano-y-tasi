@@ -114,15 +114,15 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     // turn only touches refs and a state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
-  // Ends a press however it ends: released here or elsewhere, cancelled, or taken over by a scroll.
-  function release(e: ReactPointerEvent<HTMLElement>) {
+  // Ends a press however it ends: released here or elsewhere, or `cancelled` (taken over by a scroll, say).
+  function release(e: ReactPointerEvent<HTMLElement>, cancelled = false) {
     const state = drag.current;
     if (!state || state.id !== e.pointerId) return;
     drag.current = null;
     const rect = e.currentTarget.getBoundingClientRect();
     const away = e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom;
-    // A flick carries on; a box held still before the let-go stays put.
-    if (state.moved) run("glide", e.timeStamp - state.at > 90 ? 0 : Math.max(-MAX_FLICK, Math.min(MAX_FLICK, state.speed)));
+    // A flick carries on; a box held still before the let-go stays put, and so does one whose press was taken away.
+    if (state.moved) run("glide", cancelled || e.timeStamp - state.at > 90 ? 0 : Math.max(-MAX_FLICK, Math.min(MAX_FLICK, state.speed)));
     // While captured the stage hears no leave, so a press let go elsewhere ends the hover spin here.
     else if (away && motion.current === "spin") run("glide", SPIN_PER_MS);
     // The captured press would click here even when let go elsewhere; that isn't a click on the box.
@@ -193,8 +193,8 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
           turn(next, false);
         }}
         onPointerUp={release}
-        onPointerCancel={release}
-        onLostPointerCapture={release}
+        onPointerCancel={(e) => release(e, true)}
+        onLostPointerCapture={(e) => release(e, true)}
         // A drag that ends over a link must not follow it.
         onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.preventDefault(); e.stopPropagation(); } }}
         // Inside a link the browser would otherwise start dragging the link itself and cancel the pointer.

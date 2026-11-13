@@ -54,9 +54,11 @@ export const api = {
   cancel: (token: string) => request<{ order: Order }>(`/orders/${encodeURIComponent(token)}/cancel`, {}),
   simulated: (token: string, action: "complete" | "cancel") =>
     request<{ order: Order }>(`/simulated_payments/${encodeURIComponent(token)}/${action}`, {}),
-  subscribe: (email: string, source: string, drop_slug?: string) =>
+  subscribe: (email: string, source: SignupSource, drop_slug?: string) =>
     request<{ subscribed: true }>("/subscribers", { email, source, ...(drop_slug ? { drop_slug } : {}) }),
 };
+// Where a signup came from. The API refuses any other value.
+export type SignupSource = "home" | "drop" | "product" | "footer";
 export function checkoutFix(error: ErrorBody): { message: string; quantity?: number; remove?: boolean } {
   switch (error.code) {
     case "limit_exceeded": {

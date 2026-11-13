@@ -85,6 +85,18 @@ it("glides on after a flick and slows to a stop", () => {
   } finally { vi.useRealTimers(); }
 });
 
+it("doesn't flick on when the browser takes the press away for a scroll", () => {
+  const { container } = render(<SpinBox box={box} />);
+  const stage = container.querySelector(".spin-box-stage")!;
+  pointer(stage, "pointerdown", 100, "touch", 0);
+  pointer(stage, "pointermove", 110, "touch", 16);
+  pointer(stage, "pointermove", 150, "touch", 32);
+  pointer(stage, "pointercancel", 150, "touch", 40);
+  expect(angleOf(container)).toBe(0);
+  // Nothing is left running to carry it on.
+  expect(container.querySelector<HTMLElement>(".spin-box-body")!.style.transition).toBe("none");
+});
+
 it("eases off an edge-on pose, where the box would be a sliver", () => {
   const { container } = render(<SpinBox box={box} />);
   const stage = container.querySelector(".spin-box-stage")!;

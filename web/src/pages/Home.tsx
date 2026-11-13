@@ -70,7 +70,7 @@ function DropFeature({ drop }: { drop: Drop }) {
           {soon ? "The release date goes to the list first." : `Drop ${dropNumber(drop.number)} · ${dropStatus(drop)}`}
         </p>
         {upcoming
-          ? <Signup inline source="home-drop" dropSlug={drop.slug} cta="NOTIFY ME" />
+          ? <Signup inline source="home" dropSlug={drop.slug} cta="NOTIFY ME" />
           : <Link className="button" to="/drop">VIEW THE DROP <ArrowRight aria-hidden="true" /></Link>}
         {upcoming && <Link className="text-link label" to="/drop">VIEW THE DROP <ArrowRight aria-hidden="true" /></Link>}
       </div>

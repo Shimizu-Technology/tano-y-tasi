@@ -1,11 +1,12 @@
 import { Modal } from "./Modal";
 import { Signup } from "./Shared";
+import type { SignupSource } from "../api";
 
 /**
  * The alert signup, opened in place by a `NOTIFY ME` action so the page doesn't move.
  * `name` is what the alert is for; without one it is the general list.
  */
-export function NotifyDialog({ name, source, dropSlug, onClose }: { name?: string; source: string; dropSlug?: string; onClose: () => void }) {
+export function NotifyDialog({ name, source, dropSlug, onClose }: { name?: string; source: SignupSource; dropSlug?: string; onClose: () => void }) {
   return (
     <Modal label="Get notified" className="notify-dialog" onClose={onClose}>
       {(close) => <>
