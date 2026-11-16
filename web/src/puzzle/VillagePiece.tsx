@@ -115,7 +115,9 @@ export function VillagePiece() {
         for (const section of sections(pick.pieces)) {
           const cells = section.map((i) => MAP_CUT.pieces[i].cell);
           const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
-          shown = lifted(shown, section, elapsed, Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across)), layout);
+          // A dot's piece on its own only has to stand out, not be read, and must not cover the name beside it.
+          const grow = pick.dot && section.length === 1 && section[0] === pick.pieces[0] ? 1 : LIFTED_WIDTH / across;
+          shown = lifted(shown, section, elapsed, Math.min(MAX_GROW, Math.max(1.25, grow)), layout);
         }
       }
       drawFrame(context, sprites, shown, pick.pieces, dpr, false);

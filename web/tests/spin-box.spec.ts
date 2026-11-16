@@ -120,12 +120,18 @@ test("a press released outside the box doesn't leave it dragging", async ({ page
 
 test("a phone turns the box once all the way round and back to the front, even under a finger scrolling past", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "The first turn is for touch screens.");
+  // The page's clock is held, so the turn is caught halfway round however slow the run.
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
   await page.goto("/shop");
-  await expect(page.locator(".spin-box-stage").first()).toBeVisible();
-  // Partway round, a finger lands on the box and scrolls the page a little.
-  await expect.poll(() => turn(page)).toBeLessThan(-60);
-  const at = await centre(page);
-  await swipe(page, at, 0, -40);
+  // The shop loads in small steps of the held clock, so the turn has barely begun when the box shows.
+  const stage = page.locator(".spin-box-stage").first();
+  for (let i = 0; i < 50 && !(await stage.isVisible()); i++) await page.clock.runFor(100);
+  await page.clock.runFor(900);
+  expect(await turn(page)).toBeLessThan(-100);
+  // Halfway round, a finger lands on the box and scrolls the page a little.
+  await swipe(page, await centre(page), 0, -40);
+  await page.clock.runFor(1500);
   await firstTurn(page);
   // The finger really did land while the box was on its way round.
   const { pressedAt } = await seen(page);

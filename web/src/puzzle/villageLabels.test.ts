@@ -75,16 +75,16 @@ it("lifts a name lettered over the water and the piece where its dot is, on the 
   for (const [slug, dot] of Object.entries(VILLAGE_DOTS)) {
     const village = villages.find((v) => v.slug === slug)!;
     const pieces = villagePieces(village);
-    // Its lettering lifts as for any name, and so does the piece under its dot, last.
+    // The piece under its dot comes first, so its lettering, lifted as for any name, is drawn over it.
     const dotPiece = pieceAt(MAP_CUT, dot.x, dot.y).index;
-    expect(pieces.at(-1)).toBe(dotPiece);
-    expect(pieces.slice(0, -1).length).toBeGreaterThanOrEqual(1);
+    expect(pieces[0]).toBe(dotPiece);
+    expect(pieces.slice(1).length).toBeGreaterThanOrEqual(1);
     // The dot is on the island, close to the star, and away from the lettering out in the water.
     expect(landAt(MAP_LAND)(dot.x, dot.y)).toBe(true);
     expect(Math.hypot(dot.x - STAR.x, dot.y - STAR.y)).toBeLessThan(0.05);
     const counts = new Map<number, number>();
     for (const [x, y] of letters(slug)) counts.set(pieceAt(MAP_CUT, x, y).index, (counts.get(pieceAt(MAP_CUT, x, y).index) ?? 0) + 1);
-    for (const index of pieces.slice(0, -1)) expect(counts.get(index)).toBeGreaterThanOrEqual(4);
+    for (const index of pieces.slice(1)) expect(counts.get(index)).toBeGreaterThanOrEqual(4);
     expect(counts.has(dotPiece)).toBe(false);
   }
 });
