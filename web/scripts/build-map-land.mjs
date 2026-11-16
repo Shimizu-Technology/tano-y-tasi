@@ -1,6 +1,7 @@
 // Usage: node --experimental-strip-types scripts/build-map-land.mjs   (run from web/; needs ImageMagick)
 // Finds the land on the Guåhan map so the puzzle home can put the island together before the sea.
-// Rerun it whenever the map artwork or the village positions change; it rewrites src/puzzle/mapLand.ts.
+// Rerun it whenever the map artwork or the village positions change; it rewrites src/puzzle/mapLand.ts,
+// then check the result: tests in src/puzzle/timeline.test.ts name points that must be land or sea.
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { villages } from "../src/components/village/villages.ts";
@@ -56,11 +57,16 @@ const seeds = villages.map((v) => {
       for (let xx = x - r; xx <= x + r && best < 0; xx++) if (xx >= 0 && xx < W && yy >= 0 && yy < H && closed[yy * W + xx]) best = yy * W + xx;
   return best;
 });
-const island = fill(closed, seeds.filter((i) => i >= 0));
+const touching = fill(closed, seeds.filter((i) => i >= 0));
 // Whatever the island encloses (village tints, icons) is land too: only what reaches the edge is not.
 const edge = Array.from({ length: W * H }, (_, i) => i % W === 0 || i % W === W - 1 || i < W || i >= W * (H - 1)).flatMap((on, i) => (on ? [i] : []));
-const outside = fill(island.map((on) => !on), edge);
-const land = outside.map((out) => !out);
+const enclosed = (mask) => fill(mask.map((on) => !on), edge).map((out) => !out);
+// Sunset reflections on the water are the same sand color and reach the coast by thin strands. An
+// opening (erode, then grow back) cuts strands narrower than 11px, and only what still
+// joins a village stays.
+const OPEN = 5;
+const opened = spread(spread(enclosed(touching), false, OPEN), true, OPEN);
+const land = enclosed(fill(opened, seeds.filter((i) => i >= 0 && opened[i])));
 
 // Coarse cells, stored as runs of land per row ("start-end", end exclusive), so the file stays readable.
 const rows = [];

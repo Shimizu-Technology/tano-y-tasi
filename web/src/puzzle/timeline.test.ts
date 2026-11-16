@@ -16,6 +16,11 @@ it("reads the land mask: the island is land, the sea, sky and corners are not", 
   expect(onLand(STAR.x, STAR.y)).toBe(true);
   // The Pacific, the Philippine Sea, the title in the sky, and every corner.
   for (const [x, y] of [[0.8, 0.6], [0.15, 0.3], [0.2, 0.1], [0, 0], [1, 0], [0, 1], [1, 1]]) expect(onLand(x, y)).toBe(false);
+  // Sand-colored sunset reflections and clouds that touch the coast: in the Philippine Sea, off the
+  // east coast, and at the right edge of the sky.
+  for (const [x, y] of [[0.18, 0.36], [0.19, 0.4], [0.8, 0.45], [0.82, 0.5], [0.97, 0.15], [0.97, 0.2]]) expect(onLand(x, y)).toBe(false);
+  // The Orote peninsula, the island's thin western arm, stays.
+  expect(onLand(0.08, 0.47)).toBe(true);
 });
 
 it("puts the land together first, then the sea, then the piece with Hagåtña's star last", () => {
@@ -31,6 +36,8 @@ it("puts the land together first, then the sea, then the piece with Hagåtña's 
   expect(MAP_PLAN.start[MAP_PLAN.last]).toBeCloseTo(LAST[0]);
   expect(MAP_PLAN.end[MAP_PLAN.last]).toBeCloseTo(LAST[1]);
   expect(contains(MAP_CUT.pieces[MAP_PLAN.last], STAR.x * MAP_CUT.width, STAR.y * MAP_CUT.height)).toBe(true);
+  // The cells of the two sunset reflections are sea, not land arriving early.
+  for (const [x, y] of [[0.18, 0.39], [0.82, 0.45]]) expect(MAP_PLAN.land[pieceAt(MAP_CUT, x, y).index]).toBe(false);
   // Every village on the island is on a land piece.
   for (const village of villages.filter((v) => !callouts.includes(v.slug))) expect(MAP_PLAN.land[pieceAt(MAP_CUT, village.x, village.y).index]).toBe(true);
 });

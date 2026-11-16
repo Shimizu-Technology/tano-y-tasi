@@ -147,6 +147,75 @@ test("a change of screen sharpness redraws the puzzle at the new resolution", as
   await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
 });
 
+test("scrolling away and back repaints the pile and the puzzle as a fresh drawing would", async ({ page }) => {
+  await open(page);
+  await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
+  // The pile and the placed pieces repaint only around pieces that leave or join them. The layers
+  // are compared inside the page: they are too large to copy out.
+  const snapshot = () => page.evaluate(() => {
+    const w = window as unknown as { layers: Uint8ClampedArray[] };
+    w.layers = [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas")].slice(0, 2).map((c) => c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data);
+  });
+  await scrollThrough(page, 0.3);
+  await snapshot();
+  for (const share of [0.6, 0.95, 1, 0.1, 0.5]) await scrollThrough(page, share);
+  await scrollThrough(page, 0.3);
+  const [pile, placed] = await page.evaluate(() => {
+    const before = (window as unknown as { layers: Uint8ClampedArray[] }).layers;
+    return [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas")].slice(0, 2).map((c, layer) => {
+      const now = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+      let changed = 0;
+      let most = 0;
+      for (let i = 0; i < now.length; i++) {
+        const d = Math.abs(now[i] - before[layer][i]);
+        if (d) changed++;
+        most = Math.max(most, d);
+      }
+      return { changed, most, of: now.length };
+    });
+  });
+  // The placed pieces tile exactly; the overlapping pile may differ by a shade at the edge of a repaint.
+  expect([placed.changed, placed.most]).toEqual([0, 0]);
+  expect(pile.most).toBeLessThanOrEqual(32);
+  expect(pile.changed).toBeLessThan(pile.of / 1000);
+});
+
+test("a chosen village's piece is held up, larger than its slot, over its own place", async ({ page }) => {
+  await page.clock.install();
+  await open(page);
+  const board = page.locator(".village-piece-board");
+  await board.scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
+  const pixels = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => Array.from(c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data));
+  // Time stands still, so the lift can be caught at the top.
+  await page.clock.pauseAt(new Date(Date.now() + 60_000));
+  await page.locator(".village-piece select").selectOption("hagat");
+  await page.clock.runFor(420);
+  const held = await pixels();
+  await page.clock.runFor(1200);
+  const settled = await pixels();
+  const { width, height, x: boardX } = await page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => ({ width: c.width, height: c.height, x: c.getBoundingClientRect().width }));
+  const ratio = width / boardX;
+  // Where the held and settled frames differ is the lifted piece and its shadow.
+  let [x0, y0, x1, y1] = [width, height, 0, 0];
+  for (let i = 0; i < held.length; i += 4) {
+    if (Math.abs(held[i] - settled[i]) + Math.abs(held[i + 1] - settled[i + 1]) + Math.abs(held[i + 2] - settled[i + 2]) > 30) {
+      const [x, y] = [(i / 4) % width, Math.floor(i / 4 / width)];
+      [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+    }
+  }
+  const across = (x1 - x0) / ratio;
+  const cell = boardX / 14;
+  expect(across).toBeGreaterThan(Math.max(56, cell * 1.5));
+  expect(across).toBeLessThan(160);
+  // Hågat's name is under the lifted piece.
+  const [vx, vy] = [0.2192 * width, 0.6368 * height];
+  expect(vx).toBeGreaterThan(x0);
+  expect(vx).toBeLessThan(x1);
+  expect(vy).toBeGreaterThan(y0);
+  expect(vy).toBeLessThan(y1);
+});
+
 test("choosing a village lifts its piece and leaves it outlined", async ({ page }) => {
   await open(page);
   const section = page.locator(".village-piece");
