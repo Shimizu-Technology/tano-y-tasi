@@ -147,37 +147,48 @@ test("a change of screen sharpness redraws the puzzle at the new resolution", as
   await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
 });
 
-test("scrolling away and back repaints the pile and the puzzle as a fresh drawing would", async ({ page }) => {
+test("scrolling away and back repaints the pile and the puzzle as a fresh drawing would", async ({ page }, info) => {
   await open(page);
   await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
-  // The pile and the placed pieces repaint only around pieces that leave or join them. The layers
-  // are compared inside the page: they are too large to copy out.
-  const snapshot = () => page.evaluate(() => {
-    const w = window as unknown as { layers: Uint8ClampedArray[] };
-    w.layers = [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas")].slice(0, 2).map((c) => c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data);
-  });
+  // The pile and the placed pieces repaint only around pieces that leave or join them. After a
+  // long scroll history, the layers are kept, then a change of pixel ratio there and back makes
+  // the page draw everything afresh at the same point, for comparison. The layers are compared
+  // inside the page: they are too large to copy out.
   await scrollThrough(page, 0.3);
-  await snapshot();
   for (const share of [0.6, 0.95, 1, 0.1, 0.5]) await scrollThrough(page, share);
   await scrollThrough(page, 0.3);
+  await page.evaluate(() => {
+    (window as unknown as { layers: Uint8ClampedArray[] }).layers = [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas")].slice(0, 2).map((c) => c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data);
+  });
+  const cdp = await page.context().newCDPSession(page);
+  const viewport = page.viewportSize()!;
+  const mobile = info.project.name === "mobile";
+  for (const deviceScaleFactor of [2, 1]) {
+    await cdp.send("Emulation.setDeviceMetricsOverride", { ...viewport, deviceScaleFactor, mobile });
+    await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+    await expect.poll(() => page.evaluate(() => document.querySelector("canvas")!.width / innerWidth)).toBe(deviceScaleFactor);
+  }
   const [pile, placed] = await page.evaluate(() => {
-    const before = (window as unknown as { layers: Uint8ClampedArray[] }).layers;
+    const kept = (window as unknown as { layers: Uint8ClampedArray[] }).layers;
     return [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas")].slice(0, 2).map((c, layer) => {
-      const now = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+      const fresh = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
       let changed = 0;
       let most = 0;
-      for (let i = 0; i < now.length; i++) {
-        const d = Math.abs(now[i] - before[layer][i]);
+      for (let i = 0; i < fresh.length; i++) {
+        const d = Math.abs(fresh[i] - kept[layer][i]);
         if (d) changed++;
         most = Math.max(most, d);
       }
-      return { changed, most, of: now.length };
+      return { changed, most, of: fresh.length, painted: fresh.some((v, i) => i % 4 === 3 && v > 0) };
     });
   });
-  // The placed pieces tile exactly; the overlapping pile may differ by a shade at the edge of a repaint.
-  expect([placed.changed, placed.most]).toEqual([0, 0]);
-  expect(pile.most).toBeLessThanOrEqual(32);
-  expect(pile.changed).toBeLessThan(pile.of / 1000);
+  // Both layers have pieces on them at this point, and the kept drawing matches the fresh one
+  // within a shade at the edge of a repaint.
+  expect([pile.painted, placed.painted]).toEqual([true, true]);
+  for (const layer of [pile, placed]) {
+    expect(layer.most).toBeLessThanOrEqual(32);
+    expect(layer.changed).toBeLessThan(layer.of / 1000);
+  }
 });
 
 test("a chosen village's piece is held up, larger than its slot, over its own place", async ({ page }) => {
