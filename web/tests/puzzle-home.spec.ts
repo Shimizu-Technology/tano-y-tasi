@@ -255,11 +255,33 @@ test("a settled section has one outline around it, and nothing inside its seams"
     const k = c.width / 509;
     (window as unknown as { band: Uint8ClampedArray }).band = c.getContext("2d")!.getImageData(Math.round(b.x0 * k), Math.round(b.y0 * k), Math.round((b.x1 - b.x0) * k), Math.round((b.y1 - b.y0) * k)).data;
   }, band);
+  // Which pixels are the outline's orange, kept in the page, so the outline can be told from the
+  // map's own orange.
+  const sun = (keepIt: boolean) => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, keepIt) => {
+    const data = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    const on = new Uint8Array(c.width * c.height);
+    for (let i = 0; i < on.length; i++) on[i] = Math.abs(data[i * 4] - 237) + Math.abs(data[i * 4 + 1] - 96) + Math.abs(data[i * 4 + 2] - 27) < 40 ? 1 : 0;
+    const w = window as unknown as { plain: Uint8Array };
+    if (keepIt) w.plain = on;
+    let [count, left, right] = [0, c.width, 0];
+    for (let i = 0; i < on.length; i++) {
+      if (!on[i] || w.plain[i]) continue;
+      count++;
+      [left, right] = [Math.min(left, i % c.width), Math.max(right, i % c.width)];
+    }
+    return { count, left, right, k: c.width / 509 };
+  }, keepIt);
   await page.clock.pauseAt(new Date(Date.now() + 60_000));
   await page.clock.runFor(100);
   await keep();
+  await sun(true);
   await page.locator(".village-piece select").selectOption("tamuning");
   await page.clock.runFor(2000);
+  // The outline is there: new orange, enough to ring the section, on both sides of the seam.
+  const { count, left, right, k } = await sun(false);
+  expect(count).toBeGreaterThan(150 * k * k);
+  expect(left).toBeLessThan(((8 / 14) * 509 - 20) * k);
+  expect(right).toBeGreaterThan(((8 / 14) * 509 + 20) * k);
   const most = await page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, b) => {
     const k = c.width / 509;
     const before = (window as unknown as { band: Uint8ClampedArray }).band;
