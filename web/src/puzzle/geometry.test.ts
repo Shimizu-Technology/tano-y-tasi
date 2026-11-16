@@ -1,4 +1,5 @@
-import { cutPuzzle, pieceAt, reverse, type Cubic, type Point } from "./geometry";
+import { villages } from "../components/village/villages";
+import { contains, cutPuzzle, pieceAt, reverse, type Cubic, type Point } from "./geometry";
 
 const cut = cutPuzzle({ cols: 6, rows: 8, width: 509, height: 640, seed: 7 });
 const close = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9;
@@ -67,9 +68,19 @@ it("cuts the same way every time for a seed, and differently for another", () =>
   expect(other.pieces.every((piece, i) => same(piece.outline, cut.pieces[i].outline))).toBe(false);
 });
 
-it("finds the piece under a point given as fractions of the picture, edges included", () => {
+it("finds the piece under a point by its outline, so a knob belongs to its own piece", () => {
   expect(pieceAt(cut, 0, 0).index).toBe(0);
   expect(pieceAt(cut, 1, 1).index).toBe(47);
-  // Hagåtña's label sits in the third column, fourth row.
-  expect([pieceAt(cut, 0.3571, 0.4439).col, pieceAt(cut, 0.3571, 0.4439).row]).toEqual([2, 3]);
+  // Across the picture, every point belongs to exactly one piece, and that is the piece found.
+  for (let fy = 0.005; fy < 1; fy += 0.0195) {
+    for (let fx = 0.005; fx < 1; fx += 0.0195) {
+      const [x, y] = [fx * 509, fy * 640];
+      expect(cut.pieces.filter((piece) => contains(piece, x, y))).toEqual([pieceAt(cut, fx, fy)]);
+    }
+  }
+  // Every village is inside the piece it lifts. Yigo's and Mangilao's labels sit on knobs that
+  // reach into the next cell, so their cells alone would pick the wrong pieces (11 and 27).
+  for (const village of villages) expect(contains(pieceAt(cut, village.x, village.y), village.x * 509, village.y * 640)).toBe(true);
+  expect(pieceAt(cut, villages.find((v) => v.slug === "yigo")!.x, villages.find((v) => v.slug === "yigo")!.y).index).toBe(10);
+  expect(pieceAt(cut, villages.find((v) => v.slug === "mangilao")!.x, villages.find((v) => v.slug === "mangilao")!.y).index).toBe(21);
 });

@@ -1,4 +1,5 @@
 import { villages } from "../components/village/villages";
+import { pieceAt } from "./geometry";
 import { MAP_CUT, MAP_PLAN } from "./mapPuzzle";
 import { CHAPTERS, LAND, LAST, SEA, chapterAt, pieceProgress } from "./timeline";
 
@@ -21,10 +22,7 @@ it("puts the land together first, then the sea, then Hagåtña's piece last", ()
   expect(hagatna.x * MAP_CUT.width).toBeGreaterThanOrEqual(piece.cell.x);
   expect(hagatna.x * MAP_CUT.width).toBeLessThan(piece.cell.x + piece.cell.w);
   // Every village's own piece is land.
-  for (const village of villages) {
-    const at = MAP_CUT.pieces.find((p) => village.x * MAP_CUT.width >= p.cell.x && village.x * MAP_CUT.width < p.cell.x + p.cell.w && village.y * MAP_CUT.height >= p.cell.y && village.y * MAP_CUT.height < p.cell.y + p.cell.h)!;
-    expect(MAP_PLAN.land[at.index]).toBe(true);
-  }
+  for (const village of villages) expect(MAP_PLAN.land[pieceAt(MAP_CUT, village.x, village.y).index]).toBe(true);
 });
 
 it("has every piece in the pile at the top and placed by the end, moving forward only", () => {

@@ -106,12 +106,53 @@ test("the hero's NOTIFY ME opens the drop alert in place", async ({ page }) => {
   expect(await page.evaluate(() => scrollY)).toBe(before);
 });
 
+test("a browser that can't back the canvases gets the finished map, not an empty pinned screen", async ({ page }) => {
+  // The capability check passes; every canvas after it gets no context, as when canvas memory runs out.
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    let calls = 0;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: Parameters<typeof original>) {
+      calls += 1;
+      return calls === 1 ? original.apply(this, args) : null;
+    } as typeof original;
+  });
+  await open(page);
+  await expect(hero(page)).toHaveAttribute("data-mode", "still");
+  await expect(page.locator(".puzzle-canvas")).toHaveCount(0);
+  await expect(page.locator(".puzzle-art")).toBeVisible();
+  expect((await hero(page).boundingBox())!.height).toBeLessThan(944);
+  await page.locator(".village-piece").scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveCount(0);
+  await expect(page.locator(".village-piece-art")).toBeVisible();
+});
+
+test("a change of screen sharpness redraws the puzzle at the new resolution", async ({ page }, info) => {
+  await open(page);
+  await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
+  const widths = () => page.evaluate(() => [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas, .village-piece-canvas")].map((c) => c.width / c.getBoundingClientRect().width));
+  expect(await widths()).toEqual([1, 1, 1, 1]);
+  const viewport = page.viewportSize()!;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setDeviceMetricsOverride", { ...viewport, deviceScaleFactor: 2, mobile: info.project.name === "mobile" });
+  // Headless Chromium changes the ratio without the media query event a real screen change sends;
+  // a zoom's resize is the other path the page watches.
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  await expect.poll(widths).toEqual([2, 2, 2, 2]);
+  await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
+});
+
 test("choosing a village lifts its piece and leaves it outlined", async ({ page }) => {
   await open(page);
   const section = page.locator(".village-piece");
   await section.scrollIntoViewIfNeeded();
   await expect(section.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
   const canvas = section.locator(".village-piece-canvas");
+  // The canvas covers the picture beneath it completely, so a lifted piece leaves an empty slot.
+  await expect.poll(() => canvas.evaluate((c: HTMLCanvasElement) => {
+    const data = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) return false;
+    return true;
+  })).toBe(true);
   const pixels = () => canvas.evaluate((c: HTMLCanvasElement) => c.toDataURL());
   const whole = await pixels();
   await section.getByLabel("Choose a village").selectOption("hagat");

@@ -166,6 +166,39 @@ function canvas(w: number, h: number) {
   element.height = Math.max(1, Math.ceil(h));
   return element;
 }
+/** A canvas's 2D context. A browser out of canvas memory returns none; that throws, so the caller falls back. */
+export function context2d(element: HTMLCanvasElement) {
+  const ctx = element.getContext("2d");
+  if (!ctx) throw new Error("No 2D canvas");
+  return ctx;
+}
+
+/**
+ * Calls `onChange` when the device pixel ratio changes. A move to another screen arrives as a
+ * media query change; a zoom arrives with a resize. Returns a function that stops listening.
+ */
+export function watchPixelRatio(onChange: () => void) {
+  let ratio = window.devicePixelRatio || 1;
+  let media: MediaQueryList | undefined;
+  const check = () => {
+    const now = window.devicePixelRatio || 1;
+    if (now === ratio) return;
+    ratio = now;
+    listen();
+    onChange();
+  };
+  const listen = () => {
+    media?.removeEventListener("change", check);
+    media = window.matchMedia?.(`(resolution: ${ratio}dppx)`);
+    media?.addEventListener("change", check);
+  };
+  listen();
+  window.addEventListener("resize", check);
+  return () => {
+    media?.removeEventListener("change", check);
+    window.removeEventListener("resize", check);
+  };
+}
 
 /**
  * Draws every piece once, at `scale` device pixels per picture unit: the art inside its outline
@@ -179,7 +212,7 @@ export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, d
     const path = outlinePath(piece);
     const { bounds: b, cell } = piece;
     const art = canvas(b.w * scale + pad * 2, b.h * scale + pad * 2);
-    const ctx = art.getContext("2d")!;
+    const ctx = context2d(art);
     ctx.setTransform(scale, 0, 0, scale, pad - b.x * scale, pad - b.y * scale);
     ctx.save();
     ctx.clip(path);
@@ -196,7 +229,7 @@ export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, d
     // Only the shadow of a filled outline: the shape is drawn off the canvas and its shadow offset back in.
     const s = scale * SHADOW_SCALE;
     const shadow = canvas(b.w * s + shadowPad * 2, b.h * s + shadowPad * 2);
-    const sctx = shadow.getContext("2d")!;
+    const sctx = context2d(shadow);
     const away = shadow.width + 50;
     sctx.shadowColor = "rgba(46, 22, 8, 0.75)";
     sctx.shadowBlur = blur;

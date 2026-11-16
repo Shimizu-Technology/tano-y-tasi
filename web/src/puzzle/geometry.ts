@@ -108,9 +108,39 @@ export function cutPuzzle({ cols, rows, width, height, seed }: { cols: number; r
   return { cols, rows, width, height, pieces };
 }
 
-/** The piece whose cell holds a point given as fractions of the picture. */
+// A point on a cubic Bézier.
+function along([a, b, c, d]: Cubic, t: number): Point {
+  const u = 1 - t;
+  const [k0, k1, k2, k3] = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return [k0 * a[0] + k1 * b[0] + k2 * c[0] + k3 * d[0], k0 * a[1] + k1 * b[1] + k2 * c[1] + k3 * d[1]];
+}
+
+/** Whether a point, in picture units, lies inside a piece's outline, knobs included. */
+export function contains(piece: Piece, x: number, y: number) {
+  const { bounds: b } = piece;
+  if (x < b.x || x > b.x + b.w || y < b.y || y > b.y + b.h) return false;
+  // Even-odd ray cast against the outline, each curve flattened into short segments.
+  const points = piece.outline.flatMap((curve) => Array.from({ length: 12 }, (_, i) => along(curve, i / 12)));
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [xi, yi] = points[i];
+    const [xj, yj] = points[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * The piece under a point given as fractions of the picture. A knob reaches into the next cell,
+ * so the cell's own piece and its neighbours are tested against their outlines.
+ */
 export function pieceAt(cut: Cut, fx: number, fy: number): Piece {
   const col = Math.min(cut.cols - 1, Math.max(0, Math.floor(fx * cut.cols)));
   const row = Math.min(cut.rows - 1, Math.max(0, Math.floor(fy * cut.rows)));
-  return cut.pieces[row * cut.cols + col];
+  const [x, y] = [fx * cut.width, fy * cut.height];
+  const candidates = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
+    .map(([dc, dr]) => [col + dc, row + dr])
+    .filter(([c, r]) => c >= 0 && c < cut.cols && r >= 0 && r < cut.rows)
+    .map(([c, r]) => cut.pieces[r * cut.cols + c]);
+  return candidates.find((piece) => contains(piece, x, y)) ?? candidates[0];
 }

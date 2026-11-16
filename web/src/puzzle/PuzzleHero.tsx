@@ -10,7 +10,7 @@ import { dropItems, dropNumber } from "../utils";
 import type { Product, Storefront } from "../types";
 import { PUZZLE_ART } from "./art";
 import { MAP_CUT, MAP_PLAN } from "./mapPuzzle";
-import { canDraw, drawFrame, fitLayout, layers, makeSprites, poseAt, stillLayer, whenLoaded, type Layout, type Sprite } from "./render";
+import { canDraw, context2d, drawFrame, fitLayout, layers, makeSprites, poseAt, stillLayer, watchPixelRatio, whenLoaded, type Layout, type Sprite } from "./render";
 import { chapterAt, clamp01 } from "./timeline";
 import "./puzzle.css";
 
@@ -43,14 +43,11 @@ function useAssembly(live: boolean, sectionRef: Ref<HTMLElement>, stickyRef: Ref
     const [section, sticky, stage, host, image] = [sectionRef.current, stickyRef.current, stageRef.current, layersRef.current, imageRef.current];
     if (!live || !section || !sticky || !stage || !host || !image) return;
     const canvases = ["pile", "placed", "moving"].map(() => host.appendChild(document.createElement("canvas")));
-    const contexts = canvases.map((canvas) => canvas.getContext("2d"));
-    if (contexts.some((context) => !context)) {
-      canvases.forEach((canvas) => canvas.remove());
-      return;
-    }
-    const [pileContext, placedContext, movingLayer] = contexts as CanvasRenderingContext2D[];
-    const pileLayer = stillLayer(pileContext);
-    const placedLayer = stillLayer(placedContext);
+    // Contexts come once the picture has loaded, so a canvas the browser can't back falls to the
+    // finished map along with a picture that fails.
+    let pileLayer: ReturnType<typeof stillLayer>;
+    let placedLayer: ReturnType<typeof stillLayer>;
+    let movingLayer: CanvasRenderingContext2D;
     let sprites: Sprite[] | null = null;
     let layout: Layout | null = null;
     let dpr = pixelRatio();
@@ -122,24 +119,41 @@ function useAssembly(live: boolean, sectionRef: Ref<HTMLElement>, stickyRef: Ref
       host.dataset.ready = "";
     };
 
-    const resize = new ResizeObserver(() => measure());
-    whenLoaded(image).then(() => {
-      if (gone) return;
-      measure();
-      resize.observe(sticky);
-      resize.observe(stage);
-      window.addEventListener("scroll", follow, { passive: true });
-    }, () => {
-      if (!gone) setFailed(true);
-    });
-    return () => {
+    let unwatch = () => {};
+    const stop = () => {
       gone = true;
       cancelAnimationFrame(frame);
       resize.disconnect();
+      unwatch();
       window.removeEventListener("scroll", follow);
       canvases.forEach((canvas) => canvas.remove());
       delete host.dataset.ready;
     };
+    // Anything that can't draw, now or on a later resize, gives way to the finished map.
+    const fail = () => {
+      if (gone) return;
+      stop();
+      setFailed(true);
+    };
+    const remeasure = () => {
+      try {
+        measure();
+      } catch {
+        fail();
+      }
+    };
+    const resize = new ResizeObserver(remeasure);
+    whenLoaded(image).then(() => {
+      if (gone) return;
+      const [pile, placed, moving] = canvases.map(context2d);
+      [pileLayer, placedLayer, movingLayer] = [stillLayer(pile), stillLayer(placed), moving];
+      measure();
+      resize.observe(sticky);
+      resize.observe(stage);
+      unwatch = watchPixelRatio(remeasure);
+      window.addEventListener("scroll", follow, { passive: true });
+    }).catch(fail);
+    return stop;
   }, [live, sectionRef, stickyRef, stageRef, layersRef, imageRef]);
   return { chapter, failed };
 }

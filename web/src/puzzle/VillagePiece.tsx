@@ -6,7 +6,7 @@ import { useReducedMotion } from "../useReducedMotion";
 import { PUZZLE_ART } from "./art";
 import { pieceAt } from "./geometry";
 import { MAP_CUT, MAP_PLAN } from "./mapPuzzle";
-import { canDraw, drawFrame, fitLayout, makeSprites, outlinePath, poseAt, whenLoaded, type Layout, type Pose, type Sprite } from "./render";
+import { canDraw, context2d, drawFrame, fitLayout, makeSprites, outlinePath, poseAt, watchPixelRatio, whenLoaded, type Layout, type Pose, type Sprite } from "./render";
 import { easeInOut, easeOut } from "./timeline";
 import "../components/village/VillageFinder.css";
 
@@ -36,24 +36,30 @@ export function VillagePiece() {
 
   useEffect(() => {
     const [element, picture] = [canvas.current, image.current];
-    const context = element?.getContext("2d");
-    if (!element || !picture || !context) return;
+    if (!element || !picture) return;
+    let context: CanvasRenderingContext2D | null = null;
     let sprites: Sprite[] | null = null;
     let layout: Layout | null = null;
+    let table = "";
     let dpr = 1;
     let frame = 0;
     let gone = false;
 
     const draw = (now: number) => {
       frame = 0;
-      if (!sprites || !layout) return;
+      if (!context || !sprites || !layout) return;
       const poses = MAP_CUT.pieces.map((piece) => ({ ...poseAt(MAP_CUT, MAP_PLAN, layout!, piece.index, 1), shadow: 0 }));
       const pick = chosen.current;
       const order = MAP_CUT.pieces.map((piece) => piece.index).filter((index) => index !== pick?.index);
-      drawFrame(context, sprites, poses, order, dpr);
+      // The canvas is opaque, covering the picture beneath it, so a lifted piece leaves an empty slot.
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.fillStyle = table;
+      context.fillRect(0, 0, element.width, element.height);
+      drawFrame(context, sprites, poses, order, dpr, false);
       if (!pick) return;
       const elapsed = reduced ? Infinity : now - pick.since;
       // Everything else steps back a little, so the chosen piece reads at a glance.
+      context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = "rgba(229, 223, 210, 0.42)";
       context.fillRect(layout.map.x * dpr, layout.map.y * dpr, layout.map.w * dpr, layout.map.h * dpr);
       const pose = Number.isFinite(elapsed) ? lifted(poses[pick.index], elapsed) : poses[pick.index];
@@ -79,26 +85,43 @@ export function VillagePiece() {
       if (!box.width || !box.height) return;
       element.width = Math.round(box.width * dpr);
       element.height = Math.round(box.height * dpr);
+      table = getComputedStyle(element).getPropertyValue("--color-tile").trim() || "#dbd3c3";
       layout = fitLayout(MAP_CUT, { x: 0, y: 0, w: box.width, h: box.height });
       sprites = makeSprites(MAP_CUT, picture, (layout.map.w / MAP_CUT.width) * dpr, dpr);
       element.dataset.ready = "";
       schedule();
     };
-    redraw.current = schedule;
-    const resize = new ResizeObserver(measure);
-    whenLoaded(picture).then(() => {
-      if (gone) return;
-      measure();
-      resize.observe(element);
-    }, () => {
-      if (!gone) setFailed(true);
-    });
-    return () => {
+    let unwatch = () => {};
+    const stop = () => {
       gone = true;
       cancelAnimationFrame(frame);
       resize.disconnect();
+      unwatch();
       redraw.current = () => {};
     };
+    // A canvas that can't draw, now or on a later resize, leaves the plain picture in its place.
+    const fail = () => {
+      if (gone) return;
+      stop();
+      setFailed(true);
+    };
+    const remeasure = () => {
+      try {
+        measure();
+      } catch {
+        fail();
+      }
+    };
+    redraw.current = schedule;
+    const resize = new ResizeObserver(remeasure);
+    whenLoaded(picture).then(() => {
+      if (gone) return;
+      context = context2d(element);
+      measure();
+      resize.observe(element);
+      unwatch = watchPixelRatio(remeasure);
+    }).catch(fail);
+    return stop;
   }, [reduced]);
 
   function choose(next: string) {
