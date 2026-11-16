@@ -191,40 +191,108 @@ test("scrolling away and back repaints the pile and the puzzle as a fresh drawin
   }
 });
 
-test("a chosen village's piece is held up, larger than its slot, over its own place", async ({ page }) => {
+// Chooses a village with the clock stopped, catches its lift at the top, lets it settle, and returns
+// where the held and settled frames differ (the lifted section and its shadow), compared inside the
+// page, in canvas pixels, with the canvas's size.
+async function liftSpan(page: Page, slug: string) {
   await page.clock.install();
   await open(page);
-  const board = page.locator(".village-piece-board");
-  await board.scrollIntoViewIfNeeded();
+  await page.locator(".village-piece-board").scrollIntoViewIfNeeded();
   await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
-  const pixels = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => Array.from(c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data));
-  // Time stands still, so the lift can be caught at the top.
+  const keep = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => {
+    (window as unknown as { held: Uint8ClampedArray }).held = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+  });
   await page.clock.pauseAt(new Date(Date.now() + 60_000));
-  await page.locator(".village-piece select").selectOption("hagat");
+  await page.locator(".village-piece select").selectOption(slug);
   await page.clock.runFor(420);
-  const held = await pixels();
+  await keep();
   await page.clock.runFor(1200);
-  const settled = await pixels();
-  const { width, height, x: boardX } = await page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => ({ width: c.width, height: c.height, x: c.getBoundingClientRect().width }));
-  const ratio = width / boardX;
-  // Where the held and settled frames differ is the lifted piece and its shadow.
-  let [x0, y0, x1, y1] = [width, height, 0, 0];
-  for (let i = 0; i < held.length; i += 4) {
-    if (Math.abs(held[i] - settled[i]) + Math.abs(held[i + 1] - settled[i + 1]) + Math.abs(held[i + 2] - settled[i + 2]) > 30) {
-      const [x, y] = [(i / 4) % width, Math.floor(i / 4 / width)];
-      [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+  return page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement) => {
+    const held = (window as unknown as { held: Uint8ClampedArray }).held;
+    const settled = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    let [x0, y0, x1, y1] = [c.width, c.height, 0, 0];
+    for (let i = 0; i < held.length; i += 4) {
+      if (Math.abs(held[i] - settled[i]) + Math.abs(held[i + 1] - settled[i + 1]) + Math.abs(held[i + 2] - settled[i + 2]) > 30) {
+        const [x, y] = [(i / 4) % c.width, Math.floor(i / 4 / c.width)];
+        [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+      }
     }
-  }
-  const across = (x1 - x0) / ratio;
-  const cell = boardX / 14;
-  expect(across).toBeGreaterThan(Math.max(56, cell * 1.5));
-  expect(across).toBeLessThan(160);
-  // Hågat's name is under the lifted piece.
+    return { x0, y0, x1, y1, width: c.width, height: c.height, css: c.getBoundingClientRect().width };
+  });
+}
+
+test("a chosen village's piece is held up, larger than its slot, over its own place", async ({ page }) => {
+  const { x0, y0, x1, y1, width, height, css } = await liftSpan(page, "hagat");
+  const across = ((x1 - x0) * css) / width;
+  expect(across).toBeGreaterThan(Math.max(56, (css / 14) * 1.5));
+  expect(across).toBeLessThan(180);
+  // Hågat's name is under the lifted section.
   const [vx, vy] = [0.2192 * width, 0.6368 * height];
   expect(vx).toBeGreaterThan(x0);
   expect(vx).toBeLessThan(x1);
   expect(vy).toBeGreaterThan(y0);
   expect(vy).toBeLessThan(y1);
+});
+
+test("a name across several pieces lifts them together, so the whole name reads", async ({ page }) => {
+  const { x0, x1, width, css } = await liftSpan(page, "tamuning");
+  await expect(page.locator(".village-piece")).toHaveAttribute("data-lifted", "2");
+  // Two pieces held up together are shown about 110px across, wider than either alone.
+  const across = ((x1 - x0) * css) / width;
+  expect(across).toBeGreaterThan(95);
+  expect(across).toBeLessThan(180);
+});
+
+test("a settled section has one outline around it, and nothing inside its seams", async ({ page }) => {
+  await page.clock.install();
+  await open(page);
+  await page.locator(".village-piece-board").scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
+  // Tamuning's two pieces (columns 7 and 8 of 14, row 7 of 19) meet at x = 8/14 of the map. A band
+  // around that seam, clear of the section's outer edges and their knobs, in picture units.
+  const band = { x0: (8 / 14) * 509 - 10, x1: (8 / 14) * 509 + 10, y0: 246, y1: 259 };
+  const keep = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, b) => {
+    const k = c.width / 509;
+    (window as unknown as { band: Uint8ClampedArray }).band = c.getContext("2d")!.getImageData(Math.round(b.x0 * k), Math.round(b.y0 * k), Math.round((b.x1 - b.x0) * k), Math.round((b.y1 - b.y0) * k)).data;
+  }, band);
+  // Which pixels are the outline's orange, kept in the page, so the outline can be told from the
+  // map's own orange.
+  const sun = (keepIt: boolean) => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, keepIt) => {
+    const data = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;
+    const on = new Uint8Array(c.width * c.height);
+    for (let i = 0; i < on.length; i++) on[i] = Math.abs(data[i * 4] - 237) + Math.abs(data[i * 4 + 1] - 96) + Math.abs(data[i * 4 + 2] - 27) < 40 ? 1 : 0;
+    const w = window as unknown as { plain: Uint8Array };
+    if (keepIt) w.plain = on;
+    let [count, left, right] = [0, c.width, 0];
+    for (let i = 0; i < on.length; i++) {
+      if (!on[i] || w.plain[i]) continue;
+      count++;
+      [left, right] = [Math.min(left, i % c.width), Math.max(right, i % c.width)];
+    }
+    return { count, left, right, k: c.width / 509 };
+  }, keepIt);
+  await page.clock.pauseAt(new Date(Date.now() + 60_000));
+  await page.clock.runFor(100);
+  await keep();
+  await sun(true);
+  await page.locator(".village-piece select").selectOption("tamuning");
+  await page.clock.runFor(2000);
+  // The outline is there: new orange, enough to ring the section, on both sides of the seam.
+  const { count, left, right, k } = await sun(false);
+  expect(count).toBeGreaterThan(150 * k * k);
+  expect(left).toBeLessThan(((8 / 14) * 509 - 20) * k);
+  expect(right).toBeGreaterThan(((8 / 14) * 509 + 20) * k);
+  const most = await page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, b) => {
+    const k = c.width / 509;
+    const before = (window as unknown as { band: Uint8ClampedArray }).band;
+    const now = c.getContext("2d")!.getImageData(Math.round(b.x0 * k), Math.round(b.y0 * k), Math.round((b.x1 - b.x0) * k), Math.round((b.y1 - b.y0) * k)).data;
+    let largest = 0;
+    for (let i = 0; i < now.length; i++) largest = Math.max(largest, Math.abs(now[i] - before[i]));
+    return largest;
+  }, band);
+  // The section is drawn as before, undimmed; only a seam's edge pixels may take a shade of the
+  // dimmed table beneath. The outline's orange would differ by far more.
+  expect(most).toBeLessThanOrEqual(24);
 });
 
 test("choosing a village lifts its piece and leaves it outlined", async ({ page }) => {
