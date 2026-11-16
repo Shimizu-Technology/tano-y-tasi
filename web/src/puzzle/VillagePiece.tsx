@@ -4,8 +4,7 @@ import { Link } from "react-router";
 import { villages } from "../components/village/villages";
 import { useReducedMotion } from "../useReducedMotion";
 import { PUZZLE_ART } from "./art";
-import { pieceAt } from "./geometry";
-import { MAP_CUT, MAP_PLAN } from "./mapPuzzle";
+import { MAP_CUT, MAP_PLAN, namePieces } from "./mapPuzzle";
 import { canDraw, context2d, drawFrame, fitLayout, makeSprites, outlinePath, poseAt, watchPixelRatio, whenLoaded, type Layout, type Pose, type Sprite } from "./render";
 import { easeInOut, easeOut } from "./timeline";
 import "../components/village/VillageFinder.css";
@@ -14,17 +13,38 @@ const LIFT_MS = 300;
 const HOLD_MS = 220;
 const SETTLE_MS = 380;
 
-// A lifted piece is shown at least this wide, in CSS pixels, so its village reads.
-const LIFTED_WIDTH = 64;
+// A lifted name is shown about this wide, in CSS pixels, so it reads; never more than this much larger.
+const LIFTED_WIDTH = 110;
+const MAX_GROW = 2.5;
 
-// A chosen piece rises out of the finished map, turns a little, and settles back into its place.
-// `grow` is how much larger it gets at the top of the lift.
-function lifted(base: Pose, elapsed: number, grow: number): Pose {
+/**
+ * The pieces a village's name is on rise out of the finished map together, as one held section:
+ * larger, turned a little, with a shadow, then settle back into place. `scale` is their size at the
+ * top of the lift.
+ */
+function lifted(poses: Pose[], pieces: number[], elapsed: number, scale: number, layout: Layout): Pose[] {
   const up = elapsed < LIFT_MS ? easeOut(elapsed / LIFT_MS) : elapsed < LIFT_MS + HOLD_MS ? 1 : 1 - easeInOut(Math.min(1, (elapsed - LIFT_MS - HOLD_MS) / SETTLE_MS));
-  return { ...base, y: base.y - 8 * up, turn: -0.1 * up, scale: 1 + grow * up, shadow: 0.55 * up, offset: 14 * up };
+  const unit = layout.map.w / MAP_CUT.width;
+  const cells = pieces.map((i) => MAP_CUT.pieces[i].cell);
+  const [left, top] = [Math.min(...cells.map((c) => c.x)), Math.min(...cells.map((c) => c.y))];
+  const [right, bottom] = [Math.max(...cells.map((c) => c.x + c.w)), Math.max(...cells.map((c) => c.y + c.h))];
+  const [turn, size] = [-0.08 * up, 1 + (scale - 1) * up];
+  // The section grows about its middle, moved in from the edges of the map so none of it is cut off.
+  const [halfW, halfH] = [((right - left) * unit * size) / 2 + 6, ((bottom - top) * unit * size) / 2 + 6];
+  const [mx, my] = [layout.map.x + ((left + right) / 2) * unit, layout.map.y + ((top + bottom) / 2) * unit];
+  const fit = (v: number, from: number, to: number) => (to - from < 0 ? (from + to) / 2 : Math.min(to, Math.max(from, v)));
+  const cx = mx + (fit(mx, layout.map.x + halfW, layout.map.x + layout.map.w - halfW) - mx) * up;
+  const cy = my - 8 * up + (fit(my, layout.map.y + halfH, layout.map.y + layout.map.h - halfH) - my) * up;
+  const [cos, sin] = [Math.cos(turn) * size, Math.sin(turn) * size];
+  const out = [...poses];
+  for (const i of pieces) {
+    const [dx, dy] = [poses[i].x - mx, poses[i].y - my];
+    out[i] = { ...poses[i], x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos, turn, scale: size, shadow: 0.55 * up, offset: 14 * up };
+  }
+  return out;
 }
 
-/** The finished map puzzle. Choosing a village lifts its piece and leaves it outlined. */
+/** The finished map puzzle. Choosing a village lifts the pieces its name is on and leaves them outlined. */
 export function VillagePiece() {
   const id = useId();
   const reduced = useReducedMotion();
@@ -34,7 +54,7 @@ export function VillagePiece() {
   const selected = villages.find((village) => village.slug === slug);
   const canvas = useRef<HTMLCanvasElement>(null);
   const image = useRef<HTMLImageElement>(null);
-  const chosen = useRef<{ index: number; since: number } | null>(null);
+  const chosen = useRef<{ pieces: number[]; since: number } | null>(null);
   const redraw = useRef<() => void>(() => {});
   const caption = selected ? `${selected.name} on the Guåhan map.` : "The whole island of Guåhan.";
 
@@ -55,7 +75,7 @@ export function VillagePiece() {
       // The finished map lies flat: no shadows.
       const poses = MAP_CUT.pieces.map((piece) => ({ ...poseAt(MAP_CUT, MAP_PLAN, layout!, piece.index, 1), shadow: 0, still: undefined }));
       const pick = chosen.current;
-      const order = MAP_CUT.pieces.map((piece) => piece.index).filter((index) => index !== pick?.index);
+      const order = MAP_CUT.pieces.map((piece) => piece.index).filter((index) => !pick?.pieces.includes(index));
       // The canvas is opaque, covering the picture beneath it, so a lifted piece leaves an empty slot.
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = table;
@@ -63,23 +83,27 @@ export function VillagePiece() {
       drawFrame(context, sprites, poses, order, dpr, false);
       if (!pick) return;
       const elapsed = reduced ? Infinity : now - pick.since;
-      // Everything else steps back a little, so the chosen piece reads at a glance.
+      // Everything else steps back a little, so the chosen pieces read at a glance.
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = "rgba(229, 223, 210, 0.42)";
       context.fillRect(layout.map.x * dpr, layout.map.y * dpr, layout.map.w * dpr, layout.map.h * dpr);
-      const grow = Math.max(0.2, LIFTED_WIDTH / (layout.map.w / MAP_CUT.cols) - 1);
-      const pose = Number.isFinite(elapsed) ? lifted(poses[pick.index], elapsed, grow) : poses[pick.index];
-      drawFrame(context, sprites, [...poses.slice(0, pick.index), pose, ...poses.slice(pick.index + 1)], [pick.index], dpr, false);
-      if (elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS) {
-        const unit = (layout.map.w / MAP_CUT.width) * dpr;
-        context.setTransform(unit, 0, 0, unit, layout.map.x * dpr, layout.map.y * dpr);
-        context.lineWidth = (2.5 * dpr) / unit;
+      const unit = layout.map.w / MAP_CUT.width;
+      const cells = pick.pieces.map((i) => MAP_CUT.pieces[i].cell);
+      const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
+      const scale = Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across));
+      const settled = elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS;
+      if (settled) {
+        // One outline around the section: every outline stroked wide, then the pieces drawn back over
+        // it, so only the outer edge stays.
+        context.setTransform(unit * dpr, 0, 0, unit * dpr, layout.map.x * dpr, layout.map.y * dpr);
+        context.lineWidth = 5 / unit;
+        context.lineJoin = "round";
         context.strokeStyle = getComputedStyle(element).getPropertyValue("--color-sun").trim() || "#ed601b";
-        context.stroke(outlinePath(MAP_CUT.pieces[pick.index]));
+        for (const i of pick.pieces) context.stroke(outlinePath(MAP_CUT.pieces[i]));
         context.setTransform(1, 0, 0, 1, 0, 0);
-      } else {
-        frame = requestAnimationFrame(draw);
       }
+      drawFrame(context, sprites, settled ? poses : lifted(poses, pick.pieces, elapsed, scale, layout), pick.pieces, dpr, false);
+      if (!settled) frame = requestAnimationFrame(draw);
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(draw);
@@ -134,12 +158,12 @@ export function VillagePiece() {
   function choose(next: string) {
     setSlug(next);
     const village = villages.find((v) => v.slug === next);
-    chosen.current = village ? { index: pieceAt(MAP_CUT, village.x, village.y).index, since: performance.now() } : null;
+    chosen.current = village ? { pieces: namePieces(village), since: performance.now() } : null;
     redraw.current();
   }
 
   return (
-    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"}>
+    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"} data-lifted={selected ? namePieces(selected).length : 0}>
       <div className="village-piece-intro">
         <h2 id={`${id}-heading`}>Find your village</h2>
         <p>Every village on Guåhan is on this map.</p>
