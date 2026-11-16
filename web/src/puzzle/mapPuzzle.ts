@@ -13,8 +13,9 @@ export const MAP_CUT = cutPuzzle({ cols: 14, rows: 19, width: PUZZLE_ART.width, 
 export const STAR = { x: 0.4328, y: 0.4364 };
 export const MAP_PLAN = planPuzzle(MAP_CUT, villages, STAR, 1, landAt(MAP_LAND));
 
-// A piece shows a village's name when it holds at least this share of the name's lettering box.
-const NAME_SHARE = 0.03;
+// A piece shows a village's name when at least this many picture units of its letters are on it:
+// more than a stray speck at the edge of a letter.
+const LETTER_UNITS = 4;
 const named = new Map<string, number[]>();
 /**
  * The pieces a village's name is lettered on (VILLAGE_LABELS, from scripts/build-village-labels.mjs),
@@ -23,20 +24,18 @@ const named = new Map<string, number[]>();
 export function namePieces(village: Village): number[] {
   const known = named.get(village.slug);
   if (known) return known;
-  const box = VILLAGE_LABELS[village.slug];
+  const label = VILLAGE_LABELS[village.slug];
   let pieces = [pieceAt(MAP_CUT, village.x, village.y).index];
-  if (box) {
-    const [x0, y0, x1, y1] = [box[0] * MAP_CUT.width, box[1] * MAP_CUT.height, box[2] * MAP_CUT.width, box[3] * MAP_CUT.height];
+  if (label) {
+    const { x, y, w, h, bits } = label.ink;
     const counts = new Map<number, number>();
-    let total = 0;
-    // One sample per picture unit across the box.
-    for (let y = y0; y <= y1; y += 1)
-      for (let x = x0; x <= x1; x += 1) {
-        const index = pieceAt(MAP_CUT, x / MAP_CUT.width, y / MAP_CUT.height).index;
-        counts.set(index, (counts.get(index) ?? 0) + 1);
-        total += 1;
-      }
-    pieces = [...counts].filter(([, count]) => count / total >= NAME_SHARE).sort((a, b) => b[1] - a[1]).map(([index]) => index);
+    for (let i = 0; i < w * h; i++) {
+      if (!((parseInt(bits[i >> 2], 16) >> (3 - (i & 3))) & 1)) continue;
+      const index = pieceAt(MAP_CUT, (x + (i % w) + 0.5) / MAP_CUT.width, (y + Math.floor(i / w) + 0.5) / MAP_CUT.height).index;
+      counts.set(index, (counts.get(index) ?? 0) + 1);
+    }
+    const lettered = [...counts].filter(([, count]) => count >= LETTER_UNITS).sort((a, b) => b[1] - a[1]).map(([index]) => index);
+    if (lettered.length) pieces = lettered;
   }
   named.set(village.slug, pieces);
   return pieces;

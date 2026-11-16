@@ -65,6 +65,8 @@ export function VillagePiece() {
     let sprites: Sprite[] | null = null;
     let layout: Layout | null = null;
     let table = "";
+    // The settled section's outline is drawn here first; see draw.
+    let ring: HTMLCanvasElement | null = null;
     let dpr = 1;
     let frame = 0;
     let gone = false;
@@ -92,18 +94,30 @@ export function VillagePiece() {
       const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
       const scale = Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across));
       const settled = elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS;
-      if (settled) {
-        // One outline around the section: every outline stroked wide, then the pieces drawn back over
-        // it, so only the outer edge stays.
-        context.setTransform(unit * dpr, 0, 0, unit * dpr, layout.map.x * dpr, layout.map.y * dpr);
-        context.lineWidth = 5 / unit;
-        context.lineJoin = "round";
-        context.strokeStyle = getComputedStyle(element).getPropertyValue("--color-sun").trim() || "#ed601b";
-        for (const i of pick.pieces) context.stroke(outlinePath(MAP_CUT.pieces[i]));
-        context.setTransform(1, 0, 0, 1, 0, 0);
-      }
       drawFrame(context, sprites, settled ? poses : lifted(poses, pick.pieces, elapsed, scale, layout), pick.pieces, dpr, false);
-      if (!settled) frame = requestAnimationFrame(draw);
+      if (!settled) {
+        frame = requestAnimationFrame(draw);
+        return;
+      }
+      // One outline around the section. The pieces' outlines, as one shape, are stroked wide on a
+      // layer of their own, then everything inside the shape is cut away: only the outer edge stays,
+      // and nothing shows through the seams between the section's pieces.
+      ring = ring && ring.width === element.width && ring.height === element.height ? ring : Object.assign(document.createElement("canvas"), { width: element.width, height: element.height });
+      const rctx = context2d(ring);
+      const section = new Path2D();
+      for (const i of pick.pieces) section.addPath(outlinePath(MAP_CUT.pieces[i]));
+      rctx.setTransform(1, 0, 0, 1, 0, 0);
+      rctx.clearRect(0, 0, ring.width, ring.height);
+      rctx.setTransform(unit * dpr, 0, 0, unit * dpr, layout.map.x * dpr, layout.map.y * dpr);
+      rctx.lineWidth = 5 / unit;
+      rctx.lineJoin = "round";
+      rctx.strokeStyle = getComputedStyle(element).getPropertyValue("--color-sun").trim() || "#ed601b";
+      rctx.stroke(section);
+      rctx.globalCompositeOperation = "destination-out";
+      rctx.fill(section);
+      rctx.globalCompositeOperation = "source-over";
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.drawImage(ring, 0, 0);
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(draw);

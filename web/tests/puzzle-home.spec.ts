@@ -243,6 +243,36 @@ test("a name across several pieces lifts them together, so the whole name reads"
   expect(across).toBeLessThan(180);
 });
 
+test("a settled section has one outline around it, and nothing inside its seams", async ({ page }) => {
+  await page.clock.install();
+  await open(page);
+  await page.locator(".village-piece-board").scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
+  // Tamuning's two pieces (columns 7 and 8 of 14, row 7 of 19) meet at x = 8/14 of the map. A band
+  // around that seam, clear of the section's outer edges and their knobs, in picture units.
+  const band = { x0: (8 / 14) * 509 - 10, x1: (8 / 14) * 509 + 10, y0: 246, y1: 259 };
+  const keep = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, b) => {
+    const k = c.width / 509;
+    (window as unknown as { band: Uint8ClampedArray }).band = c.getContext("2d")!.getImageData(Math.round(b.x0 * k), Math.round(b.y0 * k), Math.round((b.x1 - b.x0) * k), Math.round((b.y1 - b.y0) * k)).data;
+  }, band);
+  await page.clock.pauseAt(new Date(Date.now() + 60_000));
+  await page.clock.runFor(100);
+  await keep();
+  await page.locator(".village-piece select").selectOption("tamuning");
+  await page.clock.runFor(2000);
+  const most = await page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, b) => {
+    const k = c.width / 509;
+    const before = (window as unknown as { band: Uint8ClampedArray }).band;
+    const now = c.getContext("2d")!.getImageData(Math.round(b.x0 * k), Math.round(b.y0 * k), Math.round((b.x1 - b.x0) * k), Math.round((b.y1 - b.y0) * k)).data;
+    let largest = 0;
+    for (let i = 0; i < now.length; i++) largest = Math.max(largest, Math.abs(now[i] - before[i]));
+    return largest;
+  }, band);
+  // The section is drawn as before, undimmed; only a seam's edge pixels may take a shade of the
+  // dimmed table beneath. The outline's orange would differ by far more.
+  expect(most).toBeLessThanOrEqual(24);
+});
+
 test("choosing a village lifts its piece and leaves it outlined", async ({ page }) => {
   await open(page);
   const section = page.locator(".village-piece");
