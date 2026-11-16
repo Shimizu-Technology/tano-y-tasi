@@ -4,6 +4,7 @@ import { catalog, CORE, MAP, dropSummary } from "../../src/mocks/data";
 import { enhanceResponse, matchRoute, serializeData, transformHtml } from "./storefront";
 import type { InitialData } from "./storefront";
 import type { Drops } from "../../src/types";
+import { PUZZLE_ART } from "../../src/puzzle/art";
 
 const [core, map] = catalog("upcoming", { [CORE]: 50, [MAP]: 100 });
 const server_time = "2026-10-29T00:00:00Z";
@@ -58,6 +59,18 @@ it("uses drop-specific OG and brand OG for other pages", () => {
   expect(transformHtml(html, snapshot())).toContain("finished-tabletop-640.webp");
   expect(transformHtml(html, snapshot())).not.toContain(`${map.image.base}-640.webp`);
   expect(transformHtml(html, { ...snapshot(), storefront: { ...snapshot().storefront, featured_drop: null } })).toContain("finished-tabletop-640.webp");
+});
+it("a puzzle-home build preloads the map it cuts up, at the hero's sizes, and only on the home page", () => {
+  const puzzle = html.replace("</head>", '<meta name="tyt-home" content="puzzle" /></head>');
+  document.head.innerHTML = transformHtml(puzzle, snapshot());
+  const preload = document.querySelector("[data-tyt-preload]")!;
+  expect(preload.getAttribute("imagesrcset")).toBe(PUZZLE_ART.srcSet);
+  expect(preload.getAttribute("imagesizes")).toBe(PUZZLE_ART.sizes);
+  expect(document.querySelectorAll('link[rel="preload"]')).toHaveLength(1);
+  // The marker sits outside the replaced block, so the app keeps it; other pages preload as before.
+  expect(document.querySelector('meta[name="tyt-home"]')).not.toBeNull();
+  expect(transformHtml(puzzle, snapshot("/shop"))).not.toContain("data-tyt-preload");
+  expect(transformHtml(puzzle, { ...snapshot(`/products/${CORE}`), product: { product: core, server_time } })).toContain(`${core.box?.front.base ?? core.images[0].base}-`);
 });
 it("escapes metadata and JSON without executable inline scripts or dollar-pattern substitutions", () => {
   const hostile = '</script><script>alert("x")</script>&\u2028\u2029 $&';

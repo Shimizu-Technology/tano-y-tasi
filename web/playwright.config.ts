@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 const port = Number(process.env.E2E_PORT || 5181);
 export default defineConfig({
   testDir: "./tests",
+  // The puzzle home runs against its own build: playwright.puzzle.config.ts.
+  testIgnore: "puzzle-home.spec.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

@@ -20,7 +20,7 @@ const kokoDetail: Art = { base: "/images/products/guahan-sunset-map/detail-koko"
 type Drop = NonNullable<Storefront["featured_drop"]>;
 const comingSoon = (drop: Drop) => drop.state === "upcoming" && !drop.release_at;
 // Only an announced, upcoming drop gets a date. A drop without one reads "Coming soon", never a placeholder.
-function dropStatus(drop: Drop) {
+export function dropStatus(drop: Drop) {
   if (drop.state === "live") return `Available now${drop.quantity != null ? ` · ${drop.quantity} made` : ""}`;
   if (drop.state === "upcoming") return drop.release_at ? `Releases ${heroReleaseTime(drop.release_at)}${drop.quantity != null ? ` · ${drop.quantity} made` : ""}` : "Coming soon";
   return drop.state === "sold_out" ? "Sold out" : "This drop has closed";
@@ -54,7 +54,7 @@ function Hero({ drop, coreSummary }: { drop: Drop | null; coreSummary?: string }
 }
 
 // The drop on the home page, in every state. Upcoming and coming-soon drops lead with the alert signup.
-function DropFeature({ drop }: { drop: Drop }) {
+export function DropFeature({ drop }: { drop: Drop }) {
   const soon = comingSoon(drop);
   const upcoming = drop.state === "upcoming";
   const items = dropItems(drop);
@@ -78,8 +78,32 @@ function DropFeature({ drop }: { drop: Drop }) {
   );
 }
 
-export function Home() {
+export function CoreCollection({ products }: { products: Storefront["core_products"] }) {
+  return (
+    <section className="home-section home-collection" aria-labelledby="home-collection-title">
+      <div className="section-heading"><h2 id="home-collection-title">The core collection</h2><Link className="text-link label" to="/shop">Shop all <ArrowRight aria-hidden="true" /></Link></div>
+      <ProductCollection products={products} />
+    </section>
+  );
+}
+
+export function HomeStory() {
   const brand = useStoreSettings();
+  return (
+    <section className="home-section home-story">
+      <ArtImage art={kokoDetail} sizes="(min-width: 900px) 45vw, 100vw" />
+      <div>
+        <SunHillMark />
+        <h2>{brand.storyHeading[0]}<br />{brand.storyHeading[1]}</h2>
+        <p>{brand.story}</p>
+        <p className="home-secondary-tagline label">{brand.secondaryTagline}</p>
+        <Link className="text-link label" to="/story">Our story <ArrowRight aria-hidden="true" /></Link>
+      </div>
+    </section>
+  );
+}
+
+export function Home() {
   const q = useQuery({ queryKey: ["storefront"], queryFn: api.storefront });
   if (q.isPending) return <Loading layout="home" />;
   // A failed background refresh keeps showing the data already on screen.
@@ -91,21 +115,9 @@ export function Home() {
       <Meta title="A Piece of Home." />
       <Hero drop={drop} coreSummary={core?.summary} />
       <MissionMarquee />
-      <section className="home-section home-collection" aria-labelledby="home-collection-title">
-        <div className="section-heading"><h2 id="home-collection-title">The core collection</h2><Link className="text-link label" to="/shop">Shop all <ArrowRight aria-hidden="true" /></Link></div>
-        <ProductCollection products={products} />
-      </section>
+      <CoreCollection products={products} />
       {drop && <DropFeature drop={drop} />}
-      <section className="home-section home-story">
-        <ArtImage art={kokoDetail} sizes="(min-width: 900px) 45vw, 100vw" />
-        <div>
-          <SunHillMark />
-          <h2>{brand.storyHeading[0]}<br />{brand.storyHeading[1]}</h2>
-          <p>{brand.story}</p>
-          <p className="home-secondary-tagline label">{brand.secondaryTagline}</p>
-          <Link className="text-link label" to="/story">Our story <ArrowRight aria-hidden="true" /></Link>
-        </div>
-      </section>
+      <HomeStory />
       {/* An upcoming drop carries its own alert form above; every other state ends with the general list. */}
       {drop?.state !== "upcoming" && <div className="home-section home-signup"><Signup /></div>}
     </div>

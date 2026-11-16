@@ -20,8 +20,10 @@ services:
         value: '3'
       - key: EXPECTED_DATABASE_NAME
         value: tano_y_tasi_production
+      # Allowed browser origins, comma-separated. The first is where checkout and emails send people;
+      # the second is the puzzle home preview (a Netlify branch deploy).
       - key: WEB_APP_URL
-        value: https://tanoytasi.shimizu-technology.com
+        value: https://tanoytasi.shimizu-technology.com,https://puzzle--tano-y-tasi.netlify.app
       - key: FRONTEND_URL
         value: https://tanoytasi.shimizu-technology.com
       - key: API_HOSTS
@@ -92,8 +94,10 @@ services:
         value: '3'
       - key: EXPECTED_DATABASE_NAME
         value: tano_y_tasi_production
+      # Allowed browser origins, comma-separated. The first is where checkout and emails send people;
+      # the second is the puzzle home preview (a Netlify branch deploy).
       - key: WEB_APP_URL
-        value: https://tanoytasi.shimizu-technology.com
+        value: https://tanoytasi.shimizu-technology.com,https://puzzle--tano-y-tasi.netlify.app
       - key: FRONTEND_URL
         value: https://tanoytasi.shimizu-technology.com
       - key: EMAIL_DELIVERY_ENABLED

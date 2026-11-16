@@ -1,5 +1,6 @@
 import { GALLERY_BOX_SIZES, GALLERY_LEAD_SIZES } from "../../src/gallerySizes.ts";
 import { HOME_HERO_ART, HOME_HERO_SIZES } from "../../src/homeHero.ts";
+import { PUZZLE_ART } from "../../src/puzzle/art.ts";
 import type { Drop, Drops, ProductDetail, Storefront } from "../../src/types.ts";
 
 export const DEFAULT_SITE_URL = "https://tanoytasi.shimizu-technology.com";
@@ -55,7 +56,10 @@ export function transformHtml(html: string, data: InitialData, siteUrl = DEFAULT
   // A product with a box leads its gallery with the box's front.
   const boxFront = route.kind === "home" ? undefined : product?.box?.front;
   const hero = route.kind === "home" ? HOME_HERO_ART : boxFront ?? product?.images[0];
-  if (hero) {
+  // A build serving the puzzle home says so in its HTML (vite.config.ts); its first picture is the map.
+  if (route.kind === "home" && html.includes('<meta name="tyt-home" content="puzzle"')) {
+    tags.push(`<link data-tyt-preload rel="preload" as="image" imagesrcset="${escapeHtml(PUZZLE_ART.srcSet)}" imagesizes="${escapeHtml(PUZZLE_ART.sizes)}" fetchpriority="high" />`);
+  } else if (hero) {
     // Must match the rendered <img sizes> so the browser reuses the preloaded candidate.
     const sizes = route.kind === "home" ? HOME_HERO_SIZES : boxFront ? GALLERY_BOX_SIZES : GALLERY_LEAD_SIZES;
     tags.push(`<link data-tyt-preload rel="preload" as="image" imagesrcset="${escapeHtml(hero.widths.map((w) => `${hero.base}-${w}.webp ${w}w`).join(", "))}" imagesizes="${sizes}" fetchpriority="high" />`);

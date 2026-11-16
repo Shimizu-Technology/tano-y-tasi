@@ -9,3 +9,20 @@
 Checkout collects the address on our own site and hands off to Stripe with the chosen shipping option. Rates are flat until EasyPost is connected: set `EASYPOST_API_KEY` and `EASYPOST_WEBHOOK_SECRET` on the API, then choose EasyPost under Store, Shipping and tax in the admin. Tax stays off until Stripe Tax is set up. See `docs/API_CONTRACT.md` and `docs/ADMIN_API_CONTRACT.md`.
 
 See `AGENTS.md` for local setup, database safety and quality gates.
+
+## The puzzle home preview
+
+The site has two home pages. The live site keeps the classic one. The puzzle home, where scrolling puts the Guåhan map together, is a preview for comparing side by side:
+
+- Live: https://tanoytasi.shimizu-technology.com
+- Puzzle home: https://puzzle--tano-y-tasi.netlify.app
+
+Both use the same API and catalog; only the home page differs. The preview is a Netlify branch deploy (free, unlike production deploys) of the `puzzle` branch, which `netlify.toml` builds with `VITE_HOME_EXPERIENCE=puzzle`. The API allows its origin through `WEB_APP_URL`. Checkout and emails still send people to the live site.
+
+The `puzzle` branch carries no code of its own. To bring the preview up to date after merging to `main`:
+
+```sh
+git push origin origin/main:puzzle
+```
+
+To make the puzzle home the live home page, set `VITE_HOME_EXPERIENCE=puzzle` for production builds. Locally, `VITE_HOME_EXPERIENCE=puzzle npm run dev` serves it, and `npm run test:e2e` tests both home pages.
