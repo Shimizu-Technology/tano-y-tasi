@@ -16,6 +16,15 @@
 [context.puzzle.environment]
   VITE_HOME_EXPERIENCE = "puzzle"
 
+# The preview's own address, https://puzzle.shimizu-technology.com, is a domain alias of this site
+# that serves the branch deploy. This domain is on Cloudflare, and outside Netlify DNS a branch
+# deploy is only named under the primary domain. The storefront edge function passes this host through.
+[[redirects]]
+  from = "https://puzzle.shimizu-technology.com/*"
+  to = "https://puzzle--tano-y-tasi.netlify.app/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
