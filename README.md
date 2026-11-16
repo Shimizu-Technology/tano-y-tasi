@@ -15,9 +15,9 @@ See `AGENTS.md` for local setup, database safety and quality gates.
 The site has two home pages. The live site keeps the classic one. The puzzle home, where scrolling puts the Guåhan map together, is a preview for comparing side by side:
 
 - Live: https://tanoytasi.shimizu-technology.com
-- Puzzle home: https://puzzle--tano-y-tasi.netlify.app
+- Puzzle home: https://puzzle.shimizu-technology.com
 
-Both use the same API and catalog; only the home page differs. The preview is a Netlify branch deploy (free, unlike production deploys) of the `puzzle` branch, which `netlify.toml` builds with `VITE_HOME_EXPERIENCE=puzzle`. The API allows its origin through `WEB_APP_URL`. Checkout and emails still send people to the live site. Every non-production deploy, the preview included, sends `X-Robots-Tag: noindex`, so search engines keep to the live site.
+Both use the same API and catalog; only the home page differs. The preview is a Netlify branch deploy (free, unlike production deploys) of the `puzzle` branch, which `netlify.toml` builds with `VITE_HOME_EXPERIENCE=puzzle`. Netlify only gives branch deploys custom names under Netlify DNS, and `shimizu-technology.com` is on Cloudflare, so `puzzle.shimizu-technology.com` is a domain alias of the site (a DNS-only Cloudflare CNAME to `tano-y-tasi.netlify.app`) that `netlify.toml` proxies to the branch deploy at https://puzzle--tano-y-tasi.netlify.app. The API allows both origins through `WEB_APP_URL`. Checkout and emails still send people to the live site. Every non-production deploy, the preview included, sends `X-Robots-Tag: noindex`, so search engines keep to the live site.
 
 The `puzzle` branch carries no code of its own. To bring the preview up to date after merging to `main`:
 

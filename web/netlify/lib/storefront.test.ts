@@ -1,7 +1,7 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { restoreInitialData } from "../../src/api";
 import { catalog, CORE, MAP, dropSummary } from "../../src/mocks/data";
-import { enhanceResponse, matchRoute, serializeData, transformHtml } from "./storefront";
+import { enhanceResponse, matchRoute, PUZZLE_PREVIEW_HOST, serializeData, transformHtml } from "./storefront";
 import type { InitialData } from "./storefront";
 import type { Drops } from "../../src/types";
 import { PUZZLE_ART } from "../../src/puzzle/art";
@@ -113,6 +113,11 @@ it.each(["/", `/products/${CORE}`, "/drop", `/drops/${drop.slug}`, "/archive"])(
 it.each(["/admin", "/admin/orders", "/assets/main.js", "/unknown"])("does not fetch or mutate excluded route %s", async (path) => {
   const response = original();
   expect(await enhanceResponse(request(path), response, { fetcher })).toBe(response);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+it("passes the puzzle preview's pages through, already filled in by its branch deploy", async () => {
+  const response = original();
+  expect(await enhanceResponse(new Request(`https://${PUZZLE_PREVIEW_HOST}/`, { headers: { accept: "text/html" } }), response, { fetcher })).toBe(response);
   expect(fetcher).not.toHaveBeenCalled();
 });
 it("excludes non-GET and non-HTML requests/responses", async () => {

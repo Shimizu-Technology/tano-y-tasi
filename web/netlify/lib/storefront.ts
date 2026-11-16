@@ -5,6 +5,9 @@ import type { Drop, Drops, ProductDetail, Storefront } from "../../src/types.ts"
 
 export const DEFAULT_SITE_URL = "https://tanoytasi.shimizu-technology.com";
 export const DEFAULT_API_URL = "https://tano-y-tasi-api.onrender.com";
+// The puzzle home preview's own address. netlify.toml proxies it to the `puzzle` branch deploy, whose
+// edge function has already filled in its pages, so production passes them through untouched.
+export const PUZZLE_PREVIEW_HOST = "puzzle.shimizu-technology.com";
 export const DESCRIPTION = "Premium puzzles of Guåhan. A piece of home, wherever you are.";
 export interface InitialData {
   snapshotTime: number;
@@ -74,7 +77,7 @@ export async function enhanceResponse(request: Request, original: Response, opti
   const url = new URL(request.url);
   const route = matchRoute(url.pathname);
   const accept = request.headers.get("accept") ?? "*/*";
-  if (!route || request.method !== "GET" || !/(text\/html|\*\/\*)/i.test(accept) ||
+  if (!route || url.hostname === PUZZLE_PREVIEW_HOST || request.method !== "GET" || !/(text\/html|\*\/\*)/i.test(accept) ||
       !original.ok || !original.headers.get("content-type")?.includes("text/html")) return original;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
