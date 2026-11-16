@@ -44,6 +44,25 @@ function lifted(poses: Pose[], pieces: number[], elapsed: number, scale: number,
   return out;
 }
 
+/** Splits pieces into sections of pieces that touch side by side, so a name and a dot apart from it lift on their own. */
+function sections(pieces: number[]): number[][] {
+  const left = new Set(pieces);
+  const out: number[][] = [];
+  for (const first of pieces) {
+    if (!left.delete(first)) continue;
+    const section = [first];
+    for (let k = 0; k < section.length; k++) {
+      const [row, col] = [Math.floor(section[k] / MAP_CUT.cols), section[k] % MAP_CUT.cols];
+      for (const [r, c] of [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]]) {
+        const next = r * MAP_CUT.cols + c;
+        if (c >= 0 && c < MAP_CUT.cols && left.delete(next)) section.push(next);
+      }
+    }
+    out.push(section);
+  }
+  return out;
+}
+
 /** The finished map puzzle. Choosing a village lifts the pieces its name is on and leaves them outlined. */
 export function VillagePiece() {
   const id = useId();
@@ -90,16 +109,21 @@ export function VillagePiece() {
       context.fillStyle = "rgba(229, 223, 210, 0.42)";
       context.fillRect(layout.map.x * dpr, layout.map.y * dpr, layout.map.w * dpr, layout.map.h * dpr);
       const unit = layout.map.w / MAP_CUT.width;
-      const cells = pick.pieces.map((i) => MAP_CUT.pieces[i].cell);
-      const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
-      const scale = Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across));
       const settled = elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS;
-      drawFrame(context, sprites, settled ? poses : lifted(poses, pick.pieces, elapsed, scale, layout), pick.pieces, dpr, false);
+      let shown: Pose[] = poses;
+      if (!settled) {
+        for (const section of sections(pick.pieces)) {
+          const cells = section.map((i) => MAP_CUT.pieces[i].cell);
+          const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
+          shown = lifted(shown, section, elapsed, Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across)), layout);
+        }
+      }
+      drawFrame(context, sprites, shown, pick.pieces, dpr, false);
       if (!settled) {
         frame = requestAnimationFrame(draw);
         return;
       }
-      // One outline around the section. The pieces' outlines, as one shape, are stroked wide on a
+      // One outline around each section. The pieces' outlines, as one shape, are stroked wide on a
       // layer of their own, then everything inside the shape is cut away: only the outer edge stays,
       // and nothing shows through the seams between the section's pieces.
       ring = ring && ring.width === element.width && ring.height === element.height ? ring : Object.assign(document.createElement("canvas"), { width: element.width, height: element.height });
