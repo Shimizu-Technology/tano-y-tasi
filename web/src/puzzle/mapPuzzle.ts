@@ -16,17 +16,30 @@ export const MAP_PLAN = planPuzzle(MAP_CUT, villages, STAR, 1, landAt(MAP_LAND))
 // A piece shows a village's name when at least this many picture units of its letters are on it:
 // more than a stray speck at the edge of a letter.
 const LETTER_UNITS = 4;
-const named = new Map<string, number[]>();
+// Three names are lettered over the water, with lines to red dots beside Hagåtña's star. The dot is
+// where the village is, so its piece is the one that lifts. Fractions of the picture, from the art.
+export const VILLAGE_DOTS: Record<string, { x: number; y: number }> = {
+  "agana-heights": { x: 0.4541, y: 0.4164 },
+  "sinajana": { x: 0.4305, y: 0.4122 },
+  "mongmong-toto-maite": { x: 0.4126, y: 0.4226 },
+};
+const lifted = new Map<string, number[]>();
 /**
- * The pieces a village's name is lettered on (VILLAGE_LABELS, from scripts/build-village-labels.mjs),
- * most of the name first. Worked out the first time a village is asked for.
+ * The pieces that lift for a village, most of it first: the pieces its name is lettered on
+ * (VILLAGE_LABELS, from scripts/build-village-labels.mjs), or, for a name lettered over the water, the
+ * piece its dot is on. Worked out the first time a village is asked for.
  */
-export function namePieces(village: Village): number[] {
-  const known = named.get(village.slug);
+export function villagePieces(village: Village): number[] {
+  const known = lifted.get(village.slug);
   if (known) return known;
   const label = VILLAGE_LABELS[village.slug];
+  const dot = VILLAGE_DOTS[village.slug];
   let pieces = [pieceAt(MAP_CUT, village.x, village.y).index];
-  if (label) {
+  if (dot) {
+    // One piece, the one under the dot's centre: the dots sit close to the seams, and the pieces beside
+    // them hold other names. The settled piece rings the dot (VillagePiece).
+    pieces = [pieceAt(MAP_CUT, dot.x, dot.y).index];
+  } else if (label) {
     const { x, y, w, h, bits } = label.ink;
     const counts = new Map<number, number>();
     for (let i = 0; i < w * h; i++) {
@@ -37,6 +50,6 @@ export function namePieces(village: Village): number[] {
     const lettered = [...counts].filter(([, count]) => count >= LETTER_UNITS).sort((a, b) => b[1] - a[1]).map(([index]) => index);
     if (lettered.length) pieces = lettered;
   }
-  named.set(village.slug, pieces);
+  lifted.set(village.slug, pieces);
   return pieces;
 }

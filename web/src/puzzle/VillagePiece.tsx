@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { villages } from "../components/village/villages";
 import { useReducedMotion } from "../useReducedMotion";
 import { PUZZLE_ART } from "./art";
-import { MAP_CUT, MAP_PLAN, namePieces } from "./mapPuzzle";
+import { MAP_CUT, MAP_PLAN, VILLAGE_DOTS, villagePieces } from "./mapPuzzle";
 import { canDraw, context2d, drawFrame, fitLayout, makeSprites, outlinePath, poseAt, watchPixelRatio, whenLoaded, type Layout, type Pose, type Sprite } from "./render";
 import { easeInOut, easeOut } from "./timeline";
 import "../components/village/VillageFinder.css";
@@ -54,7 +54,7 @@ export function VillagePiece() {
   const selected = villages.find((village) => village.slug === slug);
   const canvas = useRef<HTMLCanvasElement>(null);
   const image = useRef<HTMLImageElement>(null);
-  const chosen = useRef<{ pieces: number[]; since: number } | null>(null);
+  const chosen = useRef<{ pieces: number[]; dot?: { x: number; y: number }; since: number } | null>(null);
   const redraw = useRef<() => void>(() => {});
   const caption = selected ? `${selected.name} on the Guåhan map.` : "The whole island of Guåhan.";
 
@@ -116,6 +116,13 @@ export function VillagePiece() {
       rctx.globalCompositeOperation = "destination-out";
       rctx.fill(section);
       rctx.globalCompositeOperation = "source-over";
+      // A village whose name is lettered over the water is marked by its dot: a ring round it says which.
+      if (pick.dot) {
+        rctx.beginPath();
+        rctx.arc(pick.dot.x * MAP_CUT.width, pick.dot.y * MAP_CUT.height, 5.5 / unit, 0, Math.PI * 2);
+        rctx.lineWidth = 2 / unit;
+        rctx.stroke();
+      }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(ring, 0, 0);
     };
@@ -172,12 +179,12 @@ export function VillagePiece() {
   function choose(next: string) {
     setSlug(next);
     const village = villages.find((v) => v.slug === next);
-    chosen.current = village ? { pieces: namePieces(village), since: performance.now() } : null;
+    chosen.current = village ? { pieces: villagePieces(village), dot: VILLAGE_DOTS[village.slug], since: performance.now() } : null;
     redraw.current();
   }
 
   return (
-    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"} data-lifted={selected ? namePieces(selected).length : 0}>
+    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"} data-lifted={selected ? villagePieces(selected).length : 0}>
       <div className="village-piece-intro">
         <h2 id={`${id}-heading`}>Find your village</h2>
         <p>Every village on Guåhan is on this map.</p>

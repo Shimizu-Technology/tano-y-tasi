@@ -17,6 +17,12 @@ async function centre(page: Page) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+// Waits for a phone's first turn round: under way, then back at the rest pose.
+async function firstTurn(page: Page) {
+  await expect.poll(() => turn(page)).toBeLessThan(-60);
+  await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
+}
+
 // Waits until the box has stopped moving on screen (a glide, or the eased settle after it) and returns where it stopped.
 async function stopped(page: Page) {
   const drawn = () => page.locator(".spin-box-body").first().evaluate((el) => getComputedStyle(el).transform);
@@ -96,13 +102,35 @@ test("a press released outside the box doesn't leave it dragging", async ({ page
   await expect(page).toHaveURL(/\/shop$/);
 });
 
+test("a phone turns the box once all the way round and back to the front, even under a finger scrolling past", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "The first turn is for touch screens.");
+  // The furthest round the first box has been, from its first frame on.
+  await page.addInitScript(() => {
+    const w = window as unknown as { furthest: number };
+    w.furthest = 0;
+    new MutationObserver(() => {
+      const el = document.querySelector<HTMLElement>(".spin-box-body");
+      const angle = Number(/rotateY\((-?[\d.]+)deg\)/.exec(el?.style.transform ?? "")?.[1] ?? 0);
+      w.furthest = Math.min(w.furthest, angle);
+    }).observe(document, { subtree: true, attributes: true, attributeFilter: ["style"] });
+  });
+  await page.goto("/shop");
+  await expect(page.locator(".spin-box-stage").first()).toBeVisible();
+  // Partway round, a finger lands on the box and scrolls the page a little.
+  await expect.poll(() => turn(page)).toBeLessThan(-60);
+  const at = await centre(page);
+  await swipe(page, at, 0, -40);
+  await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
+  expect(await page.evaluate(() => (window as unknown as { furthest: number }).furthest)).toBeLessThan(-300);
+  await page.waitForTimeout(600);
+  expect(await turn(page)).toBe(-24);
+});
+
 test("a finger drags a card's box round without opening the product or blocking the page scroll", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Touch drag.");
   await page.goto("/shop");
   await expect(page.locator(".spin-box-stage").first()).toBeVisible();
-  // Let the one-time hint turn finish.
-  await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
-  await page.waitForTimeout(900);
+  await firstTurn(page);
   await swipe(page, await centre(page), 120);
   // 120px turns it 72 degrees, less the few pixels that start a drag; how far the flick carries it depends on timing.
   expect(await stopped(page)).toBeGreaterThan(30);
@@ -114,10 +142,7 @@ test("a finger drags a card's box round without opening the product or blocking 
 test("the product page leads with the box: its button and a finger turn it, and a swipe beside it moves the gallery", async ({ page }, testInfo) => {
   await page.goto("/products/hafa-adai-from-tumon-bay");
   await expect(page.getByRole("img", { name: "Front of the Håfa Adai from Tumon Bay puzzle box." })).toBeVisible();
-  if (testInfo.project.name === "mobile") {
-    await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
-    await page.waitForTimeout(900);
-  }
+  if (testInfo.project.name === "mobile") await firstTurn(page);
   await page.getByRole("button", { name: "SHOW THE BACK" }).click();
   await expect(page.getByRole("button", { name: "SHOW THE FRONT" })).toBeVisible();
   expect(await turn(page)).toBe(156);
