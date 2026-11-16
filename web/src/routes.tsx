@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import { Layout } from "./components/Layout";
-import { Home } from "./pages/Home";
+// Either the classic home or the puzzle home, chosen when the site is built (vite.config.ts).
+import { HomePage } from "@home-page";
 import { Shop, Archive, Story, NotFound, Info } from "./pages/StorePages";
 import { ProductPage, DropPage } from "./pages/ProductPage";
 import { OrderPage, CancelPage } from "./pages/OrderPages";
@@ -12,11 +13,7 @@ export const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      // VITE_HOME_EXPERIENCE=puzzle builds the puzzle home (a preview, see README). Comparing the
-      // variable here lets the classic build drop the puzzle chunk entirely.
-      import.meta.env.VITE_HOME_EXPERIENCE === "puzzle"
-        ? { path: "/", lazy: async () => ({ Component: (await import("./pages/PuzzleHome")).PuzzleHome }) }
-        : { path: "/", element: <Home /> },
+      { path: "/", element: <HomePage /> },
       { path: "/shop", element: <Shop /> },
       { path: "/drop", element: <DropPage /> },
       { path: "/drops/:slug", element: <DropPage /> },
