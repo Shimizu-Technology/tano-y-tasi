@@ -93,7 +93,8 @@ export function VillagePiece() {
       element.height = Math.round(box.height * dpr);
       table = getComputedStyle(element).getPropertyValue("--color-tile").trim() || "#dbd3c3";
       layout = fitLayout(MAP_CUT, { x: 0, y: 0, w: box.width, h: box.height });
-      sprites = makeSprites(MAP_CUT, picture, (layout.map.w / MAP_CUT.width) * dpr, dpr);
+      // The finished map has no pile, so it skips the pre-shadowed images.
+      sprites = makeSprites(MAP_CUT, picture, (layout.map.w / MAP_CUT.width) * dpr, dpr, { still: false });
       element.dataset.ready = "";
       schedule();
     };

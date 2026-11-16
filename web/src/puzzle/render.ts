@@ -162,9 +162,10 @@ export function outlinePath(piece: Piece) {
 export interface Sprite {
   art: HTMLCanvasElement;
   shadow: HTMLCanvasElement;
-  // The piece with its resting or set shadow drawn in, so a still piece is one draw.
-  rest: HTMLCanvasElement;
-  set: HTMLCanvasElement;
+  // The piece with its resting or set shadow drawn in, so a still piece is one draw. Only the
+  // puzzle that has a pile needs them.
+  rest: HTMLCanvasElement | null;
+  set: HTMLCanvasElement | null;
   // The cell's center inside each image, in that image's pixels.
   anchor: [number, number];
   shadowAnchor: [number, number];
@@ -215,11 +216,13 @@ export function watchPixelRatio(onChange: () => void) {
 /**
  * Draws every piece once, at `scale` device pixels per picture unit: the art inside its outline
  * with a fine pressed cut line, and a soft shadow at half resolution. Frames only stamp these.
+ * `still` adds the pre-shadowed images a pile and a puzzle in progress draw from.
  */
-export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, dpr: number): Sprite[] {
+export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, dpr: number, { still = true } = {}): Sprite[] {
   const pad = 2;
   const blur = 5 * dpr * SHADOW_SCALE;
-  const shadowPad = Math.ceil(blur * 2 + 2);
+  // A canvas shadow fades out within about its blur; past that, padding is memory for nothing.
+  const shadowPad = Math.ceil(blur + 2);
   return cut.pieces.map((piece) => {
     const path = outlinePath(piece);
     const { bounds: b, cell } = piece;
@@ -255,7 +258,7 @@ export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, d
     // Full size, the shadow image covers the piece and its blur; the shadow's own offset fits in a margin.
     const margin = Math.ceil(REST.offset * dpr) + 1;
     const stillAnchor: [number, number] = [shadowAnchor[0] / SHADOW_SCALE, shadowAnchor[1] / SHADOW_SCALE];
-    const [rest, set] = [REST, SET].map(({ shadow: alpha, offset }) => {
+    const [rest, set] = (still ? [REST, SET] : []).map(({ shadow: alpha, offset }) => {
       const image = canvas(shadow.width / SHADOW_SCALE + margin, shadow.height / SHADOW_SCALE + margin);
       const ictx = context2d(image);
       ictx.globalAlpha = alpha;
@@ -264,7 +267,7 @@ export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, d
       ictx.drawImage(art, stillAnchor[0] - anchor[0], stillAnchor[1] - anchor[1]);
       return image;
     });
-    return { art, shadow, rest, set, anchor, shadowAnchor, stillAnchor };
+    return { art, shadow, rest: rest ?? null, set: set ?? null, anchor, shadowAnchor, stillAnchor };
   });
 }
 
@@ -279,9 +282,10 @@ export function drawFrame(ctx: CanvasRenderingContext2D, sprites: Sprite[], pose
     const sin = Math.sin(pose.turn) * pose.scale;
     const x = pose.x * dpr;
     const y = pose.y * dpr;
-    if (pose.still) {
+    const still = pose.still && sprite[pose.still];
+    if (still) {
       ctx.setTransform(cos, sin, -sin, cos, x, y);
-      ctx.drawImage(sprite[pose.still], -sprite.stillAnchor[0], -sprite.stillAnchor[1]);
+      ctx.drawImage(still, -sprite.stillAnchor[0], -sprite.stillAnchor[1]);
       continue;
     }
     if (pose.shadow > 0) {
