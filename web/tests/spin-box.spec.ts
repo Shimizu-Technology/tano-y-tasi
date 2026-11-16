@@ -17,6 +17,28 @@ async function centre(page: Page) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+// From its first frame on, how far round the first box has been, and where it was when a finger
+// pressed it, so a test can tell what happened even if it looked late.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { furthest: number; pressedAt?: number };
+    const angle = () => Number(/rotateY\((-?[\d.]+)deg\)/.exec(document.querySelector<HTMLElement>(".spin-box-body")?.style.transform ?? "")?.[1] ?? 0);
+    w.furthest = 0;
+    new MutationObserver(() => { w.furthest = Math.min(w.furthest, angle()); }).observe(document, { subtree: true, attributes: true, attributeFilter: ["style"] });
+    addEventListener("pointerdown", () => { w.pressedAt ??= angle(); }, true);
+  });
+});
+const seen = (page: Page) => page.evaluate(() => {
+  const w = window as unknown as { furthest: number; pressedAt?: number };
+  return { furthest: w.furthest, pressedAt: w.pressedAt };
+});
+
+// Waits for a phone's first turn round: all the way round, then back at the rest pose.
+async function firstTurn(page: Page) {
+  await expect.poll(async () => (await seen(page)).furthest, { timeout: 4000 }).toBeLessThan(-300);
+  await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
+}
+
 // Waits until the box has stopped moving on screen (a glide, or the eased settle after it) and returns where it stopped.
 async function stopped(page: Page) {
   const drawn = () => page.locator(".spin-box-body").first().evaluate((el) => getComputedStyle(el).transform);
@@ -96,13 +118,34 @@ test("a press released outside the box doesn't leave it dragging", async ({ page
   await expect(page).toHaveURL(/\/shop$/);
 });
 
+test("a phone turns the box once all the way round and back to the front, even under a finger scrolling past", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "The first turn is for touch screens.");
+  // The page's clock is held, so the turn is caught halfway round however slow the run.
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.goto("/shop");
+  // The shop loads in small steps of the held clock, so the turn has barely begun when the box shows.
+  const stage = page.locator(".spin-box-stage").first();
+  for (let i = 0; i < 50 && !(await stage.isVisible()); i++) await page.clock.runFor(100);
+  await page.clock.runFor(900);
+  expect(await turn(page)).toBeLessThan(-100);
+  // Halfway round, a finger lands on the box and scrolls the page a little.
+  await swipe(page, await centre(page), 0, -40);
+  await page.clock.runFor(1500);
+  await firstTurn(page);
+  // The finger really did land while the box was on its way round.
+  const { pressedAt } = await seen(page);
+  expect(pressedAt).toBeLessThan(-24);
+  expect(pressedAt).toBeGreaterThan(-384);
+  await page.waitForTimeout(600);
+  expect(await turn(page)).toBe(-24);
+});
+
 test("a finger drags a card's box round without opening the product or blocking the page scroll", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Touch drag.");
   await page.goto("/shop");
   await expect(page.locator(".spin-box-stage").first()).toBeVisible();
-  // Let the one-time hint turn finish.
-  await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
-  await page.waitForTimeout(900);
+  await firstTurn(page);
   await swipe(page, await centre(page), 120);
   // 120px turns it 72 degrees, less the few pixels that start a drag; how far the flick carries it depends on timing.
   expect(await stopped(page)).toBeGreaterThan(30);
@@ -114,10 +157,7 @@ test("a finger drags a card's box round without opening the product or blocking 
 test("the product page leads with the box: its button and a finger turn it, and a swipe beside it moves the gallery", async ({ page }, testInfo) => {
   await page.goto("/products/hafa-adai-from-tumon-bay");
   await expect(page.getByRole("img", { name: "Front of the Håfa Adai from Tumon Bay puzzle box." })).toBeVisible();
-  if (testInfo.project.name === "mobile") {
-    await expect.poll(() => turn(page), { timeout: 4000 }).toBe(-24);
-    await page.waitForTimeout(900);
-  }
+  if (testInfo.project.name === "mobile") await firstTurn(page);
   await page.getByRole("button", { name: "SHOW THE BACK" }).click();
   await expect(page.getByRole("button", { name: "SHOW THE FRONT" })).toBeVisible();
   expect(await turn(page)).toBe(156);

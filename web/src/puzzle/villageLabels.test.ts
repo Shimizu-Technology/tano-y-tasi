@@ -1,6 +1,8 @@
 import { villages } from "../components/village/villages";
 import { pieceAt } from "./geometry";
-import { MAP_CUT, namePieces } from "./mapPuzzle";
+import { MAP_LAND } from "./mapLand";
+import { MAP_CUT, STAR, VILLAGE_DOTS, villagePieces } from "./mapPuzzle";
+import { landAt } from "./timeline";
 import { VILLAGE_LABELS } from "./villageLabels";
 
 it("knows where every village's name is lettered, around its point on the map", () => {
@@ -46,9 +48,9 @@ it("knows which spots hold each name's letters, inside its box and plenty of the
 });
 
 it("lifts every piece a village's name is lettered on, and no piece without its letters", () => {
-  const find = (slug: string) => namePieces(villages.find((v) => v.slug === slug)!);
-  for (const village of villages) {
-    const pieces = namePieces(village);
+  const find = (slug: string) => villagePieces(villages.find((v) => v.slug === slug)!);
+  for (const village of villages.filter((v) => !VILLAGE_DOTS[v.slug])) {
+    const pieces = villagePieces(village);
     expect(pieces.length).toBeGreaterThanOrEqual(1);
     expect(pieces.length).toBeLessThanOrEqual(4);
     expect(new Set(pieces).size).toBe(pieces.length);
@@ -65,5 +67,24 @@ it("lifts every piece a village's name is lettered on, and no piece without its 
   expect(find("barrigada")).not.toContain(121);
   expect(find("inalahan")).toEqual([188]);
   // Asked again, the same answer, without working it out twice.
-  expect(namePieces(villages[0])).toBe(namePieces(villages[0]));
+  expect(villagePieces(villages[0])).toBe(villagePieces(villages[0]));
+});
+
+it("lifts a name lettered over the water and the piece where its dot is, on the island beside Hagåtña", () => {
+  expect(Object.keys(VILLAGE_DOTS).sort()).toEqual(["agana-heights", "mongmong-toto-maite", "sinajana"]);
+  for (const [slug, dot] of Object.entries(VILLAGE_DOTS)) {
+    const village = villages.find((v) => v.slug === slug)!;
+    const pieces = villagePieces(village);
+    // The piece under its dot comes first, so its lettering, lifted as for any name, is drawn over it.
+    const dotPiece = pieceAt(MAP_CUT, dot.x, dot.y).index;
+    expect(pieces[0]).toBe(dotPiece);
+    expect(pieces.slice(1).length).toBeGreaterThanOrEqual(1);
+    // The dot is on the island, close to the star, and away from the lettering out in the water.
+    expect(landAt(MAP_LAND)(dot.x, dot.y)).toBe(true);
+    expect(Math.hypot(dot.x - STAR.x, dot.y - STAR.y)).toBeLessThan(0.05);
+    const counts = new Map<number, number>();
+    for (const [x, y] of letters(slug)) counts.set(pieceAt(MAP_CUT, x, y).index, (counts.get(pieceAt(MAP_CUT, x, y).index) ?? 0) + 1);
+    for (const index of pieces.slice(1)) expect(counts.get(index)).toBeGreaterThanOrEqual(4);
+    expect(counts.has(dotPiece)).toBe(false);
+  }
 });

@@ -8,6 +8,9 @@ import "./SpinBox.css";
 const REST = -24;
 const SPIN_PER_MS = 360 / 6000;
 const SETTLE_MS = 600;
+// The first time a touch screen shows the box, it goes once all the way round and back to its rest.
+const INTRO_MS = 1800;
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 // A let-go box keeps turning and slows down: its speed falls by e every GLIDE_MS.
 const GLIDE_MS = 320;
 const MAX_FLICK = 1.2;
@@ -47,7 +50,7 @@ function Face({ art, side, sizes, priority, silent = false }: { art: Art | null;
 
 /**
  * A puzzle box built from its flat faces. A mouse turns it by hovering or dragging; a finger drags
- * it, after one small turn the first time it is seen. Let go, it glides to a stop and stays where
+ * it, after one turn all the way round the first time it is seen. Let go, it glides to a stop and stays where
  * it was left. `controls` adds a button that turns it to the other face, for keyboards.
  */
 export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority = false, controls = false }: {
@@ -61,8 +64,8 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
   const body = useRef<HTMLDivElement>(null);
   const angle = useRef(REST);
   const frame = useRef(0);
-  // What the running frame loop is doing: the hover spin, or the glide after a let-go.
-  const motion = useRef<"spin" | "glide" | null>(null);
+  // What the running frame loop is doing: the hover spin, the glide after a let-go, or the first turn round.
+  const motion = useRef<"spin" | "glide" | "intro" | null>(null);
   const drag = useRef<{ id: number; x: number; from: number; moved: boolean; at: number; speed: number } | null>(null);
   const dragged = useRef(false);
   const forget = useRef(0);
@@ -131,21 +134,29 @@ export function SpinBox({ box, sizes = "(min-width: 900px) 30vw, 60vw", priority
     forget.current = window.setTimeout(() => { dragged.current = false; }, 80);
   }
 
-  // One small turn the first time a touch screen shows the box, so it reads as something to turn.
+  // One turn all the way round, back to the rest pose, the first time a touch screen shows the box, so
+  // it reads as something to turn. A finger resting on the box while the page scrolls leaves it to
+  // finish; only a drag takes over, and then the box stays where the finger leaves it.
   useEffect(() => {
     const el = root.current;
     if (!el || reduced || typeof IntersectionObserver === "undefined" || !window.matchMedia?.("(hover: none)").matches) return;
-    let timer = 0;
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       observer.disconnect();
-      if (drag.current || angle.current !== REST) return;
-      turn(REST - 56, true);
-      timer = window.setTimeout(() => { if (!drag.current && angle.current === REST - 56) turn(REST, true); }, SETTLE_MS + 150);
+      if (motion.current || drag.current?.moved || angle.current !== REST) return;
+      motion.current = "intro";
+      const start = performance.now();
+      const tick = (now: number) => {
+        const done = Math.min(1, (now - start) / INTRO_MS);
+        turn(done === 1 ? REST : REST - 360 * easeInOut(done), false);
+        if (done === 1) return stop();
+        frame.current = requestAnimationFrame(tick);
+      };
+      frame.current = requestAnimationFrame(tick);
     }, { threshold: 0.75 });
     observer.observe(el);
-    return () => { observer.disconnect(); clearTimeout(timer); };
-    // turn only touches refs and a state setter.
+    return () => observer.disconnect();
+    // turn and stop only touch refs and a state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced]);
 

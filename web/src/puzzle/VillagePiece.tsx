@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { villages } from "../components/village/villages";
 import { useReducedMotion } from "../useReducedMotion";
 import { PUZZLE_ART } from "./art";
-import { MAP_CUT, MAP_PLAN, namePieces } from "./mapPuzzle";
+import { MAP_CUT, MAP_PLAN, VILLAGE_DOTS, villagePieces } from "./mapPuzzle";
 import { canDraw, context2d, drawFrame, fitLayout, makeSprites, outlinePath, poseAt, watchPixelRatio, whenLoaded, type Layout, type Pose, type Sprite } from "./render";
 import { easeInOut, easeOut } from "./timeline";
 import "../components/village/VillageFinder.css";
@@ -44,6 +44,25 @@ function lifted(poses: Pose[], pieces: number[], elapsed: number, scale: number,
   return out;
 }
 
+/** Splits pieces into sections of pieces that touch side by side, so a name and a dot apart from it lift on their own. */
+function sections(pieces: number[]): number[][] {
+  const left = new Set(pieces);
+  const out: number[][] = [];
+  for (const first of pieces) {
+    if (!left.delete(first)) continue;
+    const section = [first];
+    for (let k = 0; k < section.length; k++) {
+      const [row, col] = [Math.floor(section[k] / MAP_CUT.cols), section[k] % MAP_CUT.cols];
+      for (const [r, c] of [[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]]) {
+        const next = r * MAP_CUT.cols + c;
+        if (c >= 0 && c < MAP_CUT.cols && left.delete(next)) section.push(next);
+      }
+    }
+    out.push(section);
+  }
+  return out;
+}
+
 /** The finished map puzzle. Choosing a village lifts the pieces its name is on and leaves them outlined. */
 export function VillagePiece() {
   const id = useId();
@@ -54,7 +73,7 @@ export function VillagePiece() {
   const selected = villages.find((village) => village.slug === slug);
   const canvas = useRef<HTMLCanvasElement>(null);
   const image = useRef<HTMLImageElement>(null);
-  const chosen = useRef<{ pieces: number[]; since: number } | null>(null);
+  const chosen = useRef<{ pieces: number[]; dot?: { x: number; y: number }; since: number } | null>(null);
   const redraw = useRef<() => void>(() => {});
   const caption = selected ? `${selected.name} on the Guåhan map.` : "The whole island of Guåhan.";
 
@@ -90,16 +109,23 @@ export function VillagePiece() {
       context.fillStyle = "rgba(229, 223, 210, 0.42)";
       context.fillRect(layout.map.x * dpr, layout.map.y * dpr, layout.map.w * dpr, layout.map.h * dpr);
       const unit = layout.map.w / MAP_CUT.width;
-      const cells = pick.pieces.map((i) => MAP_CUT.pieces[i].cell);
-      const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
-      const scale = Math.min(MAX_GROW, Math.max(1.25, LIFTED_WIDTH / across));
       const settled = elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS;
-      drawFrame(context, sprites, settled ? poses : lifted(poses, pick.pieces, elapsed, scale, layout), pick.pieces, dpr, false);
+      let shown: Pose[] = poses;
+      if (!settled) {
+        for (const section of sections(pick.pieces)) {
+          const cells = section.map((i) => MAP_CUT.pieces[i].cell);
+          const across = (Math.max(...cells.map((c) => c.x + c.w)) - Math.min(...cells.map((c) => c.x))) * unit;
+          // A dot's piece on its own only has to stand out, not be read, and must not cover the name beside it.
+          const grow = pick.dot && section.length === 1 && section[0] === pick.pieces[0] ? 1 : LIFTED_WIDTH / across;
+          shown = lifted(shown, section, elapsed, Math.min(MAX_GROW, Math.max(1.25, grow)), layout);
+        }
+      }
+      drawFrame(context, sprites, shown, pick.pieces, dpr, false);
       if (!settled) {
         frame = requestAnimationFrame(draw);
         return;
       }
-      // One outline around the section. The pieces' outlines, as one shape, are stroked wide on a
+      // One outline around each section. The pieces' outlines, as one shape, are stroked wide on a
       // layer of their own, then everything inside the shape is cut away: only the outer edge stays,
       // and nothing shows through the seams between the section's pieces.
       ring = ring && ring.width === element.width && ring.height === element.height ? ring : Object.assign(document.createElement("canvas"), { width: element.width, height: element.height });
@@ -116,6 +142,13 @@ export function VillagePiece() {
       rctx.globalCompositeOperation = "destination-out";
       rctx.fill(section);
       rctx.globalCompositeOperation = "source-over";
+      // A village whose name is lettered over the water is marked by its dot: a ring round it says which.
+      if (pick.dot) {
+        rctx.beginPath();
+        rctx.arc(pick.dot.x * MAP_CUT.width, pick.dot.y * MAP_CUT.height, 5.5 / unit, 0, Math.PI * 2);
+        rctx.lineWidth = 2 / unit;
+        rctx.stroke();
+      }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.drawImage(ring, 0, 0);
     };
@@ -172,12 +205,12 @@ export function VillagePiece() {
   function choose(next: string) {
     setSlug(next);
     const village = villages.find((v) => v.slug === next);
-    chosen.current = village ? { pieces: namePieces(village), since: performance.now() } : null;
+    chosen.current = village ? { pieces: villagePieces(village), dot: VILLAGE_DOTS[village.slug], since: performance.now() } : null;
     redraw.current();
   }
 
   return (
-    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"} data-lifted={selected ? namePieces(selected).length : 0}>
+    <section className="home-section village-piece" aria-labelledby={`${id}-heading`} data-village={selected?.slug ?? "whole"} data-lifted={selected ? villagePieces(selected).length : 0}>
       <div className="village-piece-intro">
         <h2 id={`${id}-heading`}>Find your village</h2>
         <p>Every village on Guåhan is on this map.</p>

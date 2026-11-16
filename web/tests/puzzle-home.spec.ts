@@ -295,6 +295,35 @@ test("a settled section has one outline around it, and nothing inside its seams"
   expect(most).toBeLessThanOrEqual(24);
 });
 
+test("a name lettered over the water lifts with the piece where its dot is, and the dot is ringed", async ({ page }) => {
+  await page.clock.install();
+  await open(page);
+  await page.locator(".village-piece-board").scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
+  // Agana Heights' dot, beside Hagåtña's star (VILLAGE_DOTS), in picture units. Its piece's lower edge
+  // passes just under it, so the ring is looked for straight above the dot, clear of any outline: a
+  // small box where the ring (5.5 CSS px out) crosses.
+  const dot = { x: 0.4541 * 509, y: 0.4164 * 640 };
+  const orange = () => page.locator(".village-piece-canvas").evaluate((c: HTMLCanvasElement, d) => {
+    const k = c.width / 509;
+    const r = 5.5 / (c.getBoundingClientRect().width / 509);
+    const data = c.getContext("2d")!.getImageData(Math.round((d.x - 2) * k), Math.round((d.y - r - 1.5) * k), Math.round(4 * k), Math.round(3 * k)).data;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) if (Math.abs(data[i] - 237) + Math.abs(data[i + 1] - 96) + Math.abs(data[i + 2] - 27) < 60) count++;
+    return { count, of: data.length / 4 };
+  }, dot);
+  await page.clock.pauseAt(new Date(Date.now() + 60_000));
+  await page.clock.runFor(100);
+  const before = await orange();
+  await page.locator(".village-piece select").selectOption("agana-heights");
+  // Its name's two pieces and the dot's piece.
+  await expect(page.locator(".village-piece")).toHaveAttribute("data-lifted", "3");
+  await page.clock.runFor(2000);
+  const after = await orange();
+  expect(before.count).toBe(0);
+  expect(after.count).toBeGreaterThan(after.of / 6);
+});
+
 test("choosing a village lifts its piece and leaves it outlined", async ({ page }) => {
   await open(page);
   const section = page.locator(".village-piece");
