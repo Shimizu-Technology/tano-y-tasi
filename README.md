@@ -17,7 +17,7 @@ The site has two home pages. The live site keeps the classic one. The puzzle hom
 - Live: https://tanoytasi.shimizu-technology.com
 - Puzzle home: https://puzzle--tano-y-tasi.netlify.app
 
-Both use the same API and catalog; only the home page differs. The preview is a Netlify branch deploy (free, unlike production deploys) of the `puzzle` branch, which `netlify.toml` builds with `VITE_HOME_EXPERIENCE=puzzle`. The API allows its origin through `WEB_APP_URL`. Checkout and emails still send people to the live site.
+Both use the same API and catalog; only the home page differs. The preview is a Netlify branch deploy (free, unlike production deploys) of the `puzzle` branch, which `netlify.toml` builds with `VITE_HOME_EXPERIENCE=puzzle`. The API allows its origin through `WEB_APP_URL`. Checkout and emails still send people to the live site. Every non-production deploy, the preview included, sends `X-Robots-Tag: noindex`, so search engines keep to the live site.
 
 The `puzzle` branch carries no code of its own. To bring the preview up to date after merging to `main`:
 
@@ -25,4 +25,4 @@ The `puzzle` branch carries no code of its own. To bring the preview up to date 
 git push origin origin/main:puzzle
 ```
 
-To make the puzzle home the live home page, set `VITE_HOME_EXPERIENCE=puzzle` for production builds. Locally, `VITE_HOME_EXPERIENCE=puzzle npm run dev` serves it, and `npm run test:e2e` tests both home pages.
+Each build carries only its own home page: `vite.config.ts` points the `@home-page` import at `src/pages/home.classic.ts` or `home.puzzle.ts`. To make the puzzle home the live home page, set `VITE_HOME_EXPERIENCE=puzzle` for production builds. Locally, `VITE_HOME_EXPERIENCE=puzzle npm run dev` serves it, and `npm run test:e2e` tests both home pages.

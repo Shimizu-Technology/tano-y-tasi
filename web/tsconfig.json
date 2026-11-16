@@ -15,7 +15,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client", "vitest/globals", "node"]
+    "types": ["vite/client", "vitest/globals", "node"],
+    // Typed as the classic home; vite.config.ts points it at the home a build serves.
+    "paths": { "@home-page": ["./src/pages/home.classic.ts"] }
   },
   "include": ["src", "tests", "*.ts"]
 }

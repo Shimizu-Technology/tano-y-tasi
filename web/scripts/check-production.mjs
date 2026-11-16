@@ -27,6 +27,10 @@ async function scan(directory) {
   }
 }
 await scan("dist");
+// Only non-production Netlify deploys (CONTEXT is set by Netlify) may tell search engines to stay away.
+const headers = await readFile("dist/_headers", "utf8").catch(() => "");
+if (!process.env.CONTEXT || process.env.CONTEXT === "production") assert(!/noindex/i.test(headers), "A production build would be hidden from search");
+else assert(/X-Robots-Tag: noindex/.test(headers), `A ${process.env.CONTEXT} build must be hidden from search`);
 const netlifyConfig = await readFile("../netlify.toml", "utf8");
 for (const forbiddenSource of ["https://*.clerk.accounts.dev", "https://*.clerk.com", "https://api.clerk.com"])
   assert(!netlifyConfig.includes(forbiddenSource), `Broad Clerk CSP source remains: ${forbiddenSource}`);
