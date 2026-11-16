@@ -12,7 +12,11 @@ export const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      { path: "/", element: <Home /> },
+      // VITE_HOME_EXPERIENCE=puzzle builds the puzzle home (a preview, see README). Comparing the
+      // variable here lets the classic build drop the puzzle chunk entirely.
+      import.meta.env.VITE_HOME_EXPERIENCE === "puzzle"
+        ? { path: "/", lazy: async () => ({ Component: (await import("./pages/PuzzleHome")).PuzzleHome }) }
+        : { path: "/", element: <Home /> },
       { path: "/shop", element: <Shop /> },
       { path: "/drop", element: <DropPage /> },
       { path: "/drops/:slug", element: <DropPage /> },

@@ -21,6 +21,8 @@ A custom storefront for Tåno y Tåsi, a Guam/Chamorro puzzle and lifestyle bran
 
 Ports 3000 and 5173 are used by other Shimizu projects; don't use them here.
 
+The puzzle home preview (README, "The puzzle home preview") is the same app built with `VITE_HOME_EXPERIENCE=puzzle`, deployed from the `puzzle` branch. Its browser tests run on port 5183.
+
 ### Database safety (mandatory)
 
 Several Shimizu Rails repos share this machine's Postgres, and a generic `api_development` database has been wiped by accident before. This app's databases are **`tano_y_tasi_development`** and **`tano_y_tasi_test`** only.
@@ -46,7 +48,7 @@ Several Shimizu Rails repos share this machine's Postgres, and a generic `api_de
 ## Gates (must pass before a PR is ready)
 
 - API: `bundle exec rspec`, `bundle exec rubocop`, `bundle exec brakeman --no-pager --quiet`, `bundle exec bundler-audit check --update`
-- Web: `npm run lint`, `npm test`, `npm run build`, `npm run test:e2e`
+- Web: `npm run lint`, `npm test`, `npm run build`, `npm run test:e2e` (both home pages: the classic one and the puzzle home)
 
 ## Workflow
 

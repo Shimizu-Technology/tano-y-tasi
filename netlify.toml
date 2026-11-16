@@ -11,6 +11,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# The puzzle home preview: the `puzzle` branch is a branch deploy of this site, built with the map
+# puzzle as its home page, at https://puzzle--tano-y-tasi.netlify.app. Production is unaffected.
+[context.puzzle.environment]
+  VITE_HOME_EXPERIENCE = "puzzle"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
