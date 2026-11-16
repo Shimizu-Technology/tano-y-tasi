@@ -24,7 +24,10 @@ it("lays each piece in the pile turned, then sets it in its cell, square and fla
   const start = poses(0);
   const end = poses(1);
   expect(start.every((pose) => pose.t === 0 && pose.scale === 1)).toBe(true);
-  expect(start.filter((pose) => Math.abs(pose.turn) > 0.05).length).toBeGreaterThan(30);
+  expect(start.filter((pose) => Math.abs(pose.turn) > 0.05).length).toBeGreaterThan(MAP_CUT.pieces.length * 0.6);
+  // A piece in the pile or in place is drawn from its image with the shadow drawn in.
+  expect(start.every((pose) => pose.still === "rest")).toBe(true);
+  expect(end.every((pose) => pose.still === "set")).toBe(true);
   MAP_CUT.pieces.forEach(({ cell }, i) => {
     expect(end[i].t).toBe(1);
     expect(end[i].turn).toBeCloseTo(0);
@@ -34,7 +37,13 @@ it("lays each piece in the pile turned, then sets it in its cell, square and fla
   // In the air a piece is lifted: larger, with a longer shadow than in the pile or in place.
   const i = MAP_PLAN.last;
   const mid = poseAt(MAP_CUT, MAP_PLAN, layout, i, (MAP_PLAN.start[i] + MAP_PLAN.end[i]) / 2);
-  expect(mid.scale).toBeGreaterThan(1.05);
+  expect(mid.still).toBeUndefined();
+  // The last piece is held up large on its way in; others lift a little.
+  expect(mid.scale).toBeGreaterThan(1.5);
+  const other = MAP_CUT.pieces.findIndex((piece) => piece.index !== MAP_PLAN.last);
+  const otherMid = poseAt(MAP_CUT, MAP_PLAN, layout, other, (MAP_PLAN.start[other] + MAP_PLAN.end[other]) / 2);
+  expect(otherMid.scale).toBeGreaterThan(1.03);
+  expect(otherMid.scale).toBeLessThan(1.15);
   expect(mid.offset).toBeGreaterThan(start[i].offset);
   expect(mid.offset).toBeGreaterThan(end[i].offset);
 });
@@ -42,7 +51,7 @@ it("lays each piece in the pile turned, then sets it in its cell, square and fla
 it("layers the pile under the placed pieces under the pieces in the air", () => {
   const at = poses(0.3);
   const { pile, placed, moving } = layers(MAP_PLAN, at);
-  expect(pile.length + placed.length + moving.length).toBe(48);
+  expect(pile.length + placed.length + moving.length).toBe(MAP_CUT.pieces.length);
   expect(pile.every((i) => at[i].t === 0)).toBe(true);
   expect(placed.every((i) => at[i].t === 1)).toBe(true);
   expect(moving.every((i) => at[i].t > 0 && at[i].t < 1)).toBe(true);
@@ -53,7 +62,7 @@ it("layers the pile under the placed pieces under the pieces in the air", () => 
 
 it("repaints a square that covers a piece and its shadow at any turn, in whole pixels", () => {
   const image = (width: number, height: number) => ({ width, height }) as HTMLCanvasElement;
-  const sprite: Sprite = { art: image(100, 80), shadow: image(70, 60), anchor: [50, 40], shadowAnchor: [35, 30] };
+  const sprite: Sprite = { art: image(100, 80), shadow: image(70, 60), rest: image(143, 123), set: image(143, 123), anchor: [50, 40], shadowAnchor: [35, 30], stillAnchor: [70, 60] };
   const rect = reach(sprite, { x: 100.3, y: 50.7, turn: 0.4, scale: 1.08, t: 0.5, shadow: 0.6, offset: 11.5 }, 2);
   expect([rect.x, rect.y, rect.w, rect.h].every(Number.isInteger)).toBe(true);
   // The shadow, twice the size of its half-resolution image and pushed by the lift, sets the reach here.

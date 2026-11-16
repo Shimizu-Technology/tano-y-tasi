@@ -50,14 +50,16 @@ test("scrolling puts the land together, then the sea, then the last piece, and t
   await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
   await scrollThrough(page, 0.3);
   await expect(activeChapter(page)).toHaveText("Tåno is land.");
+  const pieces = Number(await hero(page).getAttribute("data-pieces"));
   const land = Number(await hero(page).getAttribute("data-placed"));
+  // Some of the island is in place; the sea isn't yet.
   expect(land).toBeGreaterThan(0);
-  expect(land).toBeLessThan(30);
+  expect(land).toBeLessThan(pieces / 2);
   await scrollThrough(page, 0.7);
   await expect(activeChapter(page)).toHaveText("Tåsi is sea.");
   expect(Number(await hero(page).getAttribute("data-placed"))).toBeGreaterThan(land);
   await scrollThrough(page, 1);
-  await expect(hero(page)).toHaveAttribute("data-placed", "48");
+  await expect(hero(page)).toHaveAttribute("data-placed", (await hero(page).getAttribute("data-pieces"))!);
   await expect(activeChapter(page)).toContainText("Guåhan Sunset Map");
   await expect(activeChapter(page)).toContainText("Drop 001 · Coming soon");
   // The pile is gone and the finished map is drawn.
@@ -129,8 +131,12 @@ test("a browser that can't back the canvases gets the finished map, not an empty
 test("a change of screen sharpness redraws the puzzle at the new resolution", async ({ page }, info) => {
   await open(page);
   await expect(page.locator(".puzzle-canvas")).toHaveAttribute("data-ready", "");
+  // The village puzzle's picture loads lazily; bring it in so both puzzles are drawn.
+  await page.locator(".village-piece").scrollIntoViewIfNeeded();
+  await expect(page.locator(".village-piece-canvas")).toHaveAttribute("data-ready", "");
+  await page.evaluate(() => window.scrollTo(0, 0));
   const widths = () => page.evaluate(() => [...document.querySelectorAll<HTMLCanvasElement>(".puzzle-canvas canvas, .village-piece-canvas")].map((c) => c.width / c.getBoundingClientRect().width));
-  expect(await widths()).toEqual([1, 1, 1, 1]);
+  await expect.poll(widths).toEqual([1, 1, 1, 1]);
   const viewport = page.viewportSize()!;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setDeviceMetricsOverride", { ...viewport, deviceScaleFactor: 2, mobile: info.project.name === "mobile" });

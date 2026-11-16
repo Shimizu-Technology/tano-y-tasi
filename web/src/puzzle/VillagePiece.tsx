@@ -14,10 +14,14 @@ const LIFT_MS = 300;
 const HOLD_MS = 220;
 const SETTLE_MS = 380;
 
+// A lifted piece is shown at least this wide, in CSS pixels, so its village reads.
+const LIFTED_WIDTH = 64;
+
 // A chosen piece rises out of the finished map, turns a little, and settles back into its place.
-function lifted(base: Pose, elapsed: number): Pose {
+// `grow` is how much larger it gets at the top of the lift.
+function lifted(base: Pose, elapsed: number, grow: number): Pose {
   const up = elapsed < LIFT_MS ? easeOut(elapsed / LIFT_MS) : elapsed < LIFT_MS + HOLD_MS ? 1 : 1 - easeInOut(Math.min(1, (elapsed - LIFT_MS - HOLD_MS) / SETTLE_MS));
-  return { ...base, y: base.y - 8 * up, turn: -0.1 * up, scale: 1 + 0.2 * up, shadow: 0.55 * up, offset: 14 * up };
+  return { ...base, y: base.y - 8 * up, turn: -0.1 * up, scale: 1 + grow * up, shadow: 0.55 * up, offset: 14 * up };
 }
 
 /** The finished map puzzle. Choosing a village lifts its piece and leaves it outlined. */
@@ -48,7 +52,8 @@ export function VillagePiece() {
     const draw = (now: number) => {
       frame = 0;
       if (!context || !sprites || !layout) return;
-      const poses = MAP_CUT.pieces.map((piece) => ({ ...poseAt(MAP_CUT, MAP_PLAN, layout!, piece.index, 1), shadow: 0 }));
+      // The finished map lies flat: no shadows.
+      const poses = MAP_CUT.pieces.map((piece) => ({ ...poseAt(MAP_CUT, MAP_PLAN, layout!, piece.index, 1), shadow: 0, still: undefined }));
       const pick = chosen.current;
       const order = MAP_CUT.pieces.map((piece) => piece.index).filter((index) => index !== pick?.index);
       // The canvas is opaque, covering the picture beneath it, so a lifted piece leaves an empty slot.
@@ -62,7 +67,8 @@ export function VillagePiece() {
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = "rgba(229, 223, 210, 0.42)";
       context.fillRect(layout.map.x * dpr, layout.map.y * dpr, layout.map.w * dpr, layout.map.h * dpr);
-      const pose = Number.isFinite(elapsed) ? lifted(poses[pick.index], elapsed) : poses[pick.index];
+      const grow = Math.max(0.2, LIFTED_WIDTH / (layout.map.w / MAP_CUT.cols) - 1);
+      const pose = Number.isFinite(elapsed) ? lifted(poses[pick.index], elapsed, grow) : poses[pick.index];
       drawFrame(context, sprites, [...poses.slice(0, pick.index), pose, ...poses.slice(pick.index + 1)], [pick.index], dpr, false);
       if (elapsed >= LIFT_MS + HOLD_MS + SETTLE_MS) {
         const unit = (layout.map.w / MAP_CUT.width) * dpr;

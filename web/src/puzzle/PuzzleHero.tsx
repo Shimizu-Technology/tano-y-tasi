@@ -187,8 +187,6 @@ export function PuzzleHero({ drop, core }: { drop: Drop | null; core: Product[] 
   const map = findMap(drop, core);
   const chapters = [
     <>
-      {/* Desktop only; lazy, so a phone that hides it never loads it. */}
-      <Emblem className="puzzle-emblem" sizes="(min-width: 900px) 220px, 1px" width={360} />
       <h1 id="home-title">{brand.tagline}</h1>
       <p className="home-mission">{brand.mission[0]}</p>
       {live && <p className="puzzle-hint label" aria-hidden="true">Scroll to put Guåhan together <ArrowDown /></p>}
@@ -205,15 +203,19 @@ export function PuzzleHero({ drop, core }: { drop: Drop | null; core: Product[] 
   ];
 
   return (
-    <section ref={section} className="puzzle-hero" data-mode={live ? "live" : "still"} aria-labelledby="home-title">
+    <section ref={section} className="puzzle-hero" data-mode={live ? "live" : "still"} data-pieces={MAP_CUT.pieces.length} aria-labelledby="home-title">
       <div ref={sticky} className="puzzle-sticky">
         {live && <div ref={layersRef} className="puzzle-canvas" aria-hidden="true" />}
         <div className="puzzle-copy">
+          {/* Desktop only, and it stays while the words change. Lazy, so a phone that hides it never loads it. */}
+          <Emblem className="puzzle-emblem" sizes="(min-width: 900px) 220px, 1px" width={360} />
           {/* The later chapters restate the story and the drop, which follow in full further down the
               page, so assistive technology reads the first chapter only. */}
-          {(live ? chapters : chapters.slice(0, 1)).map((content, index) => (
-            <div key={index} className="puzzle-chapter" data-active={index === (live ? chapter : 0) || undefined} aria-hidden={index > 0 || undefined}>{content}</div>
-          ))}
+          <div className="puzzle-chapters">
+            {(live ? chapters : chapters.slice(0, 1)).map((content, index) => (
+              <div key={index} className="puzzle-chapter" data-active={index === (live ? chapter : 0) || undefined} aria-hidden={index > 0 || undefined}>{content}</div>
+            ))}
+          </div>
         </div>
         <div ref={stage} className="puzzle-stage">
           {/* The finished map: what the canvas draws from, and what shows when it can't. */}
