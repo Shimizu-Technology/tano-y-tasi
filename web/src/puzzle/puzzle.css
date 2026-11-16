@@ -9,7 +9,8 @@
 .puzzle-canvas > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* The words change with the pieces: every chapter sits in the same cell and only the current one shows. */
-.puzzle-copy { position: relative; z-index: 2; display: grid; padding: 16px var(--gutter) 0; text-align: center; }
+.puzzle-copy { position: relative; z-index: 2; padding: 16px var(--gutter) 0; text-align: center; }
+.puzzle-chapters { display: grid; }
 .puzzle-chapter { grid-area: 1 / 1; align-self: center; transition: opacity 260ms var(--ease-out), transform 260ms var(--ease-out); }
 .puzzle-chapter:not([data-active]) { opacity: 0; transform: translateY(10px); }
 .puzzle-hero h1 { font-size: clamp(30px, 9vw, 44px); font-weight: 800; line-height: 1.05; letter-spacing: -0.045em; text-wrap: balance; }

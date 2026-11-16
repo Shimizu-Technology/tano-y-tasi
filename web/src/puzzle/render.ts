@@ -16,7 +16,13 @@ export interface Pose {
   t: number;
   shadow: number;
   offset: number;
+  // A piece lying in the pile or set in the puzzle uses an image with its shadow drawn in.
+  still?: "rest" | "set";
 }
+// The shadows of a piece lying in the pile and of one set in the puzzle, which sits a hair above the
+// pile until the pile is gone.
+const REST = { shadow: 0.3, offset: 1.5 };
+const SET = { shadow: 0.14, offset: 0.75 };
 
 /** The finished map fitted inside a box, centered; and the table the pile is spread on. */
 export function fitLayout(cut: Cut, box: Rect): Layout {
@@ -42,15 +48,17 @@ export function poseAt(cut: Cut, plan: Plan, layout: Layout, index: number, prog
   const [dx, dy] = [home[0] - from[0], home[1] - from[1]];
   // The arc bows sideways by a share of the distance travelled, more for long moves.
   const bow = loose.arc * 0.35 * lift;
+  // The last piece is held up to the eye on its way in, so the moment reads.
+  const grow = index === plan.last ? 1.2 : 0.08;
   return {
     x: from[0] + dx * e - dy * bow,
     y: from[1] + dy * e + dx * bow,
     turn: loose.turn * (1 - easeOut(t)),
-    scale: 1 + 0.08 * lift,
+    scale: 1 + grow * lift,
     t,
-    // Placed pieces keep a faint shadow so the puzzle sits above the pile until the pile is gone.
-    shadow: t >= 1 ? 0.14 : 0.3 + 0.3 * lift,
-    offset: t >= 1 ? 0.75 : 1.5 + 10 * lift,
+    shadow: t >= 1 ? SET.shadow : REST.shadow + 0.3 * lift,
+    offset: t >= 1 ? SET.offset : REST.offset + 10 * lift,
+    still: t === 0 ? "rest" : t === 1 ? "set" : undefined,
   };
 }
 
@@ -154,9 +162,14 @@ export function outlinePath(piece: Piece) {
 export interface Sprite {
   art: HTMLCanvasElement;
   shadow: HTMLCanvasElement;
+  // The piece with its resting or set shadow drawn in, so a still piece is one draw. Only the
+  // puzzle that has a pile needs them.
+  rest: HTMLCanvasElement | null;
+  set: HTMLCanvasElement | null;
   // The cell's center inside each image, in that image's pixels.
   anchor: [number, number];
   shadowAnchor: [number, number];
+  stillAnchor: [number, number];
 }
 const SHADOW_SCALE = 0.5;
 
@@ -203,11 +216,13 @@ export function watchPixelRatio(onChange: () => void) {
 /**
  * Draws every piece once, at `scale` device pixels per picture unit: the art inside its outline
  * with a fine pressed cut line, and a soft shadow at half resolution. Frames only stamp these.
+ * `still` adds the pre-shadowed images a pile and a puzzle in progress draw from.
  */
-export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, dpr: number): Sprite[] {
+export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, dpr: number, { still = true } = {}): Sprite[] {
   const pad = 2;
   const blur = 5 * dpr * SHADOW_SCALE;
-  const shadowPad = Math.ceil(blur * 2 + 2);
+  // A canvas shadow fades out within about its blur; past that, padding is memory for nothing.
+  const shadowPad = Math.ceil(blur + 2);
   return cut.pieces.map((piece) => {
     const path = outlinePath(piece);
     const { bounds: b, cell } = piece;
@@ -238,7 +253,21 @@ export function makeSprites(cut: Cut, image: CanvasImageSource, scale: number, d
     sctx.fill(path);
 
     const [cx, cy] = [cell.x + cell.w / 2 - b.x, cell.y + cell.h / 2 - b.y];
-    return { art, shadow, anchor: [pad + cx * scale, pad + cy * scale], shadowAnchor: [shadowPad + cx * s, shadowPad + cy * s] };
+    const anchor: [number, number] = [pad + cx * scale, pad + cy * scale];
+    const shadowAnchor: [number, number] = [shadowPad + cx * s, shadowPad + cy * s];
+    // Full size, the shadow image covers the piece and its blur; the shadow's own offset fits in a margin.
+    const margin = Math.ceil(REST.offset * dpr) + 1;
+    const stillAnchor: [number, number] = [shadowAnchor[0] / SHADOW_SCALE, shadowAnchor[1] / SHADOW_SCALE];
+    const [rest, set] = (still ? [REST, SET] : []).map(({ shadow: alpha, offset }) => {
+      const image = canvas(shadow.width / SHADOW_SCALE + margin, shadow.height / SHADOW_SCALE + margin);
+      const ictx = context2d(image);
+      ictx.globalAlpha = alpha;
+      ictx.drawImage(shadow, offset * 0.6 * dpr, offset * dpr, shadow.width / SHADOW_SCALE, shadow.height / SHADOW_SCALE);
+      ictx.globalAlpha = 1;
+      ictx.drawImage(art, stillAnchor[0] - anchor[0], stillAnchor[1] - anchor[1]);
+      return image;
+    });
+    return { art, shadow, rest: rest ?? null, set: set ?? null, anchor, shadowAnchor, stillAnchor };
   });
 }
 
@@ -253,6 +282,12 @@ export function drawFrame(ctx: CanvasRenderingContext2D, sprites: Sprite[], pose
     const sin = Math.sin(pose.turn) * pose.scale;
     const x = pose.x * dpr;
     const y = pose.y * dpr;
+    const still = pose.still && sprite[pose.still];
+    if (still) {
+      ctx.setTransform(cos, sin, -sin, cos, x, y);
+      ctx.drawImage(still, -sprite.stillAnchor[0], -sprite.stillAnchor[1]);
+      continue;
+    }
     if (pose.shadow > 0) {
       const k = 1 / SHADOW_SCALE;
       ctx.globalAlpha = pose.shadow;
