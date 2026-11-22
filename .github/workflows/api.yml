@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   api:
-    # Ruby 3.3.4 has no build for newer runner images; keep CI on the Ruby production uses.
+    # Keep the runner image stable for the production Ruby 3.3.x toolchain.
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -33,9 +33,9 @@ jobs:
       RAILS_MAX_THREADS: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
-          ruby-version: 3.3.4
+          ruby-version: 3.3.14
           bundler-cache: true
           working-directory: api
       - name: Confirm isolated test database and migrate
