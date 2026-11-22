@@ -8,7 +8,7 @@ A custom storefront for Tåno y Tåsi, a Guam/Chamorro puzzle and lifestyle bran
 
 ## Structure
 
-- `api/`: Rails 8 API (Ruby 3.3.4, PostgreSQL 16). RSpec, RuboCop (rails-omakase), Brakeman, bundler-audit.
+- `api/`: Rails 8 API (Ruby 3.3.14, PostgreSQL 16). RSpec, RuboCop (rails-omakase), Brakeman, bundler-audit.
 - `web/`: React 19 + Vite + TypeScript + Tailwind CSS v4. Vitest + Testing Library, Playwright for browser smoke tests, ESLint.
 - `web/public/images/`: optimized derivatives of Christian's artwork. The originals live in the gitignored `design-source/` folder in Leon's main checkout only.
 

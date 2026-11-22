@@ -1,10 +1,10 @@
 # Tåno + Tåsi API
 
-Rails 8.1, Ruby 3.3.4, PostgreSQL 16. The shared interfaces are [API_CONTRACT.md](../docs/API_CONTRACT.md) and [ADMIN_API_CONTRACT.md](../docs/ADMIN_API_CONTRACT.md). No Redis or job worker is needed.
+Rails 8.1, Ruby 3.3.14, PostgreSQL 16. The shared interfaces are [API_CONTRACT.md](../docs/API_CONTRACT.md) and [ADMIN_API_CONTRACT.md](../docs/ADMIN_API_CONTRACT.md). No Redis or job worker is needed.
 
 ## Setup
 
-Use Ruby 3.3.4, install Bundler, then run `bundle install` inside `api/`. Copy `.env.example` to `.env`. Local Postgres uses `/tmp:5432` by default. Create only the two named databases if they do not already exist:
+Use Ruby 3.3.14, install Bundler, then run `bundle install` inside `api/`. Copy `.env.example` to `.env`. Local Postgres uses `/tmp:5432` by default. Create only the two named databases if they do not already exist:
 
 ```sh
 createdb -h /tmp tano_y_tasi_development
