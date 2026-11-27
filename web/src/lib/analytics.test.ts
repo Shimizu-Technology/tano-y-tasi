@@ -12,13 +12,28 @@ describe("Tåno y Tåsi analytics privacy", () => {
     vi.resetModules();
   });
 
-  it("redacts Clerk invitation tickets and private order tokens", () => {
+  it("redacts Clerk invitation tickets and private order/cancellation tokens across casing and encoding", () => {
     expect(sanitizeAnalyticsUrl("/admin/sign-up?__clerk_ticket=private-ticket&redirect=/admin")).toBe(
       "/admin/sign-up?__clerk_ticket=%5BREDACTED%5D&redirect=%2Fadmin",
     );
     expect(
       sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/orders/abc123secret?session_id=cs_live_999"),
     ).toBe("https://tanoytasi.shimizu-technology.com/orders/[REDACTED]?session_id=%5BREDACTED%5D");
+    expect(
+      sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/Orders/MixedCaseToken"),
+    ).toBe("https://tanoytasi.shimizu-technology.com/orders/[REDACTED]");
+    expect(
+      sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/%6Frders/EncodedToken"),
+    ).toBe("https://tanoytasi.shimizu-technology.com/orders/[REDACTED]");
+    expect(
+      sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/checkout/cancel/cancelToken123"),
+    ).toBe("https://tanoytasi.shimizu-technology.com/checkout/cancel/[REDACTED]");
+    expect(
+      sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/Checkout/%63ancel/cancelToken123"),
+    ).toBe("https://tanoytasi.shimizu-technology.com/checkout/cancel/[REDACTED]");
+    expect(
+      sanitizeAnalyticsUrl("https://tanoytasi.shimizu-technology.com/shop/prints"),
+    ).toBe("https://tanoytasi.shimizu-technology.com/shop/prints");
   });
 
   it("sanitizes top-level URLs and nested replay $snapshot_data metadata", () => {
@@ -61,10 +76,14 @@ describe("Tåno y Tåsi analytics privacy", () => {
     });
   });
 
-  it("identifies admin and order routes so subscriber emails and order tokens are excluded from session replay", () => {
+  it("identifies admin, order, and cancellation routes across casing and encoding", () => {
     expect(isAdminRoute("/admin")).toBe(true);
-    expect(isAdminRoute("/admin/subscribers")).toBe(true);
+    expect(isAdminRoute("/Admin/subscribers")).toBe(true);
+    expect(isAdminRoute("/%61dmin/subscribers")).toBe(true);
     expect(isAdminRoute("/orders/private-token")).toBe(true);
+    expect(isAdminRoute("/Orders/private-token")).toBe(true);
+    expect(isAdminRoute("/checkout/cancel/tok123")).toBe(true);
+    expect(isAdminRoute("/Checkout/%63ancel/tok123")).toBe(true);
     expect(isAdminRoute("/shop")).toBe(false);
     expect(isAdminRoute("/")).toBe(false);
   });

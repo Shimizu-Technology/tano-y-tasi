@@ -30,12 +30,29 @@ const SENSITIVE_PARAMS = new Set([
 ]);
 const NESTED_URL_KEYS = new Set(["href", "url", "name"]);
 
+function normalizeRoutePath(pathname: string): string {
+  const decoded = pathname
+    .split("/")
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment);
+      } catch {
+        return segment;
+      }
+    })
+    .join("/");
+  return decoded.toLowerCase();
+}
+
 export function isReplayExcludedRoute(pathname: string): boolean {
+  const normalized = normalizeRoutePath(pathname);
   return (
-    pathname === "/admin" ||
-    pathname.startsWith("/admin/") ||
-    pathname === "/orders" ||
-    pathname.startsWith("/orders/")
+    normalized === "/admin" ||
+    normalized.startsWith("/admin/") ||
+    normalized === "/orders" ||
+    normalized.startsWith("/orders/") ||
+    normalized === "/checkout/cancel" ||
+    normalized.startsWith("/checkout/cancel/")
   );
 }
 
@@ -49,9 +66,12 @@ export function sanitizeAnalyticsUrl(rawUrl: string): string {
         parsed.searchParams.set(key, "[REDACTED]");
       }
     }
-    // Redact private order status/cancellation tokens in paths (/orders/<token>).
-    if (/^\/orders\/[^/]+/.test(parsed.pathname)) {
+    // Redact private order status and cancellation tokens (case- and encoding-normalized to match React Router).
+    const normalizedPath = normalizeRoutePath(parsed.pathname);
+    if (/^\/orders\/[^/]+/.test(normalizedPath)) {
       parsed.pathname = "/orders/[REDACTED]";
+    } else if (/^\/checkout\/cancel\/[^/]+/.test(normalizedPath)) {
+      parsed.pathname = "/checkout/cancel/[REDACTED]";
     }
     return parsed.origin === "https://app.invalid"
       ? `${parsed.pathname}${parsed.search}${parsed.hash}`
