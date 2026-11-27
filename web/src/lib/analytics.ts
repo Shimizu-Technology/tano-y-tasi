@@ -30,9 +30,16 @@ const SENSITIVE_PARAMS = new Set([
 ]);
 const NESTED_URL_KEYS = new Set(["href", "url", "name"]);
 
-export function isAdminRoute(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/");
+export function isReplayExcludedRoute(pathname: string): boolean {
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/orders" ||
+    pathname.startsWith("/orders/")
+  );
 }
+
+export const isAdminRoute = isReplayExcludedRoute;
 
 export function sanitizeAnalyticsUrl(rawUrl: string): string {
   try {

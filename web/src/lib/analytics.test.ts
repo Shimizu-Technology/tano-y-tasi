@@ -61,9 +61,10 @@ describe("Tåno y Tåsi analytics privacy", () => {
     });
   });
 
-  it("identifies admin routes so subscriber views are excluded from session replay", () => {
+  it("identifies admin and order routes so subscriber emails and order tokens are excluded from session replay", () => {
     expect(isAdminRoute("/admin")).toBe(true);
     expect(isAdminRoute("/admin/subscribers")).toBe(true);
+    expect(isAdminRoute("/orders/private-token")).toBe(true);
     expect(isAdminRoute("/shop")).toBe(false);
     expect(isAdminRoute("/")).toBe(false);
   });
