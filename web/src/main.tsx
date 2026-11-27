@@ -5,6 +5,7 @@ import { RouterProvider } from "react-router";
 import "./styles.css";
 import { router } from "./routes";
 import { restoreInitialData } from "./api";
+import { capturePageview, initAnalytics } from "./lib/analytics";
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: true } },
 });
@@ -23,6 +24,10 @@ async function main() {
     )
   );
   await document.fonts.ready;
+  initAnalytics();
+  router.subscribe((state) => {
+    capturePageview(state.location.pathname, state.location.search);
+  });
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <QueryClientProvider client={client}>
