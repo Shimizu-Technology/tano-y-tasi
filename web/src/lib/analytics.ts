@@ -15,29 +15,36 @@ export const isAnalyticsEnabled =
 
 const SENSITIVE_PARAMS = new Set([
   "token",
+  "session_id",
+  "checkout_session_id",
   "code",
   "state",
   "auth",
   "email",
-  "session_id",
-  "payment_intent",
-  "payment_intent_client_secret",
   "clerk",
+  "__clerk_ticket",
+  "__clerk_status",
   "jwt",
   "key",
   "secret",
 ]);
+const NESTED_URL_KEYS = new Set(["href", "url", "name"]);
+
+export function isAdminRoute(pathname: string): boolean {
+  return pathname === "/admin" || pathname.startsWith("/admin/");
+}
 
 export function sanitizeAnalyticsUrl(rawUrl: string): string {
   try {
     const parsed = new URL(rawUrl, "https://app.invalid");
-    parsed.pathname = parsed.pathname
-      .replace(/^(\/orders\/)[^/]+/i, "$1[REDACTED]")
-      .replace(/^(\/checkout\/(?:cancel|simulated)\/)[^/]+/i, "$1[REDACTED]");
     for (const key of Array.from(parsed.searchParams.keys())) {
       if (SENSITIVE_PARAMS.has(key.toLowerCase())) {
         parsed.searchParams.set(key, "[REDACTED]");
       }
+    }
+    // Redact private order status/cancellation tokens in paths (/orders/<token>).
+    if (/^\/orders\/[^/]+/.test(parsed.pathname)) {
+      parsed.pathname = "/orders/[REDACTED]";
     }
     return parsed.origin === "https://app.invalid"
       ? `${parsed.pathname}${parsed.search}${parsed.hash}`
@@ -47,9 +54,33 @@ export function sanitizeAnalyticsUrl(rawUrl: string): string {
   }
 }
 
+function sanitizeNestedReplayValue(value: unknown, key?: string): unknown {
+  if (typeof value === "string") {
+    if (
+      key &&
+      NESTED_URL_KEYS.has(key) &&
+      (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/"))
+    ) {
+      return sanitizeAnalyticsUrl(value);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeNestedReplayValue(item));
+  }
+  if (value && typeof value === "object") {
+    const copy: Record<string, unknown> = {};
+    for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+      copy[childKey] = sanitizeNestedReplayValue(childValue, childKey);
+    }
+    return copy;
+  }
+  return value;
+}
+
 export function sanitizeAnalyticsEvent(event: CaptureResult | null): CaptureResult | null {
   if (!event?.properties) return event;
-  const props = event.properties;
+  const props = { ...event.properties };
   for (const key of [
     "$current_url",
     "$referrer",
@@ -63,12 +94,31 @@ export function sanitizeAnalyticsEvent(event: CaptureResult | null): CaptureResu
       props[key] = sanitizeAnalyticsUrl(props[key] as string);
     }
   }
-  return event;
+  if ("$snapshot_data" in props && props.$snapshot_data) {
+    props.$snapshot_data = sanitizeNestedReplayValue(props.$snapshot_data);
+  }
+  return { ...event, properties: props };
+}
+
+export function maskReplayNetworkRequest<T extends { name?: string }>(request: T): T {
+  if (!request?.name) return request;
+  return {
+    ...request,
+    name: sanitizeAnalyticsUrl(request.name),
+  };
 }
 
 let posthogPromise: Promise<PostHogClient | null> | null = null;
 let initialized = false;
 let lastCapturedPath: string | null = null;
+
+function syncReplayForRoute(ph: PostHogClient, pathname: string) {
+  if (isAdminRoute(pathname)) {
+    ph.stopSessionRecording?.();
+  } else {
+    ph.startSessionRecording?.();
+  }
+}
 
 function getPostHog(): Promise<PostHogClient | null> {
   if (!isAnalyticsEnabled || !POSTHOG_KEY || typeof window === "undefined") {
@@ -77,15 +127,20 @@ function getPostHog(): Promise<PostHogClient | null> {
   posthogPromise ||= import("posthog-js")
     .then(({ default: posthog }) => {
       if (!initialized) {
+        const onAdmin = isAdminRoute(window.location.pathname);
         posthog.init(POSTHOG_KEY, {
           api_host: POSTHOG_HOST,
           person_profiles: "identified_only",
           capture_pageview: false,
           capture_pageleave: true,
-          autocapture: true,
-          disable_session_recording: false,
+          // Keep autocapture off so private order-token link hrefs are never captured.
+          autocapture: false,
+          disable_session_recording: onAdmin,
           session_recording: {
             maskAllInputs: true,
+            recordHeaders: false,
+            recordBody: false,
+            maskCapturedNetworkRequestFn: maskReplayNetworkRequest,
           },
           before_send: sanitizeAnalyticsEvent,
         });
@@ -100,16 +155,26 @@ function getPostHog(): Promise<PostHogClient | null> {
   return posthogPromise;
 }
 
-export function capturePageview(pathname = window.location.pathname, search = window.location.search) {
+export function capturePageview(
+  pathname = window.location.pathname,
+  search = window.location.search,
+  href = window.location.href,
+) {
   if (!isAnalyticsEnabled || typeof window === "undefined") return;
   const sanitizedPath = sanitizeAnalyticsUrl(`${pathname}${search}`);
-  if (lastCapturedPath === sanitizedPath) return;
+  const currentUrl = sanitizeAnalyticsUrl(href);
+  const sanitizedPathname = sanitizeAnalyticsUrl(pathname);
+  const isDuplicate = lastCapturedPath === sanitizedPath;
   lastCapturedPath = sanitizedPath;
   void getPostHog().then((ph) => {
-    ph?.capture("$pageview", {
-      $current_url: sanitizeAnalyticsUrl(window.location.href),
-      $pathname: sanitizeAnalyticsUrl(pathname),
-    });
+    if (!ph) return;
+    syncReplayForRoute(ph, pathname);
+    if (!isDuplicate) {
+      ph.capture("$pageview", {
+        $current_url: currentUrl,
+        $pathname: sanitizedPathname,
+      });
+    }
   });
 }
 
