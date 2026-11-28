@@ -358,11 +358,11 @@ test("a closed store shows Coming soon everywhere and can't start a checkout", a
 test("policy pages render from the store, with the current contact email", async ({ page }) => {
   await page.goto("/info/returns");
   await expect(page.getByRole("heading", { level: 1, name: "Returns & refunds" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "shimizutechnology@gmail.com" })).toHaveAttribute("href", "mailto:shimizutechnology@gmail.com");
+  await expect(page.getByRole("link", { name: "hello@shimizu-technology.com" })).toHaveAttribute("href", "mailto:hello@shimizu-technology.com");
   await expect(page.getByText("Last updated")).toBeVisible();
   await overflow(page);
   await page.goto("/info/contact");
-  await expect(page.getByRole("link", { name: "shimizutechnology@gmail.com" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "hello@shimizu-technology.com" })).toBeVisible();
   for (const name of ["Shipping", "Returns", "FAQ", "Contact", "Privacy", "Terms"]) {
     await expect(page.locator(".footer-links").getByRole("link", { name, exact: true })).toBeVisible();
   }

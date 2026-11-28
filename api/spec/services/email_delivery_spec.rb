@@ -182,13 +182,27 @@ RSpec.describe "Transactional email delivery", type: :request do
 
   it "escapes user content in HTML and provides branded plain text and order links" do
     @order.order_items.first.update!(name: '<script>alert("x")</script>')
-    allow(StoreSetting).to receive(:current).and_return(StoreSetting.new(contact_email: "hello@example.com"))
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("MAILER_REPLY_TO").and_return(nil)
     complete
     payload = confirmation.outbound_payload
     expect(payload["html"]).to include("TÅNO + TÅSI", "#F5F0E7", "#141311", "&lt;script&gt;")
     expect(payload["html"]).not_to include("<script>")
     expect(payload["text"]).to include(@order.number, "$35.00 USD", "http://localhost:5181/orders/#{@order.token}")
-    expect(payload["reply_to"]).to eq("hello@example.com")
+    expect(payload["reply_to"]).to eq("support@shimizu-technology.com")
+    expect(payload["html"]).to include("support@shimizu-technology.com")
+  end
+
+  it "uses the configured reply address without changing the sender" do
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("MAILER_REPLY_TO").and_return("help@example.com")
+
+    complete
+
+    expect(confirmation.outbound_payload).to include(
+      "from" => ENV.fetch("MAILER_FROM_EMAIL"),
+      "reply_to" => "help@example.com"
+    )
   end
 
   it "caps automatic retries at five attempts and lets the task recover pending work" do
