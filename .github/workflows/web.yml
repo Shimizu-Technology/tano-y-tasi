@@ -8,6 +8,7 @@ permissions:
 jobs:
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -24,7 +25,18 @@ jobs:
       - run: npm run build
       - run: npm run check:dist
       - run: npm run audit:prod
-      - run: npx playwright install --with-deps chromium
+      # The lockfile pins Playwright and therefore its Chromium revision.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
+      - name: Install Chromium and system dependencies (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium system dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
