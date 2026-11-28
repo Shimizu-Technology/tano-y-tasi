@@ -2,7 +2,7 @@ import { mockSalesOpen, setMockSalesOpen } from "./data";
 import type { StorePage, StoreSettings } from "../types";
 
 const settings: Omit<StoreSettings, "sales_open"> = {
-  contact_email: "shimizutechnology@gmail.com",
+  contact_email: "hello@shimizu-technology.com",
   tagline: "A piece of home.",
   secondary_tagline: "Grounded by land, guided by sea.",
   story: "Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.",

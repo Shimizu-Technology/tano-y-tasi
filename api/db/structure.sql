@@ -578,7 +578,7 @@ ALTER SEQUENCE public.shipping_events_id_seq OWNED BY public.shipping_events.id;
 CREATE TABLE public.store_settings (
     id bigint NOT NULL,
     sales_open boolean DEFAULT false NOT NULL,
-    contact_email character varying DEFAULT 'shimizutechnology@gmail.com'::character varying NOT NULL,
+    contact_email character varying DEFAULT 'hello@shimizu-technology.com'::character varying NOT NULL,
     tagline character varying DEFAULT 'A piece of home.'::character varying NOT NULL,
     secondary_tagline character varying DEFAULT 'Grounded by land, guided by sea.'::character varying NOT NULL,
     story text DEFAULT 'Land and sea define our islands, but our culture extends beyond their shores. Tåno y Tåsi exists to keep us connected to where we come from, carrying a piece of home wherever we are.'::text NOT NULL,
@@ -1283,6 +1283,7 @@ ALTER TABLE ONLY public.order_items
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261129000001'),
 ('20261113000001'),
 ('20261104000005'),
 ('20261104000004'),

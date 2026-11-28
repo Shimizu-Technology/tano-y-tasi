@@ -4,7 +4,7 @@ RSpec.describe "Store settings and pages", type: :request do
   it "defaults to closed, with the agreed contact email" do
     allow(StoreSetting).to receive(:sales_open?).and_call_original
     store = StoreSetting.current
-    expect(store).to have_attributes(sales_open: false, contact_email: "shimizutechnology@gmail.com")
+    expect(store).to have_attributes(sales_open: false, contact_email: "hello@shimizu-technology.com")
     expect(StoreSetting.sales_open?).to be(false)
   end
 

@@ -31,6 +31,7 @@ module Emails
       else
         []
       end
+      reply_to = ENV["MAILER_REPLY_TO"].presence || "support@shimizu-technology.com"
       notes = extra_lines(delivery.kind, order)
       totals = total_lines(order)
       destination = destination_lines(delivery.kind, order)
@@ -47,12 +48,10 @@ module Emails
         #{totals.map.with_index { |line, index| "<p style=\"#{index == totals.size - 1 ? 'font-weight:bold' : 'margin:4px 0'}\">#{escape(line)}</p>" }.join}
         #{destination.map { |line| "<p style=\"margin:4px 0\">#{escape(line)}</p>" }.join}
         <p><a style="color:#141311" href="#{escape(link)}">#{admin ? "Open in admin" : "View your order"}</a></p>#{tracking_html}
-        <p style="font-size:14px">Questions? Just reply, or email #{escape(StoreSetting.current.contact_email)}.</p>
+        <p style="font-size:14px">Questions? Just reply, or email #{escape(reply_to)}.</p>
         </td></tr></table></td></tr></table></body></html>
       HTML
-      data = { from: ENV.fetch("MAILER_FROM_EMAIL"), to: delivery.to, subject: delivery.subject, html: html, text: text }
-      data[:reply_to] = StoreSetting.current.contact_email
-      data
+      { from: ENV.fetch("MAILER_FROM_EMAIL"), to: delivery.to, subject: delivery.subject, html: html, text: text, reply_to: reply_to }
     end
 
     # An order with no shipping or tax reads as it always has: one total.

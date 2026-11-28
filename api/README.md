@@ -115,6 +115,7 @@ Set the following environment variables in Render (also documented in `.env.exam
 | `ADMIN_NOTIFICATION_EMAILS` | Optional comma-separated new-order recipients; absent uses active admins. An explicit empty value disables admin notices. |
 | `RESEND_API_KEY` | Resend secret; required when email delivery is enabled. |
 | `MAILER_FROM_EMAIL` | Explicit verified sender, e.g. `Tåno + Tåsi <orders@shimizu-technology.com>`. |
+| `MAILER_REPLY_TO` | Optional reply address. Defaults to `support@shimizu-technology.com`. |
 | `EMAIL_DELIVERY_ENABLED` | Explicit boolean; blueprint defaults to `false` and records `skipped` until enabled. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Secret IAM credentials for presigning product image uploads. The user only needs `s3:PutObject` on `products/*`. |
 | `AWS_REGION`, `AWS_S3_BUCKET` | `ap-southeast-1`, `tano-y-tasi-media`. They also set which image URLs are accepted. Missing values return `503 storage_unavailable` on upload; boot is unaffected. |

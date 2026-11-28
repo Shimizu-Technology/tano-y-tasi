@@ -121,7 +121,7 @@ The `email_deliveries` table stores `order_id, kind (order_confirmation|admin_ne
 - **Env vars:**
   - `RESEND_API_KEY`
   - `MAILER_FROM_EMAIL`, e.g. `Tåno + Tåsi <orders@shimizu-technology.com>`
-  - `MAILER_REPLY_TO` (optional)
+  - `MAILER_REPLY_TO` (optional, defaults to `support@shimizu-technology.com`)
   - `EMAIL_DELIVERY_ENABLED` (explicit boolean; when false, deliveries are recorded as `skipped`)
 - Templates are table-based HTML with inline styles that follow the brand: paper `#F5F0E7` background and ink `#141311` text, a text wordmark and no remote fonts. Each also has a plain-text part. The confirmation includes the order number, items, subtotal, shipping, tax when there is any, the total paid, where it's going (or the pickup instructions) and a link to `/orders/:token`. On a pickup order, the `order_shipped` email is titled "ready for pickup". A preorder line also carries its ship text, except in the shipped email.
 
